@@ -2,11 +2,15 @@ import mongoose, { Schema } from "mongoose";
 
 const deviceSchema = mongoose.Schema(
   {
-    tenant: { type: String, required: true, index: true },
+    tenantId: { type: String, required: true, index: true },
     customerId: { type: String, default: null, index: true },
 
     name: { type: String, required: true },
-    profile: { type: String, default: "default" }, // İleride ObjectId olacak
+    profile: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "DeviceProfile",
+      required: true,
+    }, // İleride ObjectId olacak
     tag: { type: String }, // 'label' yerine 'tag' kullanıyoruz
     description: { type: String },
 
@@ -27,6 +31,6 @@ const deviceSchema = mongoose.Schema(
 );
 
 // Tenant içinde isim benzersizliği
-deviceSchema.index({ tenant: 1, name: 1 }, { unique: true });
+deviceSchema.index({ tenantId: 1, name: 1 }, { unique: true });
 
 export default mongoose.models.Device || mongoose.model("Device", deviceSchema);

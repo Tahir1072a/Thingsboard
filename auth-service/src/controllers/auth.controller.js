@@ -167,3 +167,19 @@ export async function resetPassword(req, res) {
     message: "Şifreniz başarıyla değiştirilmiştir",
   });
 }
+
+const GoogleLoginSchema = z.object({
+  idToken: z.string().min(1, "Google ID token zorunludur"),
+});
+
+export async function loginWithGoogle(req, res) {
+  const { idToken } = GoogleLoginSchema.parse(req.body);
+
+  const result = await AuthService.loginWithGoogle(idToken);
+
+  return res.status(200).json({
+    ok: true,
+    message: "Google ile giriş başarılı",
+    ...result,
+  });
+}

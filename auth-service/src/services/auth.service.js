@@ -14,6 +14,9 @@ import qrcode from "qrcode";
 import speakeasy from "speakeasy";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
+import { OAuth2Client } from "google-auth-library";
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 // Parametre olarak, kayıt olan kullanıcı bilgileri ve organizasyon ismini alır.
 // NOT: Aktivasyon linkini dönmemiz zorunlu değildir!
@@ -454,4 +457,71 @@ export async function resetPassword(password, userId, token) {
     console.error(`Parola resetleme hatası: ${err}`);
     throw new AppError("Parola resetleme sırasında bir hata oluştu.", 400);
   }
+}
+
+export async function loginWithGoogle(idToken) {
+  let ticket;
+  try {
+    ticket = await googleClient.verifyIdToken({
+      idToken: idToken,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+  } catch (err) {
+    throw new AppError("Geçersiz Google Token", 401);
+  }
+
+  const { email, given_name } = ticket.getPayload();
+
+  let user = await User.findOne({ email: email.toLowerCase() }).lean();
+
+  if (!user) {
+    throw new AppError(
+      "Google ile giriş yapabilmek için önce sisteme kayıtlı olmalısınız.",
+      403
+    );
+  }
+
+  if (user.status === "SUSPENDED") {
+    throw new AppError("Hesabınız askıya alınmıştır.", 403);
+  }
+
+  if (user.status === "INVITED") {
+    await User.updateOne({ _id: user._id }, { status: "ACTIVE" });
+
+    await UserCredentials.updateOne(
+      { userId: user._id },
+      {
+        $set: {
+          isActive: true,
+          activateToken: null,
+          activateTokenExp: null,
+        },
+      }
+    );
+
+    user.status = "ACTIVE";
+  }
+
+  const payload = {
+    userId: user._id,
+    email: user.email,
+    authority: user.authority,
+    tenantId: user.tenantId,
+    customerId: user.customerId,
+  };
+
+  const token = jwt.sign(payload, process.env.JWT_SECRET, {
+    expiresIn: "1d",
+  });
+
+  return {
+    mfaRequired: false,
+    token: token,
+    user: {
+      id: user._id,
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`.trim(),
+      role: user.authority,
+    },
+  };
 }

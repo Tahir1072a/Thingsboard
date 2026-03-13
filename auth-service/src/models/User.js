@@ -12,6 +12,7 @@ const UserSchema = new Schema(
       lowercase: true,
       trim: true,
     },
+    // Role
     authority: { type: String, enum: Authority, required: true },
 
     tenantId: { type: Schema.Types.ObjectId, ref: "Tenant", default: null },

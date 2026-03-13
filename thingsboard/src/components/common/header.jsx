@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "../ui/button";
 import { Bell, User, LogOut, ChevronDown } from "lucide-react";
 import {
@@ -11,10 +13,45 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import { Badge } from "../ui/badge";
+import toast from "react-hot-toast";
 
-export default function Header() {
-  const pageTitle = "Anasayfa";
+export default function Header({ pageTitle = "Anasayfa" }) {
+  const router = useRouter();
+  const [userInfo, setUserInfo] = useState({
+    name: "Yükleniyor...",
+    role: "-",
+  });
   const notificationCount = 3;
+
+  // Component yüklendiğinde localStorage'dan kullanıcı bilgisini çek
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      try {
+        // User ismi ve role alanı jwt içinde saklanıyor.
+        const parsed = JSON.parse(storedUser);
+        setUserInfo({
+          name: parsed.name || "Kullanıcı",
+          role: parsed.role || "Kullanıcı",
+        });
+      } catch (e) {
+        console.error("Kullanıcı verisi okunamadı");
+        setUserInfo({ name: "Misafir", role: "-" });
+      }
+    } else {
+      router.push("/login");
+    }
+  }, []);
+
+  // TODO: Burası tokena göre tekrar ayarlanacak.
+  const handleLogout = () => {
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+
+    toast.success("Başarıyla çıkış sağlandı");
+
+    router.push("/login");
+  };
 
   return (
     <header className="sticky top-0 z-50 glass border-b border-white/20 backdrop-blur-xl rounded-none">
@@ -69,9 +106,9 @@ export default function Header() {
 
                 <div className="hidden text-left md:block">
                   <div className="text-sm font-semibold text-text-main">
-                    Kullanıcı Adı
+                    {userInfo.name}
                   </div>
-                  <div className="text-xs text-text-muted">Tenant Admin</div>
+                  <div className="text-xs text-text-muted">{userInfo.role}</div>
                 </div>
 
                 {/* Dropdown İkonu */}
@@ -104,7 +141,10 @@ export default function Header() {
 
               <DropdownMenuSeparator className="bg-gray-200/50" />
 
-              <DropdownMenuItem className="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-red-50 rounded-lg transition-colors text-red-600 focus:text-red-600 focus:bg-red-50">
+              <DropdownMenuItem
+                className="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-red-50 rounded-lg transition-colors text-red-600 focus:text-red-600 focus:bg-red-50"
+                onClick={() => handleLogout()}
+              >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-red-100">
                   <LogOut className="h-4 w-4 text-red-600" />
                 </div>

@@ -43,14 +43,24 @@ export function TableHeader({
   onRefresh,
   onAdd,
 }) {
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
   const handleFilterChange = (newFilters) => {
-    console.log("Güncel Filtreler: ", newFilters);
     onFilterChange?.(newFilters);
   };
 
-  const handleRefresh = () => {
-    console.log("Sayfa yenileniyor");
-    onRefresh?.();
+  const handleRefresh = async () => {
+    if (!onRefresh) return;
+
+    try {
+      setIsRefreshing(true);
+
+      await onRefresh();
+      // Sadece geliştirme modu için...
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   return (
@@ -64,10 +74,13 @@ export function TableHeader({
         <div className="flex gap-3">
           <Button
             onClick={handleRefresh}
+            disabled={isRefreshing}
             className="bg-gradient-to-r from-halo-200 to-halo-300 hover:from-halo-400 hover:to-halo-500 shadow-lg"
           >
-            <RotateCw className="mr-2 h-5 w-5" />
-            Yenile
+            <RotateCw
+              className={`mr-2 h-5 w-5 ${isRefreshing ? "animate-spin" : ""}`}
+            />
+            {isRefreshing ? "Yenileniyor..." : "Yenile"}
           </Button>
 
           <Button
@@ -323,6 +336,7 @@ export default function TableFilter({ filterConfig = [], onFilterChange }) {
 
   // Formdaki tüm değerleri anlık izle
   const formValues = watch();
+  const prevFiltersRef = useRef(JSON.stringify({}));
 
   useEffect(() => {
     if (!onFilterChange) return;
@@ -333,11 +347,21 @@ export default function TableFilter({ filterConfig = [], onFilterChange }) {
       // Object.entries de bir dictionary (key,value) yapısını ikili dizi içeren, tekil bir diziye dönüştürür.
       const activeFilters = Object.fromEntries(
         Object.entries(formValues).filter(
-          ([_, value]) => value !== "" && value !== "all"
+          ([_, value]) =>
+            value !== "" &&
+            value !== "all" &&
+            value !== null &&
+            value !== undefined
         )
       );
 
-      onFilterChange(activeFilters);
+      const currentFiltersString = JSON.stringify(activeFilters);
+
+      if (currentFiltersString !== prevFiltersRef.current) {
+        // Sadece ve sadece içerik gerçekten değiştiyse parent'a haber ver
+        prevFiltersRef.current = currentFiltersString;
+        onFilterChange(activeFilters);
+      }
     }, 500);
 
     return () => clearTimeout(timer);
@@ -348,7 +372,7 @@ export default function TableFilter({ filterConfig = [], onFilterChange }) {
     // Formu tamamen sıfırla (Default values'a döner)
     reset({ search: "" });
 
-    // Select componentleri bazen reset'i algılamayabilir, manuel tetiklemek gerekebilir
+    // Select componentleri bazen reset'i algılamayabilir, manuel tetiklemek gerekebilir.
     visibleFilters.forEach((f) => setValue(f.key, ""));
   };
 
@@ -443,7 +467,7 @@ export function TableContent({
   getRowId = (row) => row.id,
 }) {
   const [selectedIds, setSelectedIds] = useState([]);
-  const isAllSelected = data.length > 0 && selectedIds.length === data.length;
+  const isAllSelected = data?.length > 0 && selectedIds.length === data.length;
 
   const toggleSelectAll = () => {
     const newSelection = isAllSelected ? [] : data.map(getRowId);
@@ -535,7 +559,7 @@ export function TableContent({
                       {rowActions.map((action, idx) => (
                         <DropdownMenuItem
                           key={idx}
-                          onClick={() => action.onClick(row)}
+                          onClick={(e) => action.onClick(row, e)}
                           className={cn(
                             "relative flex cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-sm font-medium outline-none transition-colors",
                             "hover:bg-halo-50 hover:text-halo-700 focus:bg-halo-50 focus:text-halo-700",
@@ -602,7 +626,7 @@ export function TableContent({
             <h3 className="font-semibold text-text-main">{title}</h3>
             <div className="flex items-center gap-4">
               <span className="text-sm text-text-muted">
-                {data.length} öğe gösteriliyor
+                {data?.length} öğe gösteriliyor
               </span>
               {headerActions}
             </div>
@@ -613,12 +637,12 @@ export function TableContent({
       <CustomTableHeader columns={finalColumns} gridClassName={gridClassName} />
 
       <div className="divide-y divide-white/10">
-        {data.length === 0 ? (
+        {data?.length === 0 ? (
           <div className="p-12 text-center text-text-muted">
             {emptyState || "Veri bulunamadı"}
           </div>
         ) : (
-          data.map((row, index) => {
+          data?.map((row, index) => {
             const rowId = getRowId(row);
             const isSelected = selectedIds.includes(rowId);
             const customClassName = rowClassName?.(row, index) || "";

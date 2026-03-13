@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import {
   Activity,
@@ -19,56 +19,105 @@ import {
   TableContent,
   TableHeader,
 } from "@/components/common/table/table-header";
-
-// Mock data
-const devicesData = [
-  {
-    id: 1,
-    name: "Sensor A-101",
-    createdAt: "2024-01-15",
-    profile: "Temperature Sensor",
-    label: "Warehouse-1",
-    status: "active",
-    isGateway: true,
-  },
-  {
-    id: 2,
-    name: "Sensor B-202",
-    createdAt: "2024-01-20",
-    profile: "Humidity Sensor",
-    label: "-",
-    status: "inactive",
-    isGateway: false,
-  },
-  // ... daha fazla cihaz
-];
+import toast from "react-hot-toast";
+import { fetchClient } from "@/lib/api-client";
 
 export default function DevicesPage() {
   const [openForm, setOpenForm] = useState(false);
   const [selectedDevice, setSelectedDevice] = useState(null);
-  const [filters, setFilters] = useState({});
 
-  // Filtreleme mantığı
-  const filteredData = devicesData.filter((device) => {
-    // Search filtresi
-    if (filters.search) {
-      const searchLower = filters.search.toLowerCase();
-      const matchesSearch =
-        device.name.toLowerCase().includes(searchLower) ||
-        device.profile.toLowerCase().includes(searchLower) ||
-        device.label.toLowerCase().includes(searchLower);
-      if (!matchesSearch) return false;
-    }
+  const [devices, setDevices] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-    // Status filtresi
-    if (filters.status && filters.status !== "all") {
-      if (device.status !== filters.status) return false;
-    }
-
-    // Diğer filtreler...
-
-    return true;
+  const [pageParams, setPageParams] = useState({
+    page: 1,
+    limit: 10,
   });
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
+
+  const [filters, setFilters] = useState({
+    search: "",
+    status: "",
+    isGateway: "",
+  });
+
+  // Device servisten device verilerini çekecektir.
+  const fetchDevices = useCallback(async () => {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("token");
+
+      const params = new URLSearchParams();
+      params.append("page", pageParams.page);
+      params.append("limit", pageParams.limit);
+
+      if (filters.search) params.append("search", filters.search);
+      if (filters.status && filters.status !== "all")
+        params.append("active", filters.status === "active");
+
+      const res = await fetch(
+        `${
+          process.env.NEXT_PUBLIC_API_GATEWAY_URL
+        }/api/device?${params.toString()}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      const responseData = await res.json();
+      console.log(responseData);
+      if (res.ok && responseData.ok) {
+        setDevices(responseData.data);
+        setMeta({
+          total: responseData.pagination.total,
+          totalPages: responseData.pagination.totalPages,
+        });
+      } else {
+        toast.error(responseData.message || "Veriler alınamadı");
+      }
+    } catch (error) {
+      console.error("Fetch error:", error);
+      toast.error("Sunucuya bağlanılamadı");
+    } finally {
+      setLoading(false);
+    }
+  }, [pageParams.page, pageParams.limit, filters]);
+
+  useEffect(() => {
+    fetchDevices();
+  }, [fetchDevices]);
+
+  const handleDeleteDevice = async (device) => {
+    const confirmed = confirm(
+      `${device.name} cihazını silmek istediğinden emin misiniz?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+
+      const res = await fetchClient(`/api/device/${device._id}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        toast.success(res.message || "Cihaz silindi");
+
+        await fetchDevices();
+      } else {
+        toast.error(res.message || "Silme işlemi başarısız.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Bir hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Filtre konfigürasyonu
   const filterConfig = [
@@ -130,10 +179,10 @@ export default function DevicesPage() {
       title: "Etiket",
       span: 2,
       cellRender: (device) =>
-        device.label !== "-" ? (
+        device.tag !== "-" ? (
           <div className="flex items-center gap-1.5 text-sm text-text-muted truncate">
             <Tag className="h-3.5 w-3.5 shrink-0" />
-            <span className="truncate">{device.label}</span>
+            <span className="truncate">{device.tag}</span>
           </div>
         ) : (
           <span className="text-sm text-text-muted">-</span>
@@ -197,11 +246,6 @@ export default function DevicesPage() {
   // Satır eylemleri
   const rowActions = [
     {
-      label: "Detaylar",
-      onClick: (device) => setSelectedDevice(device),
-      icon: <Eye className="h-4 w-4" />,
-    },
-    {
       label: "Düzenle",
       onClick: (device) => {
         console.log("Düzenle:", device);
@@ -211,14 +255,7 @@ export default function DevicesPage() {
     },
     {
       label: "Sil",
-      onClick: (device) => {
-        if (
-          confirm(`${device.name} cihazını silmek istediğinizden emin misiniz?`)
-        ) {
-          console.log("Sil:", device);
-          // TODO: Silme işlemi
-        }
-      },
+      onClick: async (device) => handleDeleteDevice(device),
       icon: <Trash2 className="h-4 w-4" />,
       className: "text-red-600",
     },
@@ -243,6 +280,10 @@ export default function DevicesPage() {
     },
   ];
 
+  const handlePageChange = (newPage) => {
+    setPageParams((prev) => ({ ...prev, page: newPage }));
+  };
+
   return (
     <>
       {/* Sayfa Başlığı ve Filtreler */}
@@ -251,20 +292,21 @@ export default function DevicesPage() {
         advert="IoT cihazlarınızı tek bir yerden yönetin"
         addButtonName="Yeni Cihaz Ekle"
         onAdd={() => setOpenForm(true)}
+        onRefresh={fetchDevices}
         filterConfig={filterConfig}
         onFilterChange={setFilters}
       />
 
       {/* Tablo İçeriği */}
       <TableContent
-        data={filteredData}
+        data={devices}
         columns={columns}
         gridClassName="grid-cols-13"
         title="Cihaz Listesi"
         onRowClick={setSelectedDevice}
         rowActions={rowActions}
         bulkActions={bulkActions}
-        getRowId={(device) => device.id}
+        getRowId={(device) => device._id}
         rowClassName={(device) => {
           // Pasif cihazları soluklaştır
           if (device.status === "inactive") return "opacity-60";
@@ -282,10 +324,10 @@ export default function DevicesPage() {
           </div>
         }
         pagination={{
-          currentPage: 1,
-          totalPages: Math.ceil(filteredData.length / 10),
-          itemsPerPage: 10,
-          onPageChange: (page) => console.log("Sayfa:", page),
+          currentPage: pageParams.page,
+          totalPages: meta.totalPages,
+          itemsPerPage: pageParams.limit,
+          onPageChange: handlePageChange,
         }}
       />
 

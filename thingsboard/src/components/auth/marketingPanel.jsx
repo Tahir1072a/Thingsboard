@@ -2,7 +2,7 @@ import { Check } from "lucide-react";
 
 export default function MarketingPanel({ title, description, features }) {
   return (
-    <div className="hidden md:flex bg-spotify-gradient text-white p-10 flex-col justify-between">
+    <div className="hidden md:flex dark:bg-slate-50 text-white p-10 flex-col justify-between">
       <div>
         <h2
           className="text-3xl font-extrabold leading-tight drop-shadow-sm"

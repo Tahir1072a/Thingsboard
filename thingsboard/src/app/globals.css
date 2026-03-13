@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@plugin "tailwindcss-animate";
 
 @theme {
   /* Ana Renkler */
@@ -12,6 +13,18 @@
   --color-halo-700: #53389e;
   --color-halo-800: #42307d;
   --color-halo-900: #2c1c5f;
+
+  /* Tailwind v4 bunları otomatik algılayıp class üretecek (bg-spotify-900 gibi) */
+  --color-spotify-300: #4ade80;
+  --color-spotify-400: #1db954;
+  --color-spotify-500: #1ed760;
+  --color-spotify-700: #282828;
+  --color-spotify-800: #121212;
+  --color-spotify-900: #000000;
+
+  /* Login Formunda Kullandığın Özel Renkler */
+  --color-auth-card: #ffffff;
+  --color-auth-foreground: #09090b;
 
   /* Metin Renkleri */
   --color-text-main: #101828;
@@ -100,6 +113,10 @@
   select,
   textarea {
     outline: none;
+  }
+
+  button {
+    @apply cursor-pointer;
   }
 }
 

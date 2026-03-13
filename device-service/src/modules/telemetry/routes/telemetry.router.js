@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as DeviceController from "../controllers/device.controller.js";
+import * as TelemetryContoller from "../controllers/telemetryController.js";
 
 const router = Router();
 
@@ -11,7 +11,6 @@ router.use((req, res, next) => {
   next();
 });
 
-router.get("/token/generate", DeviceController.generateToken);
-router.post("/", DeviceController.create);
+router.post(":token/telemetry", TelemetryContoller.postTelemetry);
 
 export default router;

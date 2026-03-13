@@ -11,6 +11,7 @@ router.post("/activate", AuthController.activate);
 router.post("/login/mfa", AuthController.loginMfa);
 router.post("/forgot-password", AuthController.forgotPassword);
 router.post("/reset-password", AuthController.resetPassword);
+router.post("/google", AuthController.loginWithGoogle);
 
 // --- Korumalı Rotalar (Sadece giriş yapmış kullanıcılar) ---
 // 'protectRoute' middleware'i, bu rotalardan önce çalışır

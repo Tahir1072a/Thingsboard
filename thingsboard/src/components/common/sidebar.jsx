@@ -30,7 +30,7 @@ const navLinks = [
     icon: Building,
   },
   { href: "/ag-gecidi", label: "Ağ Geçidi", icon: Network },
-  { href: "/cihaz-profili", label: "Cihaz Profili", icon: UserCheck },
+  { href: "/device-profile", label: "Cihaz Profili", icon: UserCheck },
   { href: "/varlik-profili", label: "Varlık Profili", icon: BoxSelect },
   { href: "/musteriler", label: "Müşteriler", icon: Users },
   { href: "/kural-zincirleri", label: "Kural Zincirleri", icon: Link2 },

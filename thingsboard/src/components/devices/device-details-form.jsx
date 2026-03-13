@@ -78,13 +78,13 @@ export function DeviceDetailForm({ data = defaultData }) {
 
         {/* --- Etiket --- */}
         <div className="space-y-1">
-          <Label htmlFor="label" className={labelStyle}>
+          <Label htmlFor="tag" className={labelStyle}>
             <Tag className="w-4 h-4 text-halo-500" />
             Etiket
           </Label>
           <Input
-            id="label"
-            value={data.label}
+            id="tag"
+            value={data.tag}
             disabled
             className={`${inputStyle}`}
           />

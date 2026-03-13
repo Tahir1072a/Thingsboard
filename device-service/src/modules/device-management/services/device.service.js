@@ -1,5 +1,7 @@
 import Device from "../models/Device.js";
 import crypto from "crypto";
+import DeviceProfile from "../models/DeviceProfile.js";
+import AppError from "../../../utilts/AppError.js";
 
 export function generateSafeToken() {
   return crypto.randomBytes(20).toString("hex");
@@ -17,6 +19,18 @@ export async function createDevice(deviceData, tenantId) {
     throw new AppError(
       `'${deviceData.name}' isminde bir cihaz bu organizasyonda zaten mevcut.`,
       409
+    );
+  }
+
+  const existingProfile = await DeviceProfile.findOne({
+    _id: deviceData.profile,
+    tenantId: tenantId,
+  });
+
+  if (!existingProfile) {
+    throw new AppError(
+      "Seçilen cihaz profili bulunamadı veya bu organizasyona ait değil.",
+      404
     );
   }
 
@@ -39,7 +53,7 @@ export async function createDevice(deviceData, tenantId) {
 
   // 3. Veritabanına Kayıt
   const device = await Device.create({
-    tenant: tenantId,
+    tenantId: tenantId,
     name: deviceData.name,
     profile: deviceData.profile,
     tag: deviceData.tag,
@@ -57,9 +71,10 @@ export async function createDevice(deviceData, tenantId) {
 }
 
 // Filtre varsa filtreye göre cihazları getirir. Not: Sadece ilgili tenantın cihazlarını getirir.
-export async function getDevices(tenantId, queryParams) {
-  const { page = 1, limit = 10, search, profile, status } = queryParams;
-  const filter = { tenant: tenantId };
+export async function getDevices(tenantId, queryParams = {}) {
+  // Profile?
+  const { page = 1, limit = 10, search, profile, active } = queryParams;
+  const filter = { tenantId: tenantId };
 
   if (search) {
     // search ifadesini (sensor) => /sensor/i gibi bir regExp ifadeye dönüştürü ve bunu sorgu olarak verir.
@@ -69,7 +84,13 @@ export async function getDevices(tenantId, queryParams) {
 
   if (profile && profile !== "all") filter.profile = profile;
 
-  const devices = Device.find(filter)
+  if (active === "true") {
+    filter.active = true;
+  } else if (active === "false") {
+    filter.active = false;
+  }
+
+  const devices = await Device.find(filter)
     .skip((page - 1) * limit)
     .limit(parseInt(limit))
     .sort({ createdAt: -1 }); // En yeniden en eskiye sırala
@@ -117,11 +138,40 @@ export async function updateDevice(deviceId, tenantId, updateData) {
 
 // Cihazı Sil
 export async function deleteDevice(deviceId, tenantId) {
-  const result = await Device.deleteOne({ _id: deviceId, tenant: tenantId });
+  // Delete one, cihaz bilgilerini dönmez. Sadece, başarılı bilgisi ve deletedCount döner.
+  const result = await Device.deleteOne({ _id: deviceId, tenantId: tenantId });
+
   if (result.deletedCount === 0) throw new AppError("Cihaz bulunamadı", 404);
+
   return true;
 }
 
-// export async function saveAttributes() {
+export async function deleteMany(deviceIds, tenantId) {
+  if (deviceIds || deviceIds.length === 0) {
+    throw new AppError("Silinecek cihaz seçilmedi", 400);
+  }
 
-// }
+  const result = await Device.deleteMany({
+    _id: { $in: deviceIds },
+    tenantId: tenantId,
+  });
+
+  if (result.deletedCount === 0) {
+    throw new AppError("Silinecek cihaz bulunamadı.", 404);
+  }
+
+  return {
+    requested: deviceIds.length,
+    deleted: result.deletedCount,
+  };
+}
+
+export async function getDeviceByToken(token) {
+  const device = await Device.findOne({ accessToken: token }).populate(
+    "profile"
+  ); // Profilini de getir ki kuralları okuyalım
+
+  if (!device) return null;
+
+  return device;
+}
