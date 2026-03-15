@@ -604,11 +604,14 @@ export function TableContent({
               {bulkActions.map((action, idx) => (
                 <Button
                   key={idx}
-                  variant={action.variant === "destructive" ? "ghost" : "ghost"}
+                  variant="ghost"
                   size="sm"
-                  onClick={() => action.onClick(getSelectedRows())}
+                  onClick={async () => {
+                    await action.onClick(selectedIds);
+                    setSelectedIds([]);
+                  }}
                   className={
-                    action.variant === "destructive"
+                    action.danger
                       ? "text-red-500 hover:text-red-600 hover:bg-red-50/50 gap-2 transition-colors"
                       : "gap-2"
                   }

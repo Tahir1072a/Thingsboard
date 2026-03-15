@@ -30,14 +30,11 @@ export default function ForgotPasswordForm() {
 
   const onSubmit = async (data) => {
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/auth/forgot-password`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        }
-      );
+      const res = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
 
       if (!res.ok) {
         const errorData = await res.json();

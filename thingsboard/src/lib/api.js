@@ -1,14 +1,3 @@
-const API_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL;
-
-export async function authFetch(endpoint, options = {}) {
-  let token = null;
-
-  if (typeof window !== "undefined") {
-    token = localStorage.getItem("authToken");
-  }
-
-  const headers = {
-    "Content-Type": "application/json",
-    ...options.headers,
-  };
-}
+// Bu dosya artık kullanılmıyor.
+// Tüm API çağrıları yerel Next.js route'ları üzerinden veya fetch() ile yapılmaktadır.
+// api-client.js dosyasını kullanabilirsiniz.

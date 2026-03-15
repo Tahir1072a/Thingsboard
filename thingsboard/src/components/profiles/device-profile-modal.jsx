@@ -104,20 +104,23 @@ export default function AddDevicePorfileModal({ open, onOpenChange }) {
 
   const onSubmit = async (data) => {
     try {
-      const token = localStorage.getItem("token");
+      // form: { createRules: { condition }, clearRules: { condition } }
+      // model: { createCondition, clearCondition }
+      const payload = {
+        ...data,
+        alarms: (data.alarms || []).map((a) => ({
+          alarmType: a.alarmType,
+          severity: a.severity,
+          createCondition: a.createRules?.condition || "",
+          clearCondition: a.clearRules?.condition || "",
+        })),
+      };
 
-      // Senin mevcut API'sine istek atıyoruz
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/device-profile`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify(data),
-        }
-      );
+      const res = await fetch("/api/device-profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       const result = await res.json();
       if (!res.ok) throw new Error(result.message || "Hata oluştu");

@@ -44,18 +44,15 @@ export default function ActivateForm() {
     }
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/auth/activate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            password: data.password,
-            userId: uid,
-            token: token,
-          }),
-        }
-      );
+      const res = await fetch("/api/auth/activate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password: data.password,
+          userId: uid,
+          token: token,
+        }),
+      });
 
       const responseData = await res.json();
 

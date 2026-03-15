@@ -25,8 +25,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   PlusCircle,
-  ArrowRight,
-  ArrowLeft,
   Copy,
   Check,
   AlertCircle,
@@ -34,7 +32,6 @@ import {
   Fingerprint,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { fetchClient } from "@/lib/api-client";
 
 const deviceSchema = z.object({
   name: z.string().min(2, "Cihaz adı en az 2 karakter olmalıdır."),
@@ -44,7 +41,7 @@ const deviceSchema = z.object({
   accessToken: z.string(),
 });
 
-export default function AddDeviceModal({ open, onOpenChange }) {
+export default function AddDeviceModal({ open, onOpenChange, onDeviceAdded }) {
   const [activeTab, setActiveTab] = useState("general");
   const [copied, setCopied] = useState(false);
 
@@ -87,58 +84,44 @@ export default function AddDeviceModal({ open, onOpenChange }) {
       toast.error("Genel bilgilerde bir hata var");
       return;
     }
-
-    // Access Tokenda hata olamaz onu zaten biz kullanıyoruz.
   };
 
+  // Cihazı yerel API'ye kaydet
   const onSubmit = useCallback(
     async (data) => {
       try {
-        const token = localStorage.getItem("token");
-        const res = await fetch(
-          `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/device`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(data),
-          }
-        );
+        const res = await fetch("/api/device", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
 
         const result = await res.json();
         if (!res.ok) throw new Error(result.message || "Hata oluştu");
 
-        toast.success("Device başarıyla sisteme kaydedildi!");
+        toast.success("Cihaz başarıyla sisteme kaydedildi!");
         onOpenChange(false);
+
+        // Cihaz listesini yenile
+        if (onDeviceAdded) onDeviceAdded();
       } catch (error) {
-        console.error("Device create error :", error);
-        toast.error("Bir hata oluştu");
+        console.error("Device create error:", error);
+        toast.error(error.message || "Bir hata oluştu");
       }
     },
-    [onOpenChange]
+    [onOpenChange, onDeviceAdded]
   );
 
-  // Sunucu ile token oluşturma isteği
+  // Yerel API'den token üret
   const generateToken = useCallback(async () => {
     try {
       setLoadingToken(true);
-      const token = localStorage.getItem("token");
 
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/device/token/generate`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      ).then((response) => response.json());
+      const res = await fetch("/api/device/token/generate");
+      const data = await res.json();
 
-      if (res.ok) {
-        setValue("accessToken", res.data.token);
+      if (data.ok) {
+        setValue("accessToken", data.data.token);
       }
     } catch (error) {
       console.error("Token generate error:", error);
@@ -148,22 +131,26 @@ export default function AddDeviceModal({ open, onOpenChange }) {
     }
   }, [setValue]);
 
+  // Yerel API'den device profilleri çek
   const fetchDeviceProfiles = useCallback(async () => {
     try {
-      const responseData = await fetchClient("/api/device-profile");
+      const res = await fetch("/api/device-profile");
+      const data = await res.json();
 
-      setDeviceProfiles(responseData.data);
+      if (data.ok) {
+        setDeviceProfiles(data.data || []);
+      }
     } catch (error) {
-      console.error(error);
-      toast.error("Device Profiller çekilemedi");
-    } finally {
-      setLoadingToken(false);
+      console.error("Profile fetch error:", error);
+      // Profil yoksa boş bırak, hata gösterme (henüz API yok olabilir)
+      setDeviceProfiles([]);
     }
-  }, [setValue]);
+  }, []);
 
   const copyToClipboard = () => {
-    navigator.clipboard.writeText(currentToken);
+    navigator.clipboard.writeText(accessToken);
     setCopied(true);
+    toast.success("Token kopyalandı!");
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -269,17 +256,22 @@ export default function AddDeviceModal({ open, onOpenChange }) {
                           <SelectValue placeholder="Profil Seçiniz..." />
                         </SelectTrigger>
                         <SelectContent className="bg-white/95 backdrop-blur-xl border-gray-200 shadow-xl data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2">
-                          {deviceProfiles.map((profile) => {
-                            return (
-                              <SelectItem
-                                key={profile._id}
-                                value={profile._id}
-                                className="py-3 cursor-pointer focus:bg-halo-50"
-                              >
-                                {profile.name}
-                              </SelectItem>
-                            );
-                          })}
+                          {/* Varsayılan profil her zaman mevcut */}
+                          <SelectItem
+                            value="default"
+                            className="py-3 cursor-pointer focus:bg-halo-50"
+                          >
+                            Default Device Profile
+                          </SelectItem>
+                          {deviceProfiles.map((profile) => (
+                            <SelectItem
+                              key={profile._id}
+                              value={profile._id}
+                              className="py-3 cursor-pointer focus:bg-halo-50"
+                            >
+                              {profile.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     )}
@@ -332,8 +324,9 @@ export default function AddDeviceModal({ open, onOpenChange }) {
                       Erişim Anahtarı (Token)
                     </strong>
                     <p className="text-sm opacity-90 leading-relaxed">
-                      Cihazın bulut ile haberleşmesi için bu anahtar zorunludur.
+                      Cihazın sisteme veri göndermesi için bu anahtar zorunludur.
                       Güvenliğiniz için bu anahtarı şimdi kopyalayın.
+                      Telemetri gönderirken <code className="bg-blue-100 px-1 rounded">X-Access-Token</code> header'ında gönderilmelidir.
                     </p>
                   </div>
                 </div>

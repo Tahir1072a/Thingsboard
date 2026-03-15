@@ -9,22 +9,26 @@ import { z } from "zod";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import toast from "react-hot-toast";
 
-// En basit hali ile şema tanımlama
-const registerSchema = z.object({
-  organizationName: z.string(),
-  admin: z.object({
-    email: z.email(),
-    firstName: z.string(),
-    lastName: z.string(),
-    phone: z.string(),
-  }),
-});
+const registerSchema = z
+  .object({
+    organizationName: z.string().min(1, "Organizasyon adı zorunludur."),
+    firstName: z.string().min(1, "Ad zorunludur."),
+    lastName: z.string().min(1, "Soyad zorunludur."),
+    email: z.email("Geçerli bir e-posta adresi girin."),
+    phone: z.string().optional(),
+    password: z.string().min(6, "Parola en az 6 karakter olmalıdır."),
+    passwordConfirm: z.string().min(1, "Parola tekrarı zorunludur."),
+  })
+  .refine((data) => data.password === data.passwordConfirm, {
+    message: "Parolalar eşleşmiyor.",
+    path: ["passwordConfirm"],
+  });
 
-// TODO: Register jsx kısmı yapılacak...!
 export default function RegisterForm() {
-  const router = useRouter(); // Login'e yönlendirme yapmak için
-  const [serverError, setServerError] = useState(null); // API hataları için bu state'ti kullancağız.
+  const router = useRouter();
+  const [serverError, setServerError] = useState(null);
   const [ok, setOk] = useState(false);
 
   const {
@@ -35,12 +39,12 @@ export default function RegisterForm() {
     resolver: zodResolver(registerSchema),
     defaultValues: {
       organizationName: "",
-      admin: {
-        email: "",
-        firstName: "",
-        lastName: "",
-        phone: "",
-      },
+      firstName: "",
+      lastName: "",
+      email: "",
+      phone: "",
+      password: "",
+      passwordConfirm: "",
     },
   });
 
@@ -48,21 +52,26 @@ export default function RegisterForm() {
     setServerError("");
 
     try {
-      const res = await fetch(
-        `${process.env.NEXT_PUBLIC_API_GATEWAY_URL}/api/auth/register`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        }
-      );
-      console.log(res);
+      const res = await fetch("/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: data.email,
+          password: data.password,
+          firstName: data.firstName,
+          lastName: data.lastName,
+          phone: data.phone,
+          organizationName: data.organizationName,
+        }),
+      });
+
       const responseData = await res.json();
 
       if (!res.ok) {
         setServerError(responseData?.error ?? "Kayıt başarısız");
       } else {
         setOk(true);
+        toast.success("Kayıt başarılı!");
       }
     } catch (err) {
       setServerError(err.message ?? "Ağ hatası");
@@ -73,25 +82,21 @@ export default function RegisterForm() {
     <Card className="bg-transparent border-white/10">
       <CardContent className="pt-6">
         {ok ? (
-          // BAŞARI DURUMU EKRANI
           <div className="space-y-2 text-center">
-            <h3 className="text-xl font-semibold text-spotify-400">
+            <h3 className="text-xl font-semibold text-green-400">
               Kayıt Başarılı!
             </h3>
             <p className="text-white/90">
-              Aktivasyon e-postası adresinize gönderildi. Lütfen gelen kutunuzu
-              kontrol edin.
+              Hesabınız oluşturuldu. Şimdi giriş yapabilirsiniz.
             </p>
-
             <Button
               onClick={() => router.push("/login")}
-              className="w-full mt-4 h-11 rounded-xl bg-spotify-500 hover:bg-spotify-400 text-white"
+              className="w-full mt-4 h-11 rounded-xl bg-linear-to-r from-rose-950 via-red-600 to-rose-950 text-white"
             >
               Giriş Yap
             </Button>
           </div>
         ) : (
-          // FORM EKRANI
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="org">Organizasyon Adı</Label>
@@ -100,9 +105,8 @@ export default function RegisterForm() {
                 type="text"
                 {...register("organizationName")}
                 placeholder="Örn. Pengona A.Ş."
-                className="bg-white/5 border-white/20 focus-visible:ring-spotify-400"
+                className="bg-white/5 border-white/20 focus-visible:ring-red-600"
               />
-              {/* Zod hata mesajı */}
               {errors.organizationName && (
                 <p className="text-sm text-red-400">
                   {errors.organizationName.message}
@@ -112,48 +116,46 @@ export default function RegisterForm() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="first">Yönetici Adı</Label>
+                <Label htmlFor="first">Ad</Label>
                 <Input
                   id="first"
                   type="text"
-                  {...register("admin.firstName")}
-                  className="bg-white/5 border-white/20 focus-visible:ring-spotify-400"
+                  {...register("firstName")}
+                  className="bg-white/5 border-white/20 focus-visible:ring-red-600"
                 />
-                {errors.admin?.firstName && (
+                {errors.firstName && (
                   <p className="text-sm text-red-400">
-                    {errors.admin.firstName.message}
+                    {errors.firstName.message}
                   </p>
                 )}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="last">Yönetici Soyadı</Label>
+                <Label htmlFor="last">Soyad</Label>
                 <Input
                   id="last"
                   type="text"
-                  {...register("admin.lastName")}
-                  className="bg-white/5 border-white/20 focus-visible:ring-spotify-400"
+                  {...register("lastName")}
+                  className="bg-white/5 border-white/20 focus-visible:ring-red-600"
                 />
-                {errors.admin?.lastName && (
+                {errors.lastName && (
                   <p className="text-sm text-red-400">
-                    {errors.admin.lastName.message}
+                    {errors.lastName.message}
                   </p>
                 )}
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="email">Yönetici E-postası</Label>
+              <Label htmlFor="email">E-posta</Label>
               <Input
                 id="email"
                 type="email"
-                {...register("admin.email")} // RHF bağlandı (nested)
+                {...register("email")}
                 placeholder="email@domain.com"
-                className="bg-white/5 border-white/20 focus-visible:ring-spotify-400"
+                className="bg-white/5 border-white/20 focus-visible:ring-red-600"
               />
-              {errors.admin?.email && (
-                <p className="text-sm text-red-400">
-                  {errors.admin.email.message}
-                </p>
+              {errors.email && (
+                <p className="text-sm text-red-400">{errors.email.message}</p>
               )}
             </div>
 
@@ -162,15 +164,43 @@ export default function RegisterForm() {
               <Input
                 id="phone"
                 type="tel"
-                {...register("admin.phone")} // RHF bağlandı (nested)
+                {...register("phone")}
                 placeholder="5xx xxx xx xx"
-                className="bg-white/5 border-white/20 focus-visible:ring-spotify-400"
+                className="bg-white/5 border-white/20 focus-visible:ring-red-600"
               />
-              {errors.admin?.phone && (
-                <p className="text-sm text-red-400">
-                  {errors.admin.phone.message}
-                </p>
-              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="password">Parola</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  {...register("password")}
+                  placeholder="••••••••"
+                  className="bg-white/5 border-white/20 focus-visible:ring-red-600"
+                />
+                {errors.password && (
+                  <p className="text-sm text-red-400">
+                    {errors.password.message}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="passwordConfirm">Parola Tekrarı</Label>
+                <Input
+                  id="passwordConfirm"
+                  type="password"
+                  {...register("passwordConfirm")}
+                  placeholder="••••••••"
+                  className="bg-white/5 border-white/20 focus-visible:ring-red-600"
+                />
+                {errors.passwordConfirm && (
+                  <p className="text-sm text-red-400">
+                    {errors.passwordConfirm.message}
+                  </p>
+                )}
+              </div>
             </div>
 
             {serverError && (
@@ -180,7 +210,7 @@ export default function RegisterForm() {
             <Button
               type="submit"
               disabled={isSubmitting}
-              className="w-full h-11 rounded-xl bg-spotify-500 hover:bg-spotify-400 text-white"
+              className="w-full h-11 rounded-xl bg-linear-to-r from-rose-950 via-red-600 to-rose-950 text-white"
             >
               {isSubmitting ? "Kaydediliyor..." : "Kaydı Tamamla"}
             </Button>

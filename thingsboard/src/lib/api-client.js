@@ -1,14 +1,15 @@
 import toast from "react-hot-toast";
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_GATEWAY_URL;
-
+/**
+ * fetchClient — Basitleştirilmiş fetch wrapper
+ *
+ * NextAuth cookie bazlı oturum kullandığı için artık:
+ * - localStorage token'ı okunmuyor (cookie otomatik gider)
+ * - Dış BASE_URL yok, tüm istekler relative path'e gider
+ */
 export async function fetchClient(endpoint, { body, ...customConfig } = {}) {
-  const token =
-    typeof window !== "undefined" ? localStorage.getItem("token") : null;
-
   const headers = {
     "Content-Type": "application/json",
-    ...(token && { Authorization: `Bearer ${token}` }),
     ...customConfig.headers,
   };
 
@@ -20,23 +21,15 @@ export async function fetchClient(endpoint, { body, ...customConfig } = {}) {
   };
 
   try {
-    // Backend'de isetği atıyoruz...
-    const response = await fetch(`${BASE_URL}${endpoint}`, config);
+    const response = await fetch(endpoint, config);
 
     if (response.status === 401) {
       if (typeof window !== "undefined") {
-        if (token) {
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-
-          toast.error("Oturum süreniz doldu. Lütfen tekrar giriş yapın", {
-            id: "session-expired",
-          });
-
-          window.location.href = "/login";
-        }
+        toast.error("Oturum süreniz doldu. Lütfen tekrar giriş yapın", {
+          id: "session-expired",
+        });
+        window.location.href = "/login";
       }
-
       return Promise.reject(new Error("Oturum süresi doldu"));
     }
 

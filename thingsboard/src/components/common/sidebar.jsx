@@ -7,33 +7,16 @@ import {
   Bell,
   LayoutDashboard,
   Router,
-  Box,
-  Users,
-  Settings,
-  Link2,
-  Building,
   UserCheck,
-  BoxSelect,
-  Network,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navLinks = [
-  { href: "/", label: "Ana Sayfa", icon: Home },
+  { href: "/dashboard", label: "Ana Sayfa", icon: Home },
   { href: "/alarmlar", label: "Alarmlar", icon: Bell },
   { href: "/panolar", label: "Panolar", icon: LayoutDashboard },
   { href: "/devices", label: "Cihazlar", icon: Router },
-  { href: "/varliklar", label: "Varlıklar", icon: Box },
-  {
-    href: "/varlik-gorunumleri",
-    label: "Varlık Görünümleri",
-    icon: Building,
-  },
-  { href: "/ag-gecidi", label: "Ağ Geçidi", icon: Network },
-  { href: "/device-profile", label: "Cihaz Profili", icon: UserCheck },
-  { href: "/varlik-profili", label: "Varlık Profili", icon: BoxSelect },
-  { href: "/musteriler", label: "Müşteriler", icon: Users },
-  { href: "/kural-zincirleri", label: "Kural Zincirleri", icon: Link2 },
+  { href: "/device-profile", label: "Cihaz Profilleri", icon: UserCheck },
 ];
 
 export default function Sidebar() {
@@ -102,59 +85,6 @@ export default function Sidebar() {
           );
         })}
       </nav>
-
-      {/* Alt Kısım - Ayarlar */}
-      <div className="mt-auto border-t border-white/20 p-4">
-        <Link
-          href="/ayarlar"
-          className={cn(
-            "group flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition-all duration-200",
-            pathname === "/ayarlar"
-              ? "bg-gradient-to-r from-halo-600 to-halo-700 text-white shadow-lg"
-              : "text-text-muted hover:bg-white/50 hover:text-text-main hover:scale-[1.01]"
-          )}
-        >
-          {/* Icon Container */}
-          <div
-            className={cn(
-              "flex h-9 w-9 items-center justify-center rounded-xl transition-all duration-200",
-              pathname === "/ayarlar"
-                ? "bg-white/20 shadow-inner"
-                : "bg-white/30 group-hover:bg-white/50"
-            )}
-          >
-            <Settings
-              className={cn(
-                "h-5 w-5 transition-transform duration-200",
-                pathname === "/ayarlar"
-                  ? "text-white"
-                  : "text-text-muted group-hover:text-text-main group-hover:scale-110"
-              )}
-            />
-          </div>
-
-          {/* Label */}
-          <span className="flex-1">Ayarlar</span>
-
-          {/* Aktif İndikatör */}
-          {pathname === "/ayarlar" && (
-            <div className="h-2 w-2 rounded-full bg-white shadow-lg animate-fade-in" />
-          )}
-        </Link>
-
-        {/* İsteğe Bağlı: Kullanıcı Bilgisi Alt Kısımda */}
-        <div className="mt-4 glass-strong p-3 rounded-xl flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-halo-400 to-halo-600 flex items-center justify-center text-white font-semibold shadow-md">
-            K
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-text-main truncate">
-              Kullanıcı
-            </p>
-            <p className="text-xs text-text-muted truncate">Tenant Admin</p>
-          </div>
-        </div>
-      </div>
     </aside>
   );
 }

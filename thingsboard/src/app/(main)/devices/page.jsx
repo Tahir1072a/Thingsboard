@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import {
   Activity,
@@ -14,16 +15,18 @@ import {
   Eye,
 } from "lucide-react";
 import AddDeviceModal from "@/components/devices/deviceAddForm";
+import DeviceEditModal from "@/components/devices/deviceEditModal";
 import DeviceDetailSheet from "@/components/devices/device-detail-sheet";
 import {
   TableContent,
   TableHeader,
 } from "@/components/common/table/table-header";
 import toast from "react-hot-toast";
-import { fetchClient } from "@/lib/api-client";
 
 export default function DevicesPage() {
+  const router = useRouter();
   const [openForm, setOpenForm] = useState(false);
+  const [editDevice, setEditDevice] = useState(null);
   const [selectedDevice, setSelectedDevice] = useState(null);
 
   const [devices, setDevices] = useState([]);
@@ -41,11 +44,10 @@ export default function DevicesPage() {
     isGateway: "",
   });
 
-  // Device servisten device verilerini çekecektir.
+  // Device API'den verileri çek
   const fetchDevices = useCallback(async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem("token");
 
       const params = new URLSearchParams();
       params.append("page", pageParams.page);
@@ -55,21 +57,9 @@ export default function DevicesPage() {
       if (filters.status && filters.status !== "all")
         params.append("active", filters.status === "active");
 
-      const res = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_API_GATEWAY_URL
-        }/api/device?${params.toString()}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
+      const res = await fetch(`/api/device?${params.toString()}`);
       const responseData = await res.json();
-      console.log(responseData);
+
       if (res.ok && responseData.ok) {
         setDevices(responseData.data);
         setMeta({
@@ -100,16 +90,16 @@ export default function DevicesPage() {
     try {
       setLoading(true);
 
-      const res = await fetchClient(`/api/device/${device._id}`, {
+      const res = await fetch(`/api/device/${device._id}`, {
         method: "DELETE",
       });
+      const data = await res.json();
 
-      if (res.ok) {
-        toast.success(res.message || "Cihaz silindi");
-
+      if (res.ok && data.ok) {
+        toast.success(`"${device.name}" başarıyla silindi.`);
         await fetchDevices();
       } else {
-        toast.error(res.message || "Silme işlemi başarısız.");
+        toast.error(data.message || "Silme işlemi başarısız.");
       }
     } catch (err) {
       console.error(err);
@@ -155,7 +145,7 @@ export default function DevicesPage() {
               {device.name}
             </p>
             <p className="text-xs text-text-muted truncate">
-              {device.createdAt}
+              {new Date(device.createdAt).toLocaleDateString("tr-TR", { day: "2-digit", month: "2-digit", year: "numeric" })}
             </p>
           </div>
         </div>
@@ -208,22 +198,12 @@ export default function DevicesPage() {
       ),
     },
     {
-      id: "customer",
-      title: "Müşteri",
-      span: 2,
-      cellRender: () => (
-        <span className="text-sm text-text-muted truncate">
-          Global Teknoloji A.Ş.
-        </span>
-      ),
-    },
-    {
       id: "public",
       title: "Public",
       span: 1,
       align: "center",
       cellRender: (device) =>
-        device.id % 2 === 0 ? (
+        device.isPublic ? (
           <Globe className="h-4 w-4 text-blue-500" />
         ) : (
           <Lock className="h-4 w-4 text-text-muted/50" />
@@ -246,10 +226,16 @@ export default function DevicesPage() {
   // Satır eylemleri
   const rowActions = [
     {
+      label: "Detay",
+      onClick: (device) => {
+        router.push(`/devices/${device._id}`);
+      },
+      icon: <Eye className="h-4 w-4" />,
+    },
+    {
       label: "Düzenle",
       onClick: (device) => {
-        console.log("Düzenle:", device);
-        // TODO: Düzenleme modalı aç
+        setEditDevice(device);
       },
       icon: <Edit className="h-4 w-4" />,
     },
@@ -261,22 +247,46 @@ export default function DevicesPage() {
     },
   ];
 
+  // Toplu silme işlemi
+  const handleBulkDelete = async (selectedIds) => {
+    const count = selectedIds.length;
+    if (!confirm(`${count} cihazı silmek istediğinizden emin misiniz?`)) return;
+
+    try {
+      setLoading(true);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const id of selectedIds) {
+        try {
+          const res = await fetch(`/api/device/${id}`, { method: "DELETE" });
+          const data = await res.json();
+          if (res.ok && data.ok) successCount++;
+          else failCount++;
+        } catch {
+          failCount++;
+        }
+      }
+
+      if (successCount > 0) toast.success(`${successCount} cihaz başarıyla silindi.`);
+      if (failCount > 0) toast.error(`${failCount} cihaz silinemedi.`);
+
+      await fetchDevices();
+    } catch (err) {
+      console.error(err);
+      toast.error("Toplu silme sırasında hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Toplu eylemler
   const bulkActions = [
     {
       label: "Seçilenleri Sil",
-      onClick: (selectedDevices) => {
-        if (
-          confirm(
-            `${selectedDevices.length} cihazı silmek istediğinizden emin misiniz?`
-          )
-        ) {
-          console.log("Silinecek cihazlar:", selectedDevices);
-          // TODO: Toplu silme işlemi
-        }
-      },
+      onClick: (selectedIds) => handleBulkDelete(selectedIds),
       icon: <Trash2 className="h-4 w-4" />,
-      danger: true, // variant yerine danger kullanıyoruz
+      danger: true,
     },
   ];
 
@@ -340,7 +350,15 @@ export default function DevicesPage() {
       />
 
       {/* Ekleme Modalı */}
-      <AddDeviceModal open={openForm} onOpenChange={setOpenForm} />
+      <AddDeviceModal open={openForm} onOpenChange={setOpenForm} onDeviceAdded={fetchDevices} />
+
+      {/* Düzenleme Modalı */}
+      <DeviceEditModal
+        open={!!editDevice}
+        onOpenChange={(open) => !open && setEditDevice(null)}
+        device={editDevice}
+        onDeviceUpdated={fetchDevices}
+      />
     </>
   );
 }

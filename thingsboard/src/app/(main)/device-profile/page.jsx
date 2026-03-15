@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * /device-profile — Cihaz Profili Listesi
+ */
+
 import {
   TableHeader,
   TableContent,
@@ -9,55 +13,45 @@ import toast from "react-hot-toast";
 import { Badge } from "@/components/ui/badge";
 import {
   BoxSelect,
-  Link2,
   CheckCircle2,
   Activity,
-  Eye,
   Edit,
   Trash2,
+  BellRing,
 } from "lucide-react";
-// Modal importunu aşağıda oluşturacağımız dosyaya göre yapıyoruz
 import AddDevicePorfileModal from "@/components/profiles/device-profile-modal";
-import { fetchClient } from "@/lib/api-client";
 
 export default function DeviceProfilesPage() {
   const [openForm, setOpenForm] = useState(false);
-  const [selectedDeviceProfile, setSelectedDeviceProfile] = useState(null);
-
   const [loading, setLoading] = useState(false);
   const [deviceProfiles, setDeviceProfiles] = useState([]);
-
-  // --- State Yönetimi ---
   const [pageParams, setPageParams] = useState({ page: 1, limit: 10 });
   const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
   const [filters, setFilters] = useState({ search: "", transportType: "" });
 
-  // --- Veri Çekme ---
   const fetchProfiles = useCallback(async () => {
     try {
       setLoading(true);
-
       const params = new URLSearchParams();
       params.append("page", pageParams.page);
       params.append("limit", pageParams.limit);
-
       if (filters.search) params.append("search", filters.search);
       if (filters.transportType)
         params.append("transportType", filters.transportType);
 
-      const responseData = await fetchClient(
-        `/api/device-profile?${params.toString()}`
-      );
+      const res = await fetch(`/api/device-profile?${params.toString()}`);
+      const responseData = await res.json();
 
-      setDeviceProfiles(responseData.data);
-      setMeta({
-        total: responseData.pagination.total,
-        totalPages: responseData.pagination.totalPages,
-      });
+      if (responseData.ok) {
+        setDeviceProfiles(responseData.data);
+        setMeta({
+          total: responseData.pagination.total,
+          totalPages: responseData.pagination.totalPages,
+        });
+      }
     } catch (error) {
       console.error("Fetch error:", error);
-
-      toast.error(error.message || "Veriler alınırken hata oluştu");
+      toast.error("Veriler alınırken hata oluştu");
     } finally {
       setLoading(false);
     }
@@ -67,20 +61,28 @@ export default function DeviceProfilesPage() {
     fetchProfiles();
   }, [fetchProfiles]);
 
-  // --- Handlerlar ---
-  const handlePageChange = (newPage) => {
-    setPageParams((prev) => ({ ...prev, page: newPage }));
+  const handleDelete = async (profile) => {
+    if (!confirm(`"${profile.name}" profilini silmek istediğinize emin misiniz?`))
+      return;
+    try {
+      const res = await fetch(`/api/device-profile/${profile._id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (data.ok) {
+        toast.success(`"${profile.name}" silindi.`);
+        fetchProfiles();
+      } else {
+        toast.error(data.message);
+      }
+    } catch {
+      toast.error("Silme hatası.");
+    }
   };
 
-  const handleFilterChange = (newFilters) => {
-    setFilters((prev) => ({ ...prev, ...newFilters }));
-    setPageParams((prev) => ({ ...prev, page: 1 })); // Filtre değişince başa dön
-  };
-
-  // --- Konfigürasyon ---
   const filterConfig = [
     {
-      key: "transportType", // Typo düzeltildi
+      key: "transportType",
       placeholder: "İletişim Tipi",
       options: [
         { label: "MQTT", value: "MQTT" },
@@ -94,7 +96,7 @@ export default function DeviceProfilesPage() {
     {
       id: "info",
       title: "Profil Bilgisi",
-      span: 2,
+      span: 3,
       cellRender: (profile) => (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400 to-indigo-600 text-white shadow-md">
@@ -104,8 +106,8 @@ export default function DeviceProfilesPage() {
             <p className="text-sm font-semibold text-text-main truncate">
               {profile.name}
             </p>
-            <p className="text-xs text-text-muted">
-              ID: {profile._id?.slice(-6).toUpperCase()}
+            <p className="text-xs text-text-muted truncate">
+              {profile.description || "Açıklama yok"}
             </p>
           </div>
         </div>
@@ -125,13 +127,13 @@ export default function DeviceProfilesPage() {
       ),
     },
     {
-      id: "ruleChain",
-      title: "Kural Zinciri",
-      span: 3,
+      id: "alarms",
+      title: "Alarm Kuralları",
+      span: 2,
       cellRender: (profile) => (
         <div className="flex items-center gap-2 text-sm text-text-muted">
-          <Link2 className="h-4 w-4" />
-          <span>{profile.ruleChainName || "Varsayılan Zincir"}</span>
+          <BellRing className="h-4 w-4" />
+          <span>{profile.alarms?.length || 0} kural</span>
         </div>
       ),
     },
@@ -159,16 +161,8 @@ export default function DeviceProfilesPage() {
 
   const rowActions = [
     {
-      label: "Düzenle",
-      onClick: (deviceProfile) => {
-        console.log("Düzenle:", device);
-        // TODO: Düzenleme modalı aç
-      },
-      icon: <Edit className="h-4 w-4" />,
-    },
-    {
       label: "Sil",
-      onClick: async (deviceProfile) => console.log(deviceProfile),
+      onClick: (profile) => handleDelete(profile),
       icon: <Trash2 className="h-4 w-4" />,
       className: "text-red-600",
     },
@@ -178,11 +172,14 @@ export default function DeviceProfilesPage() {
     <>
       <TableHeader
         title="Cihaz Profilleri"
-        advert="IoT Cihazlarının davranışlarını ve kurallarını yönetin"
+        advert="Cihaz davranışlarını ve alarm kurallarını yönetin"
         addButtonName="Yeni Profil Ekle"
         onAdd={() => setOpenForm(true)}
         filterConfig={filterConfig}
-        onFilterChange={handleFilterChange}
+        onFilterChange={(newFilters) => {
+          setFilters((prev) => ({ ...prev, ...newFilters }));
+          setPageParams((prev) => ({ ...prev, page: 1 }));
+        }}
         onRefresh={fetchProfiles}
       />
       <TableContent
@@ -191,7 +188,6 @@ export default function DeviceProfilesPage() {
         gridClassName="grid-cols-13"
         title="Cihaz Profili Listesi"
         rowActions={rowActions}
-        onRowClick={setSelectedDeviceProfile}
         getRowId={(p) => p._id}
         emptyState={
           loading ? (
@@ -202,7 +198,7 @@ export default function DeviceProfilesPage() {
               <h3 className="mt-4 text-lg font-semibold">Profil Bulunamadı</h3>
               <p className="text-gray-500 mt-2">
                 {filters.search
-                  ? "Arama kriterlerinize uygun cihaz bulunamadı"
+                  ? "Arama kriterlerinize uygun profil bulunamadı"
                   : "Henüz hiç cihaz profili eklenmemiş"}
               </p>
             </div>
@@ -212,7 +208,7 @@ export default function DeviceProfilesPage() {
           currentPage: pageParams.page,
           totalPages: meta.totalPages,
           itemsPerPage: pageParams.limit,
-          onPageChange: handlePageChange,
+          onPageChange: (p) => setPageParams((prev) => ({ ...prev, page: p })),
         }}
       />
 
@@ -220,7 +216,7 @@ export default function DeviceProfilesPage() {
         open={openForm}
         onOpenChange={(val) => {
           setOpenForm(val);
-          if (!val) fetchProfiles(); // Modal kapandığında listeyi yenile
+          if (!val) fetchProfiles();
         }}
       />
     </>
