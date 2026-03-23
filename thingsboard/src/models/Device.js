@@ -17,9 +17,9 @@ const DeviceSchema = new Schema(
     },
 
     profile: {
-      type: String,
-      trim: true,
-      default: "default",
+      type: Schema.Types.ObjectId,
+      ref: "DeviceProfile",
+      default: null,
     },
 
     tag: {

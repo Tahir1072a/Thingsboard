@@ -2,16 +2,11 @@
 import { useState, useMemo } from "react";
 import {
   Activity,
-  UserPlus,
-  UserMinus,
-  Trash2,
-  Power,
   Settings,
   Tag,
   Database,
   AlertTriangle,
 } from "lucide-react";
-import { BUTTON_STYLES } from "@/lib/constants";
 
 import CommonEntitySheet from "../common/rowDetails/common-entity-sheet";
 import EntityActionBar from "../common/rowDetails/entity-action-bar";
@@ -24,60 +19,9 @@ import { DeviceTelemetryTab } from "./tabs/device-telemetri-tab";
 
 // TODO: Telemetri sayfası yapılacak!
 
-export default function DeviceDetailSheet({ device, open, onOpenChange }) {
+export default function DeviceDetailSheet({ device, open, onOpenChange, onDeviceDeleted }) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCustomer, setHasCustomer] = useState(true);
-
-  const getActions = () => {
-    const defaultStyle = `${BUTTON_STYLES.base} ${BUTTON_STYLES.variants.default}`;
-    const destructiveStyle = `${BUTTON_STYLES.base} ${BUTTON_STYLES.variants.destructive}`;
-
-    return [
-      {
-        label: "Detay Sayfasına Git",
-        icon: Power,
-        onClick: () => console.log("Detay"),
-        className: defaultStyle,
-      },
-      {
-        label: "Cihazı herkese açık yap",
-        icon: Power,
-        onClick: () => console.log("Public"),
-        className: defaultStyle,
-      },
-      !hasCustomer
-        ? {
-            label: "Müşteriye Ata",
-            icon: UserPlus,
-            onClick: () => setHasCustomer(true),
-            className: defaultStyle,
-          }
-        : {
-            label: "Müşteriden Çıkar",
-            icon: UserMinus,
-            onClick: () => setHasCustomer(false),
-            className: destructiveStyle,
-          },
-      {
-        label: "Erişim Anahtarını Kopyala",
-        icon: Power,
-        onClick: () => console.log("Access Token"),
-        className: defaultStyle,
-      },
-      {
-        label: "Cihaz Id'sini kopyala",
-        icon: Power,
-        onClick: () => console.log("Reboot"),
-        className: defaultStyle,
-      },
-      {
-        label: "Sil",
-        icon: Trash2,
-        onClick: () => confirm("Silinsin mi?"),
-        className: destructiveStyle,
-      },
-    ];
-  };
 
   const handleSave = () => {
     console.log("Kaydetme işlemi yapılıyor...");
@@ -93,11 +37,10 @@ export default function DeviceDetailSheet({ device, open, onOpenChange }) {
         icon: Settings,
         content: (
           <div className="space-y-6">
-            <EntityActionBar actions={getActions()} />
             {isEditing ? (
               <DeviceEditForm data={device} />
             ) : (
-              <DeviceDetailForm data={device} />
+              <DeviceDetailForm data={device} onDeviceDeleted={onDeviceDeleted} />
             )}
           </div>
         ),
@@ -120,7 +63,7 @@ export default function DeviceDetailSheet({ device, open, onOpenChange }) {
         icon: AlertTriangle,
         content: <DeviceAlarmsTab />, // Mock Bileşen
       },
-      // Olaylar, İlişkiler vb. ekleyebilirsin
+      // Olaylar, İlişkiler vb. eklenecek.
     ],
     [device, isEditing, hasCustomer]
   );

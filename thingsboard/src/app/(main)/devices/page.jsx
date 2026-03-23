@@ -6,8 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import {
   Activity,
   Tag,
-  Globe,
-  Lock,
   CheckCircle2,
   XCircle,
   Trash2,
@@ -160,7 +158,7 @@ export default function DevicesPage() {
           variant="outline"
           className="bg-halo-50/50 text-halo-700 border-halo-200 truncate"
         >
-          {device.profile}
+          {device.profile?.name || "Belirtilmemiş"}
         </Badge>
       ),
     },
@@ -196,18 +194,6 @@ export default function DevicesPage() {
           </span>
         </div>
       ),
-    },
-    {
-      id: "public",
-      title: "Public",
-      span: 1,
-      align: "center",
-      cellRender: (device) =>
-        device.isPublic ? (
-          <Globe className="h-4 w-4 text-blue-500" />
-        ) : (
-          <Lock className="h-4 w-4 text-text-muted/50" />
-        ),
     },
     {
       id: "gateway",
@@ -311,7 +297,7 @@ export default function DevicesPage() {
       <TableContent
         data={devices}
         columns={columns}
-        gridClassName="grid-cols-13"
+        gridClassName="grid-cols-10"
         title="Cihaz Listesi"
         onRowClick={setSelectedDevice}
         rowActions={rowActions}
@@ -347,6 +333,10 @@ export default function DevicesPage() {
         open={!!selectedDevice}
         onOpenChange={(open) => !open && setSelectedDevice(null)}
         device={selectedDevice}
+        onDeviceDeleted={() => {
+          setSelectedDevice(null);
+          fetchDevices();
+        }}
       />
 
       {/* Ekleme Modalı */}

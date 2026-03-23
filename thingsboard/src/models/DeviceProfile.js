@@ -54,6 +54,11 @@ const DeviceProfileSchema = new Schema(
       default: "MQTT",
     },
 
+    expectedKeys: {
+      type: [String],
+      default: ["temprature", "humidity"]
+    },
+
     isDefault: {
       type: Boolean,
       default: false,

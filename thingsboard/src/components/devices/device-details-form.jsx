@@ -1,3 +1,5 @@
+"use client";
+
 import { useState } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "../ui/button";
@@ -6,22 +8,27 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  User,
   Smartphone,
   Tag,
   Server,
   Wifi,
   FileText,
   Check,
+  Trash2,
+  Copy,
+  Power,
 } from "lucide-react";
 import { FORM_STYLES } from "@/lib/constants";
+import EntityActionBar from "../common/rowDetails/entity-action-bar";
+import { BUTTON_STYLES } from "@/lib/constants";
+import { useRouter } from "next/navigation";
+import toast from "react-hot-toast";
 
 const defaultData = {
   customerName: "Global Teknoloji A.Ş.",
   deviceName: "Termostat-Main-01",
   profile: "Sıcaklık Sensörü",
   label: "Depo Girişi - Bölge A",
-  isGateway: true,
   description:
     "Bu cihaz ana depo girişindeki sıcaklık değişimlerini izlemek ve merkezi sisteme raporlamak için yapılandırılmıştır. Bakım tarihi: 20.11.2025.",
 };
@@ -30,23 +37,82 @@ const inputStyle = `${FORM_STYLES.base} ${FORM_STYLES.variants.readOnly}`;
 const textareaStyle = `${FORM_STYLES.base} ${FORM_STYLES.variants.textareaReadOnly}`;
 const labelStyle = FORM_STYLES.variants.label;
 
-export function DeviceDetailForm({ data = defaultData }) {
+export function DeviceDetailForm({ data = defaultData, onDeviceDeleted }) {
+  const router = useRouter();
+
+  const handleDelete = async () => {
+    const isConfirmed = confirm("Bu cihazı silmek istediğinizden emin misiniz?");
+    if (!isConfirmed) return;
+
+    try {
+      const response = await fetch(`/api/device/${data._id}`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (response.ok) {
+        toast.success("Cihaz başarıyla silindi");
+        if (onDeviceDeleted) {
+          onDeviceDeleted();
+        } else {
+          router.push("/devices");
+          router.refresh();
+        }
+      }
+    } catch (error) {
+      console.error("Silme hatası:", error);
+    } 
+  }
+
+  const handleCopy = async (textToCopy, itemLabel) => {
+    if (!textToCopy) return;
+    console.log(textToCopy);
+    try {
+      await navigator.clipboard.writeText(textToCopy);
+      toast.success(`${itemLabel} başarıyla kopyalandı`);
+    } catch (error) {
+      console.error("Kopyalama hatası:", error);
+    }
+  }
+
+  const getActions = () => {
+      const defaultStyle = `${BUTTON_STYLES.base} ${BUTTON_STYLES.variants.default}`;
+      const destructiveStyle = `${BUTTON_STYLES.base} ${BUTTON_STYLES.variants.destructive}`;
+
+      return [
+        {
+          label: "Detay Sayfasına Git",
+          icon: Power,
+          onClick: () => router.push(`/devices/${data._id}`),
+          className: defaultStyle,
+        },
+        {
+          label: "Erişim Anahtarını Kopyala",
+          icon: Copy,
+          onClick: () => handleCopy(data.accessToken, "Erişim Anahtarı"),
+          className: defaultStyle,
+        },
+        {
+          label: "Cihaz Id'sini kopyala",
+          icon: Copy,
+          onClick: () => handleCopy(data._id, "Cihaz Id"),
+          className: defaultStyle,
+        },
+        {
+          label: "Sil",
+          icon: Trash2,
+          onClick: () => handleDelete(),
+          className: destructiveStyle,
+        },
+      ];
+    };
+
   return (
     <div className="p-1">
+      <EntityActionBar actions={getActions()} />
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* --- Müşteri İsmi --- */}
-        <div className="space-y-1">
-          <Label htmlFor="customerName" className={labelStyle}>
-            <User className="w-4 h-4 text-halo-500" />
-            Müşteri İsmi
-          </Label>
-          <Input
-            id="customerName"
-            value={data.customerName}
-            disabled
-            className={`${inputStyle}`}
-          />
-        </div>
 
         {/* --- Cihaz İsmi --- */}
         <div className="space-y-1">
@@ -70,7 +136,7 @@ export function DeviceDetailForm({ data = defaultData }) {
           </Label>
           <Input
             id="profile"
-            value={data.profile}
+            value={data.profile?.name || "Belirtilmemiş"}
             disabled
             className={`${inputStyle}`}
           />
@@ -88,36 +154,6 @@ export function DeviceDetailForm({ data = defaultData }) {
             disabled
             className={`${inputStyle}`}
           />
-        </div>
-
-        {/* --- Ağ Geçidi (Toggle) --- */}
-        <div className="md:col-span-2 mt-2">
-          <div className="glass p-4 rounded-xl border border-white/40 flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div
-                className={`p-2 rounded-lg ${
-                  data.isGateway
-                    ? "bg-halo-100 text-halo-600"
-                    : "bg-gray-100 text-gray-400"
-                }`}
-              >
-                <Wifi className="w-5 h-5" />
-              </div>
-              <div className="flex flex-col">
-                <Label className="text-base font-semibold text-text-main cursor-pointer">
-                  Ağ Geçidi (Gateway)
-                </Label>
-                <span className="text-xs text-text-muted">
-                  Bu cihaz diğer cihazlar için köprü görevi görür
-                </span>
-              </div>
-            </div>
-            <Switch
-              checked={data.isGateway}
-              disabled
-              className="data-[state=checked]:bg-halo-600 data-[state=unchecked]:bg-gray-200 border-2 border-transparent"
-            />
-          </div>
         </div>
 
         {/* --- Açıklama (Textarea) - YENİ EKLENEN KISIM --- */}
@@ -144,7 +180,7 @@ export function DeviceEditForm({ data, onCancel, onSave }) {
   const [formData, setFormData] = useState({
     customerName: data?.customerName || "",
     name: data?.name || "",
-    profile: data?.profile || "",
+    profile: data?.profile?._id || data?.profile || "",
     label: data?.label || "",
     isGateway: data?.isGateway || false,
     description: data?.description || "",

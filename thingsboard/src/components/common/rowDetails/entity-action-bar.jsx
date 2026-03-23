@@ -1,15 +1,9 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import {
-  UserPlus,
-  UserMinus,
-  Trash2,
-  Share2,
-  Power,
-  Activity,
-} from "lucide-react";
 
+
+// Kendisine verilen action dizisini render eder.
 export default function EntityActionBar({ actions }) {
   if (!actions || actions.length === 0) return null;
 

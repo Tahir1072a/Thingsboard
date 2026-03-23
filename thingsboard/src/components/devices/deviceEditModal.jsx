@@ -51,12 +51,11 @@ export default function DeviceEditModal({ open, onOpenChange, device, onDeviceUp
     },
   });
 
-  // Modal açıldığında mevcut cihaz verilerini forma yükle
   useEffect(() => {
     if (open && device) {
       reset({
         name: device.name || "",
-        profile: device.profile || "default",
+        profile: device.profile._id || "default",
         tag: device.tag || "",
         description: device.description || "",
         status: device.status || "active",

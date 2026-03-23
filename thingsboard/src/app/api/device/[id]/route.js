@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Device from "@/models/Device";
+import DeviceProfile from "@/models/DeviceProfile";
 import mongoose from "mongoose";
 
 // ------------------------------------------------------------------ //
@@ -23,7 +24,7 @@ export async function GET(request, { params }) {
     }
 
     await connectDB();
-    const device = await Device.findById(id).lean();
+    const device = await Device.findById(id).populate("profile").lean();
 
     if (!device) {
       return NextResponse.json({ ok: false, message: "Cihaz bulunamadı." }, { status: 404 });
@@ -56,7 +57,7 @@ export async function PUT(request, { params }) {
     const device = await Device.findByIdAndUpdate(id, updateData, {
       new: true,
       runValidators: true,
-    }).lean();
+    }).populate("profile").lean();
 
     if (!device) {
       return NextResponse.json({ ok: false, message: "Cihaz bulunamadı." }, { status: 404 });

@@ -8,6 +8,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Device from "@/models/Device";
+import DeviceProfile from "@/models/DeviceProfile";
 
 // ------------------------------------------------------------------ //
 // GET — Listeleme
@@ -40,7 +41,7 @@ export async function GET(request) {
 
     const skip = (page - 1) * limit;
     const [data, total] = await Promise.all([
-      Device.find(filter).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+      Device.find(filter).populate("profile").sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
       Device.countDocuments(filter),
     ]);
 
@@ -80,7 +81,7 @@ export async function POST(request) {
 
     const device = await Device.create({
       name,
-      profile: profile || "default",
+      profile: profile || null,
       tag: tag || "",
       description: description || "",
       isGateway: isGateway ?? false,

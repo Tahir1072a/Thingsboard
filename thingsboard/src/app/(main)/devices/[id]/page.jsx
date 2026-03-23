@@ -82,7 +82,7 @@ export default function DeviceDetailPage() {
 
   const infoItems = [
     { label: "Cihaz Adı", value: device.name, icon: Activity },
-    { label: "Profil", value: device.profile || "default", icon: Radio },
+    { label: "Profil", value: device.profile?.name || "Belirtilmemiş", icon: Radio },
     { label: "Etiket", value: device.tag || "-", icon: Tag },
     { label: "Durum", value: device.status === "active" ? "Aktif" : "Pasif", icon: device.status === "active" ? CheckCircle2 : XCircle },
     { label: "Access Token", value: device.accessToken, icon: Key, mono: true },

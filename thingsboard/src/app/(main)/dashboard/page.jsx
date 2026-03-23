@@ -23,6 +23,9 @@ const PROTOCOL_COLORS = {
   websocket: "bg-green-100 text-green-700",
 };
 
+const DEFAULT_KEYS = ["temperature", "humidity"];
+const OVERVIEW_KEYS = ["temperature"];
+
 export default function DashboardPage() {
   const [devices, setDevices] = useState([]);
   const [selectedDevice, setSelectedDevice] = useState(null);
@@ -63,7 +66,7 @@ export default function DashboardPage() {
   }, [fetchDevices, fetchAlarms]);
 
   // Seçili cihaz için telemetri key'lerini tahmin et (simülatör temperature + humidity gönderir)
-  const defaultKeys = ["temperature", "humidity"];
+  // const defaultKeys = ["temperature", "humidity"];
 
   if (loading) {
     return (
@@ -192,13 +195,14 @@ export default function DashboardPage() {
               <LiveChart
                 key={`live-${selectedDevice._id}`}
                 deviceId={selectedDevice._id}
-                keys={defaultKeys}
+                keys={DEFAULT_KEYS}
                 title={`${selectedDevice.name} — Canlı Telemetri`}
                 maxPoints={60}
               />
 
               {/* Tüm cihazların sıcaklık karşılaştırması */}
-              <div>
+              {/* Cihazın biri bağlantı sorunları yaşıyor. */}
+              {/* <div>
                 <p className="text-xs font-medium text-text-muted uppercase tracking-wider mb-2">
                   Tüm Cihazlar — Sıcaklık Karşılaştırması
                 </p>
@@ -207,19 +211,19 @@ export default function DashboardPage() {
                     <LiveChart
                       key={`overview-${device._id}`}
                       deviceId={device._id}
-                      keys={["temperature"]}
+                      keys={OVERVIEW_KEYS}
                       title={device.name}
                       maxPoints={30}
                     />
                   ))}
                 </div>
-              </div>
+              </div> */}
             </div>
           ) : (
             <HistoricalChart
               key={`hist-${selectedDevice._id}`}
               deviceId={selectedDevice._id}
-              keys={defaultKeys}
+              keys={DEFAULT_KEYS}
               title={`${selectedDevice.name} — Geçmiş Veri`}
             />
           )}
