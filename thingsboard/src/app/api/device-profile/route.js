@@ -5,10 +5,12 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import DeviceProfile from "@/models/DeviceProfile";
+import { getSessionUser } from "@/lib/getSessionUser";
 
 // GET — Listele (search + pagination)
 export async function GET(request) {
   try {
+    const userId = await getSessionUser();
     await connectDB();
 
     const { searchParams } = new URL(request.url);
@@ -17,7 +19,7 @@ export async function GET(request) {
     const search = searchParams.get("search") || "";
     const transportType = searchParams.get("transportType") || "";
 
-    const filter = {};
+    const filter = { userId };
     if (search) {
       filter.name = { $regex: search, $options: "i" };
     }
@@ -46,13 +48,14 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error("[GET /api/device-profile]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }
 
 // POST — Oluştur
 export async function POST(request) {
   try {
+    const userId = await getSessionUser();
     await connectDB();
     const body = await request.json();
 
@@ -65,15 +68,16 @@ export async function POST(request) {
       );
     }
 
-    // Eğer yeni profil "varsayılan" olacaksa diğerlerinin default'unu kaldır
+    // Eğer yeni profil "varsayılan" olacaksa diğerlerinin default'unu kaldır (user scope)
     if (isDefault) {
       await DeviceProfile.updateMany(
-        { isDefault: true },
+        { userId, isDefault: true },
         { $set: { isDefault: false } }
       );
     }
 
     const profile = await DeviceProfile.create({
+      userId,
       name,
       description: description || "",
       transportType: transportType || "MQTT",
@@ -87,6 +91,6 @@ export async function POST(request) {
     );
   } catch (error) {
     console.error("[POST /api/device-profile]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }

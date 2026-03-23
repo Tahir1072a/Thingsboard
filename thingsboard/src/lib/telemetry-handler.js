@@ -15,6 +15,7 @@ import emitter from "@/lib/event-emitter";
 
 /**
  * Access token ile cihazı doğrula.
+ * Dönüş objesinde userId dahildir.
  */
 export async function authenticateDevice(accessToken) {
   if (!accessToken) {
@@ -65,7 +66,7 @@ function evaluateCondition(condition, key, value) {
 /**
  * Telemetri verisi kaydedildikten sonra alarm kurallarını kontrol et.
  */
-async function checkAlarms(deviceId, key, value) {
+async function checkAlarms(deviceId, key, value, userId) {
   try {
     // Cihazı bul → profilini al
     const device = await Device.findById(deviceId).lean();
@@ -88,8 +89,9 @@ async function checkAlarms(deviceId, key, value) {
         });
 
         if (!existing) {
-          // Yeni alarm oluştur
+          // Yeni alarm oluştur (userId dahil)
           const alarm = await Alarm.create({
+            userId: userId || device.userId,
             deviceId,
             deviceName: device.name,
             profileId: profile._id,
@@ -136,9 +138,10 @@ async function checkAlarms(deviceId, key, value) {
 
 /**
  * Ham telemetri mesajını işler.
+ * userId parametresi artık zorunludur.
  */
 export async function handleTelemetry(payload) {
-  const { deviceId, key, value, unit, protocol = "http", timestamp } = payload;
+  const { deviceId, userId, key, value, unit, protocol = "http", timestamp } = payload;
 
   if (!deviceId || !key || value === undefined || value === null) {
     throw new Error(
@@ -154,6 +157,7 @@ export async function handleTelemetry(payload) {
   await connectDB();
 
   const doc = await Telemetry.create({
+    userId,
     deviceId,
     key,
     value: numericValue,
@@ -164,11 +168,11 @@ export async function handleTelemetry(payload) {
 
   const lean = doc.toObject();
 
-  // SSE event'i yayınla
-  emitter.emit("telemetry", lean);
+  // SSE event'i yayınla (userId dahil)
+  emitter.emit("telemetry", { ...lean, userId: String(userId) });
 
   // Alarm kurallarını kontrol et (async, telemetriyi bloklamaz)
-  checkAlarms(deviceId, key, numericValue);
+  checkAlarms(deviceId, key, numericValue, userId);
 
   return lean;
 }
@@ -188,4 +192,3 @@ export function parseMqttTopic(topic) {
 
   return { deviceId: null, key: null };
 }
-

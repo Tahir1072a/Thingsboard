@@ -12,12 +12,18 @@
  */
 
 import emitter from "@/lib/event-emitter";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Next.js SSE için dynamic zorunlu
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request) {
+  // Session'dan userId al — SSE bağlantısı sadece auth kullanıcılara açık
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id ?? null;
+
   const { searchParams } = new URL(request.url);
   // isteğe bağlı: belirli bir cihazı izlemek için
   const deviceIdFilter = searchParams.get("deviceId") ?? null;
@@ -32,6 +38,9 @@ export async function GET(request) {
 
       const onTelemetry = (doc) => {
         if (closed) return;
+
+        // User filtresi — sadece kendi cihazlarının verisini gör
+        if (userId && doc.userId && String(doc.userId) !== userId) return;
 
         // Belirli cihaz filtresi varsa diğerlerini atla
         if (deviceIdFilter && String(doc.deviceId) !== deviceIdFilter) return;

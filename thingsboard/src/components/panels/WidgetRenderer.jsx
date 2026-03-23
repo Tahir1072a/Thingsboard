@@ -64,11 +64,13 @@ export default function WidgetRenderer({ widget }) {
   }
 
   return (
-    <Component
-      deviceId={widget.deviceId}
-      keys={widget.keys || []}
-      title={widget.title}
-      config={widget.config || {}}
-    />
+    <div className="h-full w-full">
+      <Component
+        deviceId={widget.deviceId}
+        keys={widget.keys || []}
+        title={widget.title}
+        config={widget.config || {}}
+      />
+    </div>
   );
 }

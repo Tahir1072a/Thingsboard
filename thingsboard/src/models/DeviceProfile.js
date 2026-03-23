@@ -35,6 +35,13 @@ const AlarmRuleSchema = new Schema(
 
 const DeviceProfileSchema = new Schema(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, "userId zorunludur."],
+      index: true,
+    },
+
     name: {
       type: String,
       required: [true, "Profil adı zorunludur."],

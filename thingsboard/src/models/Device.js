@@ -9,6 +9,13 @@ import crypto from "crypto";
  */
 const DeviceSchema = new Schema(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, "userId zorunludur."],
+      index: true,
+    },
+
     name: {
       type: String,
       required: [true, "Cihaz adı zorunludur."],
@@ -84,7 +91,8 @@ const DeviceSchema = new Schema(
 /* İndeksler                                                            */
 /* ------------------------------------------------------------------ */
 DeviceSchema.index({ name: "text", tag: "text" });
-DeviceSchema.index({ profile: 1, status: 1 });
+DeviceSchema.index({ userId: 1, name: 1 });
+DeviceSchema.index({ userId: 1, profile: 1, status: 1 });
 DeviceSchema.index({ isGateway: 1 });
 
 /* ------------------------------------------------------------------ */

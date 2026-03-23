@@ -8,6 +8,13 @@ import mongoose, { Schema } from "mongoose";
 
 const AlarmSchema = new Schema(
   {
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, "userId zorunludur."],
+      index: true,
+    },
+
     // Hangi cihaz
     deviceId: {
       type: Schema.Types.ObjectId,

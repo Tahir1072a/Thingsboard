@@ -327,7 +327,7 @@ export default function DashboardEditorPage() {
           {dashboard.widgets.map((widget) => (
             <div
               key={widget.i}
-              className="rounded-xl border border-border bg-card shadow-sm overflow-hidden transition-shadow hover:shadow-md"
+              className="rounded-xl border border-border bg-card shadow-sm overflow-visible transition-shadow hover:shadow-md flex flex-col"
             >
               {/* Widget Header (düzenleme modunda) */}
               {editMode && (
@@ -348,7 +348,7 @@ export default function DashboardEditorPage() {
                 </div>
               )}
               {/* Widget İçeriği */}
-              <div className={`p-3 ${editMode ? "h-[calc(100%-36px)]" : "h-full"}`}>
+              <div className="p-3 flex-1 min-h-0">
                 <WidgetRenderer widget={widget} />
               </div>
             </div>

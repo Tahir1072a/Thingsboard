@@ -63,6 +63,7 @@ function getDeviceModel() {
     name: String,
     accessToken: { type: String, index: true },
     status: { type: String, default: "active" },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
   }, { collection: "devices", strict: false });
   return mongoose.model("Device", s);
 }
@@ -71,6 +72,7 @@ function getDeviceModel() {
 function getTelemetryModel() {
   if (mongoose.models.Telemetry) return mongoose.models.Telemetry;
   const s = new mongoose.Schema({
+    userId: mongoose.Schema.Types.ObjectId,
     deviceId: mongoose.Schema.Types.ObjectId,
     key: String,
     value: Number,
@@ -108,6 +110,7 @@ async function ingestTelemetry(items) {
 
     for (const item of items) {
       const doc = await Telemetry.create({
+        userId: item.userId || null,
         deviceId: item.deviceId,
         key: item.key,
         value: item.value,
@@ -117,6 +120,7 @@ async function ingestTelemetry(items) {
       });
 
       emitter.emit("telemetry", {
+        userId: item.userId ? String(item.userId) : null,
         deviceId: String(doc.deviceId),
         key: doc.key,
         value: doc.value,
@@ -155,6 +159,7 @@ async function main() {
 
       client.deviceId = device._id.toString();
       client.deviceName = device.name;
+      client.userId = device.userId ? device.userId.toString() : null;
       console.log(`[MQTT] Auth başarılı: ${device.name} (${client.id})`);
       callback(null, true);
     } catch (err) {
@@ -192,14 +197,14 @@ async function main() {
       const items = [];
 
       if (body.key && body.value !== undefined) {
-        items.push({ deviceId: client.deviceId, key: body.key, value: body.value, unit: body.unit, protocol: "mqtt" });
+        items.push({ deviceId: client.deviceId, userId: client.userId, key: body.key, value: body.value, unit: body.unit, protocol: "mqtt" });
       } else if (topicKey && body.value !== undefined) {
-        items.push({ deviceId: client.deviceId, key: topicKey, value: body.value, unit: body.unit, protocol: "mqtt" });
+        items.push({ deviceId: client.deviceId, userId: client.userId, key: topicKey, value: body.value, unit: body.unit, protocol: "mqtt" });
       } else {
         Object.entries(body)
           .filter(([k]) => k !== "deviceId" && k !== "accessToken")
           .forEach(([key, value]) => {
-            items.push({ deviceId: client.deviceId, key, value, protocol: "mqtt" });
+            items.push({ deviceId: client.deviceId, userId: client.userId, key, value, protocol: "mqtt" });
           });
       }
 
@@ -234,6 +239,7 @@ async function main() {
         }
 
         const deviceId = device._id.toString();
+        const userId = device.userId ? device.userId.toString() : null;
 
         if (!body.key || body.value === undefined) {
           ws.send(JSON.stringify({ error: "key ve value alanları zorunludur." }));
@@ -242,6 +248,7 @@ async function main() {
 
         await ingestTelemetry([{
           deviceId,
+          userId,
           key: body.key,
           value: body.value,
           unit: body.unit,

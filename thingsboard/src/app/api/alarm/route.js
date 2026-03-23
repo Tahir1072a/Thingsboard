@@ -5,10 +5,13 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Alarm from "@/models/Alarm";
+import Device from "@/models/Device";
+import { getSessionUser } from "@/lib/getSessionUser";
 
-// GET — Alarmları listele
+// GET — Alarmları listele (user-scoped)
 export async function GET(request) {
   try {
+    const userId = await getSessionUser();
     await connectDB();
 
     const { searchParams } = new URL(request.url);
@@ -17,7 +20,7 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get("limit") || "50");
     const page = parseInt(searchParams.get("page") || "1");
 
-    const filter = {};
+    const filter = { userId };
     if (status) filter.status = status;
     if (severity) filter.severity = severity;
 
@@ -30,8 +33,8 @@ export async function GET(request) {
       Alarm.countDocuments(filter),
     ]);
 
-    // Aktif alarm sayısı (header badge için)
-    const activeCount = await Alarm.countDocuments({ status: "ACTIVE" });
+    // Aktif alarm sayısı (header badge için) — user-scoped
+    const activeCount = await Alarm.countDocuments({ userId, status: "ACTIVE" });
 
     return NextResponse.json({
       ok: true,
@@ -46,13 +49,14 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error("[GET /api/alarm]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }
 
 // PUT — Alarm durumunu güncelle (acknowledge / clear)
 export async function PUT(request) {
   try {
+    const userId = await getSessionUser();
     await connectDB();
     const body = await request.json();
     const { alarmId, action } = body; // action: "acknowledge" | "clear"
@@ -64,7 +68,8 @@ export async function PUT(request) {
       );
     }
 
-    const alarm = await Alarm.findById(alarmId);
+    // Alarm'ın bu kullanıcıya ait olduğunu doğrula
+    const alarm = await Alarm.findOne({ _id: alarmId, userId });
     if (!alarm) {
       return NextResponse.json({ ok: false, message: "Alarm bulunamadı." }, { status: 404 });
     }
@@ -87,6 +92,6 @@ export async function PUT(request) {
     });
   } catch (error) {
     console.error("[PUT /api/alarm]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }

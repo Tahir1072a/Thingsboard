@@ -23,6 +23,13 @@ const TelemetrySchema = new Schema(
     // TIME-SERIES META ALANLARI
     // --------------------------------------------------------
 
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: [true, "userId zorunludur."],
+      index: true,
+    },
+
     // Hangi cihazdan geldiği (time-series "metaField" olarak kullanılır)
     deviceId: {
       type: Schema.Types.ObjectId,
@@ -112,7 +119,7 @@ const TelemetrySchema = new Schema(
 /* ------------------------------------------------------------------ */
 
 // En sık kullanılan sorgu: belirli cihazın belirli metriği, zaman sıralı
-TelemetrySchema.index({ deviceId: 1, key: 1, timestamp: -1 });
+TelemetrySchema.index({ userId: 1, deviceId: 1, key: 1, timestamp: -1 });
 
 // Dashboard'da "son N dakika" sorguları için
 TelemetrySchema.index({ timestamp: -1 });
@@ -127,8 +134,10 @@ TelemetrySchema.index({ timestamp: -1 });
  * @param {string} key        - Metrik adı (ör. "temperature")
  * @param {number} limit      - Kaç kayıt (varsayılan 60)
  */
-TelemetrySchema.statics.getLatest = function (deviceId, key, limit = 60) {
-  return this.find({ deviceId, key })
+TelemetrySchema.statics.getLatest = function (deviceId, key, limit = 60, userId = null) {
+  const filter = { deviceId, key };
+  if (userId) filter.userId = userId;
+  return this.find(filter)
     .sort({ timestamp: -1 })
     .limit(limit)
     .lean();
@@ -147,13 +156,16 @@ TelemetrySchema.statics.getRange = function (
   key,
   from,
   to,
-  limit = 1000
+  limit = 1000,
+  userId = null
 ) {
-  return this.find({
+  const filter = {
     deviceId,
     key,
     timestamp: { $gte: from, $lte: to },
-  })
+  };
+  if (userId) filter.userId = userId;
+  return this.find(filter)
     .sort({ timestamp: 1 })
     .limit(limit)
     .lean();

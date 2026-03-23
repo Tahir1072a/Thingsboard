@@ -9,12 +9,15 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Device from "@/models/Device";
 import DeviceProfile from "@/models/DeviceProfile";
+import { getSessionUser } from "@/lib/getSessionUser";
 
 // ------------------------------------------------------------------ //
 // GET — Listeleme
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
+    const userId = await getSessionUser();
+
     const { searchParams } = new URL(request.url);
 
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
@@ -24,7 +27,7 @@ export async function GET(request) {
 
     await connectDB();
 
-    const filter = {};
+    const filter = { userId };
 
     // Metin araması
     if (search) {
@@ -66,6 +69,7 @@ export async function GET(request) {
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
+    const userId = await getSessionUser();
     const body = await request.json();
 
     const { name, profile, tag, description, isGateway, isPublic, accessToken } = body;
@@ -80,6 +84,7 @@ export async function POST(request) {
     await connectDB();
 
     const device = await Device.create({
+      userId,
       name,
       profile: profile || null,
       tag: tag || "",

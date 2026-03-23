@@ -11,12 +11,14 @@ import connectDB from "@/lib/db";
 import Device from "@/models/Device";
 import DeviceProfile from "@/models/DeviceProfile";
 import mongoose from "mongoose";
+import { getSessionUser } from "@/lib/getSessionUser";
 
 // ------------------------------------------------------------------ //
 // GET — Tekil cihaz
 // ------------------------------------------------------------------ //
 export async function GET(request, { params }) {
   try {
+    const userId = await getSessionUser();
     const { id } = await params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -24,7 +26,7 @@ export async function GET(request, { params }) {
     }
 
     await connectDB();
-    const device = await Device.findById(id).populate("profile").lean();
+    const device = await Device.findOne({ _id: id, userId }).populate("profile").lean();
 
     if (!device) {
       return NextResponse.json({ ok: false, message: "Cihaz bulunamadı." }, { status: 404 });
@@ -33,7 +35,7 @@ export async function GET(request, { params }) {
     return NextResponse.json({ ok: true, data: device });
   } catch (error) {
     console.error("[GET /api/device/:id]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }
 
@@ -42,6 +44,7 @@ export async function GET(request, { params }) {
 // ------------------------------------------------------------------ //
 export async function PUT(request, { params }) {
   try {
+    const userId = await getSessionUser();
     const { id } = await params;
     const body = await request.json();
 
@@ -51,13 +54,14 @@ export async function PUT(request, { params }) {
 
     await connectDB();
 
-    // accessToken değiştirilemez (güvenlik)
-    const { accessToken: _discard, ...updateData } = body;
+    // accessToken ve userId değiştirilemez (güvenlik)
+    const { accessToken: _discard, userId: _discardUser, ...updateData } = body;
 
-    const device = await Device.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true,
-    }).populate("profile").lean();
+    const device = await Device.findOneAndUpdate(
+      { _id: id, userId },
+      updateData,
+      { new: true, runValidators: true }
+    ).populate("profile").lean();
 
     if (!device) {
       return NextResponse.json({ ok: false, message: "Cihaz bulunamadı." }, { status: 404 });
@@ -66,7 +70,7 @@ export async function PUT(request, { params }) {
     return NextResponse.json({ ok: true, data: device, message: "Cihaz güncellendi." });
   } catch (error) {
     console.error("[PUT /api/device/:id]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }
 
@@ -75,6 +79,7 @@ export async function PUT(request, { params }) {
 // ------------------------------------------------------------------ //
 export async function DELETE(request, { params }) {
   try {
+    const userId = await getSessionUser();
     const { id } = await params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -82,7 +87,7 @@ export async function DELETE(request, { params }) {
     }
 
     await connectDB();
-    const device = await Device.findByIdAndDelete(id);
+    const device = await Device.findOneAndDelete({ _id: id, userId });
 
     if (!device) {
       return NextResponse.json({ ok: false, message: "Cihaz bulunamadı." }, { status: 404 });
@@ -91,6 +96,6 @@ export async function DELETE(request, { params }) {
     return NextResponse.json({ ok: true, message: "Cihaz silindi." });
   } catch (error) {
     console.error("[DELETE /api/device/:id]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }

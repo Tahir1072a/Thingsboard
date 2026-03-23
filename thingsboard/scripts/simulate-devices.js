@@ -6,18 +6,65 @@
  *
  * Access token sistemi: Her cihaz kendi token'ı ile kimlik doğrular.
  *
+ * Multi-tenancy: SIMULATOR_USER_ID ortam değişkeni ile kullanıcı belirtilir.
+ * Cihazlar doğrudan MongoDB'ye kaydedilir (API session bypass).
+ * Telemetri gönderimi access token ile yapılır (değişiklik yok).
+ *
  * Kullanım:
- *   npm run simulate
+ *   SIMULATOR_USER_ID=<mongo_user_id> npm run simulate
  */
 
 import "dotenv/config";
+import mongoose from "mongoose";
+import crypto from "crypto";
 
 const HTTP_URL = process.env.SIMULATOR_HTTP_URL ?? "http://localhost:3000";
 const MQTT_URL = process.env.SIMULATOR_MQTT_URL ?? "mqtt://localhost:1883";
 const WS_URL = process.env.SIMULATOR_WS_URL ?? "ws://localhost:3001";
+const MONGODB_URI = process.env.MONGODB_URI;
+const SIMULATOR_USER_ID = process.env.SIMULATOR_USER_ID;
 
 const DEVICE_COUNT = 10;
 const SEND_INTERVAL_MS = 1000; // 1 saniye
+
+// ------------------------------------------------------------------ //
+// MongoDB bağlantısı ve modeller
+// ------------------------------------------------------------------ //
+async function connectDB() {
+  if (!MONGODB_URI) {
+    throw new Error("MONGODB_URI ortam değişkeni tanımlı değil!");
+  }
+  await mongoose.connect(MONGODB_URI, { bufferCommands: false });
+  console.log("✅ MongoDB bağlantısı kuruldu (simulator)");
+}
+
+function getDeviceModel() {
+  if (mongoose.models.Device) return mongoose.models.Device;
+  const s = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    name: String,
+    profile: { type: mongoose.Schema.Types.ObjectId, ref: "DeviceProfile", default: null },
+    tag: { type: String, default: "" },
+    description: { type: String, default: "" },
+    status: { type: String, default: "active" },
+    isGateway: { type: Boolean, default: false },
+    isPublic: { type: Boolean, default: false },
+    accessToken: { type: String, unique: true, index: true },
+    customerId: { type: mongoose.Schema.Types.ObjectId, default: null },
+    additionalInfo: { type: Map, of: mongoose.Schema.Types.Mixed, default: {} },
+  }, { collection: "devices", timestamps: true, strict: false });
+  return mongoose.model("Device", s);
+}
+
+function getUserModel() {
+  if (mongoose.models.User) return mongoose.models.User;
+  const s = new mongoose.Schema({
+    email: String,
+    firstName: String,
+    lastName: String,
+  }, { collection: "users", strict: false });
+  return mongoose.model("User", s);
+}
 
 // ------------------------------------------------------------------ //
 // Yardımcı: rastgele yürüyüş
@@ -28,9 +75,26 @@ function randomWalk(prev, min, max, step = 0.5) {
 }
 
 // ------------------------------------------------------------------ //
-// 1. Cihazları oluştur veya mevcut olanları al
+// 1. Kullanıcıyı doğrula ve cihazları oluştur
 // ------------------------------------------------------------------ //
-async function ensureDevices() {
+async function resolveUserId() {
+  if (!SIMULATOR_USER_ID) {
+    // SIMULATOR_USER_ID verilmemişse, ilk kullanıcıyı kullan
+    const User = getUserModel();
+    const firstUser = await User.findOne().lean();
+    if (!firstUser) {
+      throw new Error(
+        "Veritabanında kullanıcı bulunamadı. Önce bir kullanıcı oluşturun veya SIMULATOR_USER_ID belirtin."
+      );
+    }
+    console.log(`ℹ️  SIMULATOR_USER_ID belirtilmedi → ilk kullanıcı kullanılıyor: ${firstUser.email} (${firstUser._id})`);
+    return firstUser._id.toString();
+  }
+  return SIMULATOR_USER_ID;
+}
+
+async function ensureDevices(userId) {
+  const Device = getDeviceModel();
   const devices = [];
 
   for (let i = 1; i <= DEVICE_COUNT; i++) {
@@ -38,38 +102,28 @@ async function ensureDevices() {
     const name = `sim-${protocol}-${String(i).padStart(3, "0")}`;
 
     try {
-      // Önce mevcut cihazı ara
-      const searchRes = await fetch(
-        `${HTTP_URL}/api/device?search=${encodeURIComponent(name)}&limit=1`
-      );
-      const searchData = await searchRes.json();
+      // Önce mevcut cihazı ara (user-scoped)
+      const existing = await Device.findOne({ name, userId }).lean();
 
-      if (searchData.ok && searchData.data.length > 0) {
-        const existing = searchData.data[0];
+      if (existing) {
         console.log(`✅ Mevcut cihaz: ${name} (token: ${existing.accessToken})`);
         devices.push({ ...existing, protocol });
         continue;
       }
 
-      // Yoksa oluştur
-      const createRes = await fetch(`${HTTP_URL}/api/device`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name,
-          profile: "default",
-          tag: `simulator-${protocol}`,
-          description: `Simülatör cihazı (${protocol.toUpperCase()})`,
-        }),
+      // Yoksa doğrudan MongoDB'ye oluştur
+      const accessToken = crypto.randomBytes(32).toString("base64url");
+      const newDevice = await Device.create({
+        userId,
+        name,
+        tag: `simulator-${protocol}`,
+        description: `Simülatör cihazı (${protocol.toUpperCase()})`,
+        accessToken,
+        status: "active",
       });
 
-      const createData = await createRes.json();
-      if (createData.ok) {
-        console.log(`🆕 Yeni cihaz: ${name} (token: ${createData.data.accessToken})`);
-        devices.push({ ...createData.data, protocol });
-      } else {
-        console.error(`❌ ${name} oluşturulamadı:`, createData.message);
-      }
+      console.log(`🆕 Yeni cihaz: ${name} (token: ${newDevice.accessToken})`);
+      devices.push({ ...newDevice.toObject(), protocol });
     } catch (err) {
       console.error(`❌ ${name} hatası:`, err.message);
     }
@@ -165,7 +219,7 @@ async function setupWS(devices) {
 
     ws.on("open", () => {
       console.log(`[WS] ${device.name} bağlandı`);
-      wsClients.set(device._id, ws);
+      wsClients.set(device._id.toString(), ws);
     });
 
     ws.on("error", (err) => {
@@ -182,7 +236,7 @@ async function setupWS(devices) {
 }
 
 function sendWS(device, metrics) {
-  const ws = wsClients.get(device._id);
+  const ws = wsClients.get(device._id.toString());
   if (!ws || ws.readyState !== 1) return;
 
   for (const [key, value] of Object.entries(metrics)) {
@@ -202,10 +256,17 @@ function sendWS(device, metrics) {
 async function main() {
   console.log("📡 Cihaz simülatörü başlatılıyor...\n");
 
-  // Cihazları oluştur/getir
-  const devices = await ensureDevices();
+  // MongoDB'ye bağlan
+  await connectDB();
+
+  // Kullanıcıyı çözümle
+  const userId = await resolveUserId();
+  console.log(`👤 Kullanıcı ID: ${userId}\n`);
+
+  // Cihazları oluştur/getir (doğrudan MongoDB)
+  const devices = await ensureDevices(userId);
   if (devices.length === 0) {
-    console.error("❌ Hiç cihaz oluşturulamadı. Sunucu çalışıyor mu?");
+    console.error("❌ Hiç cihaz oluşturulamadı.");
     process.exit(1);
   }
 
@@ -221,7 +282,7 @@ async function main() {
   // Her cihaz için başlangıç değerleri
   const state = {};
   for (const d of devices) {
-    state[d._id] = {
+    state[d._id.toString()] = {
       temperature: 20 + Math.random() * 10,
       humidity: 40 + Math.random() * 20,
     };
@@ -231,7 +292,8 @@ async function main() {
 
   setInterval(() => {
     for (const device of devices) {
-      const s = state[device._id];
+      const id = device._id.toString();
+      const s = state[id];
       s.temperature = randomWalk(s.temperature, -10, 50, 0.5);
       s.humidity = randomWalk(s.humidity, 10, 95, 1);
 

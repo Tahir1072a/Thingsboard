@@ -6,17 +6,19 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import DeviceProfile from "@/models/DeviceProfile";
 import mongoose from "mongoose";
+import { getSessionUser } from "@/lib/getSessionUser";
 
 // GET — Detay
 export async function GET(request, { params }) {
   try {
+    const userId = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
     }
 
     await connectDB();
-    const profile = await DeviceProfile.findById(id).lean();
+    const profile = await DeviceProfile.findOne({ _id: id, userId }).lean();
 
     if (!profile) {
       return NextResponse.json({ ok: false, message: "Profil bulunamadı." }, { status: 404 });
@@ -24,13 +26,14 @@ export async function GET(request, { params }) {
 
     return NextResponse.json({ ok: true, data: profile });
   } catch (error) {
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }
 
 // PUT — Güncelle
 export async function PUT(request, { params }) {
   try {
+    const userId = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
@@ -40,15 +43,15 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const { name, description, transportType, isDefault, alarms } = body;
 
-    const profile = await DeviceProfile.findById(id);
+    const profile = await DeviceProfile.findOne({ _id: id, userId });
     if (!profile) {
       return NextResponse.json({ ok: false, message: "Profil bulunamadı." }, { status: 404 });
     }
 
-    // Varsayılan değişikliği
+    // Varsayılan değişikliği (user scope)
     if (isDefault && !profile.isDefault) {
       await DeviceProfile.updateMany(
-        { isDefault: true, _id: { $ne: id } },
+        { userId, isDefault: true, _id: { $ne: id } },
         { $set: { isDefault: false } }
       );
     }
@@ -67,20 +70,21 @@ export async function PUT(request, { params }) {
       data: profile.toObject(),
     });
   } catch (error) {
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }
 
 // DELETE — Sil
 export async function DELETE(request, { params }) {
   try {
+    const userId = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
     }
 
     await connectDB();
-    const profile = await DeviceProfile.findById(id);
+    const profile = await DeviceProfile.findOne({ _id: id, userId });
 
     if (!profile) {
       return NextResponse.json({ ok: false, message: "Profil bulunamadı." }, { status: 404 });
@@ -93,10 +97,10 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    await DeviceProfile.findByIdAndDelete(id);
+    await DeviceProfile.findOneAndDelete({ _id: id, userId });
 
     return NextResponse.json({ ok: true, message: "Profil silindi." });
   } catch (error) {
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }

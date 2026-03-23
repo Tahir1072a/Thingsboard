@@ -16,6 +16,8 @@ import { NextResponse } from "next/server";
 import { handleTelemetry, authenticateDevice } from "@/lib/telemetry-handler";
 import connectDB from "@/lib/db";
 import Telemetry from "@/models/Telemetry";
+import Device from "@/models/Device";
+import { getSessionUser } from "@/lib/getSessionUser";
 
 // ------------------------------------------------------------------ //
 // POST — Veri alımı (access token zorunlu)
@@ -28,6 +30,7 @@ export async function POST(request) {
     // Cihaz doğrulama — token geçersizse hata fırlatır
     const device = await authenticateDevice(accessToken);
     const deviceId = device._id.toString();
+    const userId = device.userId?.toString();
 
     const body = await request.json();
 
@@ -37,6 +40,7 @@ export async function POST(request) {
       for (const metric of body.metrics) {
         const doc = await handleTelemetry({
           deviceId,
+          userId,
           key: metric.key,
           value: metric.value,
           unit: metric.unit,
@@ -51,6 +55,7 @@ export async function POST(request) {
     // Tekil metrik: { key, value, unit?, timestamp? }
     const doc = await handleTelemetry({
       deviceId,
+      userId,
       key: body.key,
       value: body.value,
       unit: body.unit,
@@ -75,10 +80,12 @@ export async function POST(request) {
 }
 
 // ------------------------------------------------------------------ //
-// GET — Geçmiş veri sorgusu
+// GET — Geçmiş veri sorgusu (session auth ile user kontrolü)
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
+    const userId = await getSessionUser();
+
     const { searchParams } = new URL(request.url);
 
     const deviceId = searchParams.get("deviceId");
@@ -96,7 +103,16 @@ export async function GET(request) {
 
     await connectDB();
 
-    const filter = { deviceId };
+    // Cihazın bu kullanıcıya ait olduğunu doğrula
+    const device = await Device.findOne({ _id: deviceId, userId }).lean();
+    if (!device) {
+      return NextResponse.json(
+        { ok: false, message: "Cihaz bulunamadı veya erişim yetkiniz yok." },
+        { status: 403 }
+      );
+    }
+
+    const filter = { deviceId, userId };
     if (key) filter.key = key;
 
     if (from || to) {
@@ -121,7 +137,7 @@ export async function GET(request) {
     console.error("[GET /api/telemetry]", error.message);
     return NextResponse.json(
       { ok: false, message: error.message },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }
