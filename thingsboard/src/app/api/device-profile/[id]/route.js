@@ -7,6 +7,7 @@ import connectDB from "@/lib/db";
 import DeviceProfile from "@/models/DeviceProfile";
 import mongoose from "mongoose";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { invalidateProfile } from "@/lib/cache";
 
 // GET — Detay
 export async function GET(request, { params }) {
@@ -64,6 +65,9 @@ export async function PUT(request, { params }) {
 
     await profile.save();
 
+    // Redis cache'ini temizle
+    await invalidateProfile(id);
+
     return NextResponse.json({
       ok: true,
       message: "Profil güncellendi.",
@@ -98,6 +102,9 @@ export async function DELETE(request, { params }) {
     }
 
     await DeviceProfile.findOneAndDelete({ _id: id, userId });
+
+    // Redis cache'ini temizle
+    await invalidateProfile(id);
 
     return NextResponse.json({ ok: true, message: "Profil silindi." });
   } catch (error) {

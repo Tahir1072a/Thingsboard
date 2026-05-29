@@ -6,6 +6,7 @@ import {
   Tag,
   Database,
   AlertTriangle,
+  Link2,
 } from "lucide-react";
 
 import CommonEntitySheet from "../common/rowDetails/common-entity-sheet";
@@ -16,16 +17,43 @@ import { DeviceDetailForm, DeviceEditForm } from "./device-details-form";
 import { DeviceAlarmsTab } from "./mock";
 import { DeviceAttributeTab } from "./tabs/device-attribute-tab";
 import { DeviceTelemetryTab } from "./tabs/device-telemetri-tab";
+import { DeviceConnectivityTab } from "./tabs/device-connectivity-tab";
 
 // TODO: Telemetri sayfası yapılacak!
 
-export default function DeviceDetailSheet({ device, open, onOpenChange, onDeviceDeleted }) {
+export default function DeviceDetailSheet({ device, open, onOpenChange, onDeviceDeleted, onDeviceUpdated }) {
   const [isEditing, setIsEditing] = useState(false);
   const [hasCustomer, setHasCustomer] = useState(true);
 
-  const handleSave = () => {
-    console.log("Kaydetme işlemi yapılıyor...");
-    setIsEditing(false);
+  const handleSave = async (formData) => {
+    try {
+      const response = await fetch(`/api/device/${device._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.ok) {
+        import("react-hot-toast").then((module) => {
+          module.default.success("Cihaz başarıyla güncellendi.");
+        });
+        setIsEditing(false);
+        if (onDeviceUpdated) {
+          onDeviceUpdated(result.data);
+        }
+      } else {
+        import("react-hot-toast").then((module) => {
+          module.default.error(result.message || "Güncelleme başarısız.");
+        });
+      }
+    } catch (error) {
+      console.error("Update error:", error);
+      import("react-hot-toast").then((module) => {
+        module.default.error("Sunucuya bağlanırken bir hata oluştu.");
+      });
+    }
   };
 
   // --- 2. TAB YAPILANDIRMASI (Configuration) ---
@@ -38,7 +66,7 @@ export default function DeviceDetailSheet({ device, open, onOpenChange, onDevice
         content: (
           <div className="space-y-6">
             {isEditing ? (
-              <DeviceEditForm data={device} />
+              <DeviceEditForm data={device} onSave={handleSave} />
             ) : (
               <DeviceDetailForm data={device} onDeviceDeleted={onDeviceDeleted} />
             )}
@@ -49,19 +77,25 @@ export default function DeviceDetailSheet({ device, open, onOpenChange, onDevice
         id: "attributes",
         label: "Öznitelikler",
         icon: Tag,
-        content: <DeviceAttributeTab />, // Mock Bileşen
+        content: <DeviceAttributeTab deviceId={device?._id} />, // Mock Bileşen
       },
       {
         id: "telemetry",
         label: "Telemetri",
         icon: Database,
-        content: <DeviceTelemetryTab />, // Mock Bileşen
+        content: <DeviceTelemetryTab deviceId={device?._id} />, // Mock Bileşen
       },
       {
         id: "alarms",
         label: "Alarmlar",
         icon: AlertTriangle,
-        content: <DeviceAlarmsTab />, // Mock Bileşen
+        content: <DeviceAlarmsTab deviceId={device?._id} />, // Mock Bileşen
+      },
+      {
+        id: "connectivity",
+        label: "Bağlantı Rehberi",
+        icon: Link2,
+        content: <DeviceConnectivityTab device={device} />, // Yeni Sekme
       },
       // Olaylar, İlişkiler vb. eklenecek.
     ],

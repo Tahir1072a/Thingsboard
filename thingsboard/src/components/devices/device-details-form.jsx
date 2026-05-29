@@ -312,9 +312,7 @@ export function DeviceEditForm({ data, onCancel, onSave }) {
             <Separator className="bg-white/20 my-6" />
             <div className="flex justify-end">
               <Button
-                onClick={() => {
-                  console.log("Save");
-                }}
+                type="submit"
                 className="px-8 h-12 bg-gradient-to-r from-halo-600 to-halo-700 hover:from-halo-700 text-white cursor-pointer shadow-lg"
               >
                 <Check className="h-5 w-5 mr-2" />

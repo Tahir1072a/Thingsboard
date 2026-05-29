@@ -46,10 +46,6 @@ export async function middleware(request) {
 // Middleware'in çalışacağı path'ler
 export const config = {
   matcher: [
-    /*
-     * Aşağıdakileri HARİÇ TUT:
-     *   _next/static, _next/image, favicon.ico, api/* (NextAuth kendi yönetir)
-     */
     "/((?!_next/static|_next/image|favicon.ico|api/).*)",
   ],
 };

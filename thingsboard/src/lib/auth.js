@@ -41,7 +41,7 @@ export const authOptions = {
 
         if (!user.password) {
           throw new Error(
-            "Bu hesap Google ile oluşturulmuş. Lütfen Google ile giriş yapın."
+            "Bu hesapta henüz parola tanımlı değil. Lütfen Google ile giriş yapın veya 'Parolamı Unuttum' ile parola belirleyin."
           );
         }
 

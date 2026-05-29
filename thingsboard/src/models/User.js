@@ -78,6 +78,20 @@ const UserSchema = new Schema(
       type: String,
       default: null,
     },
+
+    // Parola sıfırlama token'ı (forgot-password akışı)
+    resetToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    // Parola sıfırlama token'ının geçerlilik süresi
+    resetTokenExpiry: {
+      type: Date,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,

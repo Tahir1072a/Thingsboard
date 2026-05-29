@@ -18,7 +18,7 @@ const globalKey = "__telemetry_emitter__";
 const emitter = global[globalKey] ?? new EventEmitter();
 
 if (!global[globalKey]) {
-  emitter.setMaxListeners(200); // 10 cihaz × çok sayıda SSE client için yeterli
+  emitter.setMaxListeners(200);
   global[globalKey] = emitter;
 }
 

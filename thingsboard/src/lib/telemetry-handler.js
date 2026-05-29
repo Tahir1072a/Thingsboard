@@ -9,9 +9,9 @@
 import connectDB from "@/lib/db";
 import Device from "@/models/Device";
 import Telemetry from "@/models/Telemetry";
-import DeviceProfile from "@/models/DeviceProfile";
 import Alarm from "@/models/Alarm";
 import emitter from "@/lib/event-emitter";
+import { getCachedDevice, getCachedProfile } from "@/lib/cache";
 
 /**
  * Access token ile cihazı doğrula.
@@ -68,12 +68,12 @@ function evaluateCondition(condition, key, value) {
  */
 async function checkAlarms(deviceId, key, value, userId) {
   try {
-    // Cihazı bul → profilini al
-    const device = await Device.findById(deviceId).lean();
+    // Cihazı bul → profilini al (Redis cache üzerinden)
+    const device = await getCachedDevice(deviceId);
     if (!device || !device.profile || device.profile === "default") return;
 
-    // Profili bul
-    const profile = await DeviceProfile.findOne({ name: device.profile }).lean();
+    // Profili bul (Redis cache üzerinden)
+    const profile = await getCachedProfile(device.profile);
     if (!profile || !profile.alarms || profile.alarms.length === 0) return;
 
     for (const rule of profile.alarms) {
@@ -149,9 +149,27 @@ export async function handleTelemetry(payload) {
     );
   }
 
-  const numericValue = parseFloat(value);
-  if (isNaN(numericValue)) {
-    throw new Error(`'value' sayısal bir değer olmalıdır. Alınan: ${value}`);
+  let valueType = "string";
+  let parsedValue = value;
+
+  if (typeof value === "boolean" || value === "true" || value === "false") {
+    valueType = "boolean";
+    parsedValue = value === "true" || value === true;
+  } else if (value !== "" && !isNaN(Number(value))) {
+    valueType = "number";
+    parsedValue = Number(value);
+  } else if (typeof value === "object" && value !== null) {
+    valueType = "json";
+    parsedValue = JSON.stringify(value);
+  } else if (typeof value === "string") {
+    try {
+      const parsedJson = JSON.parse(value);
+      if (typeof parsedJson === "object" && parsedJson !== null) {
+        valueType = "json";
+      }
+    } catch {
+      // it is just a string
+    }
   }
 
   await connectDB();
@@ -160,7 +178,8 @@ export async function handleTelemetry(payload) {
     userId,
     deviceId,
     key,
-    value: numericValue,
+    value: parsedValue,
+    valueType,
     unit: unit ?? null,
     protocol,
     timestamp: timestamp ? new Date(timestamp) : new Date(),
@@ -170,9 +189,7 @@ export async function handleTelemetry(payload) {
 
   // SSE event'i yayınla (userId dahil)
   emitter.emit("telemetry", { ...lean, userId: String(userId) });
-
-  // Alarm kurallarını kontrol et (async, telemetriyi bloklamaz)
-  checkAlarms(deviceId, key, numericValue, userId);
+  checkAlarms(deviceId, key, parsedValue, userId);
 
   return lean;
 }
@@ -192,3 +209,14 @@ export function parseMqttTopic(topic) {
 
   return { deviceId: null, key: null };
 }
+
+/**
+ * server.js'deki MQTT telemetri işleyicisinden gelen
+ * "check-alarms" event'ini dinle ve alarm kontrolünü çalıştır.
+ */
+emitter.on("check-alarms", (payload) => {
+  const { deviceId, key, value, userId } = payload;
+  checkAlarms(deviceId, key, value, userId).catch((err) => {
+    console.error("[check-alarms listener] Hata:", err.message);
+  });
+});

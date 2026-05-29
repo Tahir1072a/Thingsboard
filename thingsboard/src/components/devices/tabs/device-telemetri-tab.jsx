@@ -14,7 +14,7 @@ import {
   Braces,
   Clock,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Badge } from "@/components/ui/badge";
 
 // Telemetri için farklı bir config - genelde sadece görüntüleme
@@ -190,17 +190,88 @@ const columns = [
   },
 ];
 
-export function DeviceTelemetryTab() {
+export function DeviceTelemetryTab({ deviceId }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedKeys, setSelectedKeys] = useState([]);
+  const [telemetryData, setTelemetryData] = useState(MOCK_TELEMETRY);
 
-  const filteredData = MOCK_TELEMETRY.filter(
+
+
+  const [liveData, setLiveData] = useState([]);
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const fetchTelemetry = async () => {
+    if (!deviceId) return;
+    try {
+      const res = await fetch(`/api/telemetry?deviceId=${deviceId}&limit=50`);
+      const data = await res.json();
+      if (data.ok && data.data) {
+        // API'den gelen veriyi bizim formata uygun hale getirelim
+        const formatted = data.data.map((item) => ({
+          id: item._id,
+          key: item.key,
+          value: typeof item.value === 'object' ? JSON.stringify(item.value) : String(item.value),
+          type: item.valueType || "string",
+          lastUpdateTs: new Date(item.timestamp).toISOString().replace("T", " ").substring(0, 19),
+          unit: item.unit,
+        }));
+        setLiveData(formatted);
+      }
+    } catch (err) {
+      console.error("Telemetry fetch hatası", err);
+    }
+  };
+
+
+  useEffect(() => {
+    fetchTelemetry();
+
+    if (!deviceId) return;
+
+    // SSE Canlı Bağlantı
+    const eventSource = new EventSource(`/api/sse?deviceId=${deviceId}`);
+    
+    eventSource.onmessage = (e) => {
+      // ping vb. mesajları atla
+      if (e.data === "connected" || e.data === "ping") return;
+
+      try {
+        const item = JSON.parse(e.data);
+        const newItem = {
+          id: Date.now().toString(), // Benzersiz ID
+          key: item.key,
+          value: typeof item.value === 'object' ? JSON.stringify(item.value) : String(item.value),
+          type: item.protocol === "http" && typeof item.value === "object" ? "json" : typeof item.value === "boolean" ? "boolean" : !isNaN(Number(item.value)) ? "number" : "string",
+          lastUpdateTs: new Date(item.timestamp).toISOString().replace("T", " ").substring(0, 19),
+          unit: item.unit,
+        };
+
+        // Gelen veriyi canlı verinin en üstüne ekle, aynı key varsa eskisini sil
+        setLiveData((prev) => {
+          const filtered = prev.filter(p => p.key !== newItem.key);
+          return [newItem, ...filtered];
+        });
+      } catch (err) {
+        // Parse error
+      }
+    };
+
+    return () => {
+      eventSource.close();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deviceId]);
+
+  // Combine live data with mock data
+  const combinedData = [...liveData, ...telemetryData.filter(m => !liveData.some(l => l.key === m.key))];
+
+  const filteredData = combinedData.filter(
     (item) =>
       item.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.value.toLowerCase().includes(searchQuery.toLowerCase())
+      String(item.value).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleRefresh = () => console.log("Refresh telemetry");
+  const handleRefresh = () => fetchTelemetry();
   const handleSearch = (value) => setSearchQuery(value);
   const handleViewChart = (row) => console.log("View chart:", row.key);
   const handleDelete = (row) => console.log("Delete telemetry:", row.key);

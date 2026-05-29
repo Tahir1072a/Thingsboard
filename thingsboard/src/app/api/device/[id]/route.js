@@ -12,6 +12,7 @@ import Device from "@/models/Device";
 import DeviceProfile from "@/models/DeviceProfile";
 import mongoose from "mongoose";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { invalidateDevice } from "@/lib/cache";
 
 // ------------------------------------------------------------------ //
 // GET — Tekil cihaz
@@ -67,6 +68,9 @@ export async function PUT(request, { params }) {
       return NextResponse.json({ ok: false, message: "Cihaz bulunamadı." }, { status: 404 });
     }
 
+    // Redis cache'ini temizle
+    await invalidateDevice(id);
+
     return NextResponse.json({ ok: true, data: device, message: "Cihaz güncellendi." });
   } catch (error) {
     console.error("[PUT /api/device/:id]", error);
@@ -92,6 +96,9 @@ export async function DELETE(request, { params }) {
     if (!device) {
       return NextResponse.json({ ok: false, message: "Cihaz bulunamadı." }, { status: 404 });
     }
+
+    // Redis cache'ini temizle
+    await invalidateDevice(id);
 
     return NextResponse.json({ ok: true, message: "Cihaz silindi." });
   } catch (error) {

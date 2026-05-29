@@ -337,6 +337,10 @@ export default function DevicesPage() {
           setSelectedDevice(null);
           fetchDevices();
         }}
+        onDeviceUpdated={(updatedDevice) => {
+          setSelectedDevice(updatedDevice);
+          fetchDevices();
+        }}
       />
 
       {/* Ekleme Modalı */}

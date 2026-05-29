@@ -18,8 +18,8 @@ const { createServer } = require("http");
 const { parse } = require("url");
 const next = require("next");
 const net = require("net");
-const { Aedes } = require("aedes");
-const aedes = new Aedes();
+// Aedes v1.x ESM modül — main() içinde dynamic import ile yüklenir
+let aedes;
 const { WebSocketServer } = require("ws");
 
 // ------------------------------------------------------------------ //
@@ -128,6 +128,14 @@ async function ingestTelemetry(items) {
         protocol: doc.protocol,
         timestamp: doc.timestamp,
       });
+
+      // Alarm kontrolünü tetikle (MQTT verilerinin de alarm üretmesini sağlar)
+      emitter.emit("check-alarms", {
+        deviceId: String(doc.deviceId),
+        userId: item.userId ? String(item.userId) : null,
+        key: doc.key,
+        value: doc.value,
+      });
     }
   } catch (err) {
     console.error("[server] Telemetri kayıt hatası:", err.message);
@@ -138,36 +146,43 @@ async function ingestTelemetry(items) {
 // MQTT, WebSocket ve Next.js'i sırayla başlat
 // ------------------------------------------------------------------ //
 async function main() {
-  // 1. ÖNCELİKLE MongoDB'ye bağlan
   await connectMongo();
 
-  // 2. MQTT Broker — TCP port 1883
-  aedes.authenticate = async function (client, username, password, callback) {
-    try {
-      if (!username) {
+  // 2. MQTT Broker — Aedes v1.x: createBroker() kullanılmalı
+  const { Aedes } = await import("aedes");
+
+  aedes = await Aedes.createBroker({
+    authenticate: function (client, username, password, callback) {
+      // username Aedes'te Buffer olarak gelebilir
+      const token = username ? username.toString() : null;
+
+      if (!token) {
         const err = new Error("Access token gerekli (MQTT username alanı).");
         err.returnCode = 4;
         return callback(err, false);
       }
 
-      const device = await verifyDeviceToken(username.toString());
-      if (!device) {
-        const err = new Error("Geçersiz access token.");
-        err.returnCode = 4;
-        return callback(err, false);
-      }
+      verifyDeviceToken(token)
+        .then((device) => {
+          if (!device) {
+            const err = new Error("Geçersiz access token.");
+            err.returnCode = 4;
+            return callback(err, false);
+          }
 
-      client.deviceId = device._id.toString();
-      client.deviceName = device.name;
-      client.userId = device.userId ? device.userId.toString() : null;
-      console.log(`[MQTT] Auth başarılı: ${device.name} (${client.id})`);
-      callback(null, true);
-    } catch (err) {
-      console.error("[MQTT] Auth hatası:", err.message);
-      err.returnCode = 4;
-      callback(err, false);
-    }
-  };
+          client.deviceId = device._id.toString();
+          client.deviceName = device.name;
+          client.userId = device.userId ? device.userId.toString() : null;
+          console.log(`[MQTT] Auth başarılı: ${device.name} (${client.id})`);
+          callback(null, true);
+        })
+        .catch((err) => {
+          console.error("[MQTT] Auth hatası:", err.message);
+          err.returnCode = 4;
+          callback(err, false);
+        });
+    },
+  });
 
   const mqttServer = net.createServer(aedes.handle);
 

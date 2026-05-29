@@ -9,7 +9,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { ResponsiveGridLayout } from "react-grid-layout";
+import { ResponsiveGridLayout, useContainerWidth } from "react-grid-layout";
 import WidgetRenderer, { WIDGET_TYPES } from "@/components/panels/WidgetRenderer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,9 @@ export default function DashboardEditorPage() {
   const [editMode, setEditMode] = useState(false);
   const [editingName, setEditingName] = useState(false);
   const [tempName, setTempName] = useState("");
+
+  // Container width ölçümü (react-grid-layout v2 hook)
+  const { width: containerWidth, containerRef } = useContainerWidth({ initialWidth: 1200 });
 
   // Widget ekleme drawer
   const [addDrawerOpen, setAddDrawerOpen] = useState(false);
@@ -86,12 +89,12 @@ export default function DashboardEditorPage() {
   // ------------------------------------------------------------------ //
   // Layout değişikliği
   // ------------------------------------------------------------------ //
-  const handleLayoutChange = useCallback((layout) => {
+  const handleLayoutChange = useCallback((currentLayout) => {
     if (!dashboard || !editMode) return;
 
     setDashboard((prev) => {
       const updatedWidgets = prev.widgets.map((w) => {
-        const layoutItem = layout.find((l) => l.i === w.i);
+        const layoutItem = currentLayout.find((l) => l.i === w.i);
         if (layoutItem) {
           return { ...w, x: layoutItem.x, y: layoutItem.y, w: layoutItem.w, h: layoutItem.h };
         }
@@ -311,8 +314,10 @@ export default function DashboardEditorPage() {
           )}
         </div>
       ) : (
+        <div ref={containerRef}>
         <ResponsiveGridLayout
           className="layout"
+          width={containerWidth}
           layouts={{ lg: layoutData }}
           breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
           cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
@@ -354,6 +359,7 @@ export default function DashboardEditorPage() {
             </div>
           ))}
         </ResponsiveGridLayout>
+        </div>
       )}
 
       {/* ── Widget Ekleme Drawer/Overlay ── */}

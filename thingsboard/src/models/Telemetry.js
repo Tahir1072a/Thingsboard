@@ -7,14 +7,41 @@ import mongoose, { Schema } from "mongoose";
  * MongoDB'nin native time-series collection özelliğini kullanır — bu yöntem
  * büyük zaman serisi verilerinde standart koleksiyona göre çok daha verimlidir.
  *
- * Örnek döküman:
+ * Desteklenen veri tipleri: number, string, boolean, json
+ *
+ * Örnek dökümanlar:
  * {
- *   deviceId: ObjectId("..."),
- *   key:      "temperature",
- *   value:    23.5,
- *   unit:     "°C",
- *   protocol: "mqtt",
+ *   deviceId:  ObjectId("..."),
+ *   key:       "temperature",
+ *   value:     23.5,
+ *   valueType: "number",
+ *   unit:      "°C",
+ *   protocol:  "mqtt",
  *   timestamp: ISODate("2026-03-13T09:00:00Z")
+ * }
+ * {
+ *   deviceId:  ObjectId("..."),
+ *   key:       "status",
+ *   value:     "active",
+ *   valueType: "string",
+ *   protocol:  "http",
+ *   timestamp: ISODate("2026-03-13T09:01:00Z")
+ * }
+ * {
+ *   deviceId:  ObjectId("..."),
+ *   key:       "isOnline",
+ *   value:     true,
+ *   valueType: "boolean",
+ *   protocol:  "mqtt",
+ *   timestamp: ISODate("2026-03-13T09:02:00Z")
+ * }
+ * {
+ *   deviceId:  ObjectId("..."),
+ *   key:       "location",
+ *   value:     "{\"lat\":41.0,\"lng\":28.9}",
+ *   valueType: "json",
+ *   protocol:  "http",
+ *   timestamp: ISODate("2026-03-13T09:03:00Z")
  * }
  */
 const TelemetrySchema = new Schema(
@@ -61,16 +88,17 @@ const TelemetrySchema = new Schema(
     // VERİ ALANLARI
     // --------------------------------------------------------
 
-    // Sayısal değer (birincil)
+    // Değer (Mixed, tüm veri tiplerini destekler: Number, String, Boolean, JSON objesi)
     value: {
-      type: Number,
+      type: Schema.Types.Mixed,
       required: [true, "value zorunludur."],
     },
 
-    // String değer (ör. "ON" / "OFF" gibi durum metrikleri için isteğe bağlı)
-    valueStr: {
+    // Değerin veri türünü tutan alan ("number", "string", "boolean", "json")
+    valueType: {
       type: String,
-      default: null,
+      enum: ["number", "string", "boolean", "json"],
+      default: "number",
     },
 
     // Ölçüm birimi (ör. "°C", "%", "hPa", "V")
@@ -91,7 +119,6 @@ const TelemetrySchema = new Schema(
     },
   },
   {
-    // timestamps: false — kendi timestamp alanımızı yönetiyoruz
     timestamps: false,
 
     // MongoDB time-series collection için koleksiyon seçenekleri.

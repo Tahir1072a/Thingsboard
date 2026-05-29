@@ -100,7 +100,7 @@ export default function ResetPasswordForm() {
               id="password"
               type="password"
               placeholder="••••••••"
-              className="bg-white/[0.02] border-white/10 focus-visible:ring-spotify-400"
+              className="bg-white/[0.02] border-white/10 focus-visible:ring-red-600"
               {...register("password")}
             />
             {errors.password && (
@@ -114,7 +114,7 @@ export default function ResetPasswordForm() {
               id="passwordConfirm"
               type="password"
               placeholder="••••••••"
-              className="bg-white/[0.02] border-white/10 focus-visible:ring-spotify-400"
+              className="bg-white/[0.02] border-white/10 focus-visible:ring-red-600"
               {...register("passwordConfirm")}
             />
             {errors.passwordConfirm && (
@@ -127,7 +127,7 @@ export default function ResetPasswordForm() {
           <Button
             type="submit"
             disabled={isSubmitting}
-            className="w-full h-11 rounded-xl bg-spotify-500 hover:bg-spotify-400 text-white"
+            className="w-full h-11 rounded-xl bg-linear-to-r from-rose-950 via-red-600 to-rose-950 text-white"
           >
             {isSubmitting ? "Kaydediliyor..." : "Parolayı Sıfırla"}
           </Button>
