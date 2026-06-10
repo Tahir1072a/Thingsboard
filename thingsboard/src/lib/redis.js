@@ -1,48 +1,42 @@
 /**
  * redis.js — Singleton Redis Bağlantı Yöneticisi
- *
- * Next.js hot-reload sırasında çoklu bağlantı açılmasını önlemek için
- * global scope'ta tek bir Redis instance tutulur.
- *
- * Ortam değişkeni: REDIS_URL (varsayılan: redis://localhost:6379)
  */
-
 import Redis from "ioredis";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
-const globalKey = "__redis_client__";
 
-function getRedisClient() {
-  if (global[globalKey]) {
-    return global[globalKey];
-  }
+// Next.js hot-reload sırasında objeyi kaybetmemek için globalThis kullanımı
+const globalForRedis = globalThis;
 
-  const client = new Redis(REDIS_URL, {
-    maxRetriesPerRequest: 3,
-    lazyConnect: true,
-    retryStrategy(times) {
-      if (times > 5) return null; // 5 denemeden sonra vazgeç
-      return Math.min(times * 200, 2000);
-    },
-  });
+// Eğer globalde bir client varsa onu kullan, yoksa SADECE BİR KEZ oluştur
+const redis = globalForRedis.__redis_client__ ?? new Redis(REDIS_URL, {
+  maxRetriesPerRequest: null,
+  retryStrategy(times) {
+    if (times > 5) return null; // 5 denemeden sonra vazgeç
+    return Math.min(times * 200, 2000);
+  },
+});
 
-  client.on("connect", () => {
+// Event listener'ların her seferinde üst üste binmesini engellemek için kontrol
+if (!globalForRedis.__redis_listeners_added__) {
+  redis.on("connect", () => {
     console.log("✅ Redis bağlantısı kuruldu");
   });
 
-  client.on("error", (err) => {
+  redis.on("error", (err) => {
     console.error("[Redis] Bağlantı hatası:", err.message);
   });
 
-  // İlk bağlantıyı kur
-  client.connect().catch((err) => {
-    console.error("[Redis] İlk bağlantı başarısız:", err.message);
+  redis.on("reconnecting", () => {
+    console.warn("⚠️ Redis yeniden bağlanıyor...");
   });
 
-  global[globalKey] = client;
-  return client;
+  globalForRedis.__redis_listeners_added__ = true;
 }
 
-const redis = getRedisClient();
+// Geliştirme (development) ortamında global nesneye kaydet. 
+if (process.env.NODE_ENV !== "production") {
+  globalForRedis.__redis_client__ = redis;
+}
 
 export default redis;

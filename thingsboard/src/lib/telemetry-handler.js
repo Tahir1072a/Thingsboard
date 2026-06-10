@@ -53,13 +53,13 @@ function evaluateCondition(condition, key, value) {
   const threshold = parseFloat(match[2]);
 
   switch (operator) {
-    case ">":  return value > threshold;
+    case ">": return value > threshold;
     case ">=": return value >= threshold;
-    case "<":  return value < threshold;
+    case "<": return value < threshold;
     case "<=": return value <= threshold;
     case "==": return value === threshold;
     case "!=": return value !== threshold;
-    default:   return false;
+    default: return false;
   }
 }
 

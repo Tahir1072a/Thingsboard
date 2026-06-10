@@ -25,6 +25,7 @@ export default function DeviceDetailPage() {
   const [loading, setLoading] = useState(true);
   const [recentTelemetry, setRecentTelemetry] = useState([]);
   const [telLoading, setTelLoading] = useState(false);
+  const [telemetryKeys, setTelemetryKeys] = useState([]);
 
   const fetchDevice = useCallback(async () => {
     try {
@@ -65,10 +66,24 @@ export default function DeviceDetailPage() {
     }
   }, [id]);
 
+  // Cihaza ait benzersiz telemetri key'lerini çek
+  const fetchKeys = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/telemetry/keys?deviceId=${id}`);
+      const data = await res.json();
+      if (data.ok && data.keys.length > 0) {
+        setTelemetryKeys(data.keys);
+      }
+    } catch {
+      console.error("Telemetri key'leri çekilemedi");
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchDevice();
     fetchTelemetry();
-  }, [fetchDevice, fetchTelemetry]);
+    fetchKeys();
+  }, [fetchDevice, fetchTelemetry, fetchKeys]);
 
   if (loading) {
     return (
@@ -147,21 +162,29 @@ export default function DeviceDetailPage() {
       </div>
 
       {/* Canlı Grafik */}
-      <LiveChart
-        key={`device-live-${device._id}`}
-        deviceId={device._id}
-        keys={["temperature", "humidity"]}
-        title="Canlı Telemetri"
-        maxPoints={60}
-      />
+      {telemetryKeys.length > 0 ? (
+        <>
+          <LiveChart
+            key={`device-live-${device._id}-${telemetryKeys.join(",")}`}
+            deviceId={device._id}
+            keys={telemetryKeys}
+            title="Canlı Telemetri"
+            maxPoints={60}
+          />
 
-      {/* Geçmiş Grafik */}
-      <HistoricalChart
-        key={`device-hist-${device._id}`}
-        deviceId={device._id}
-        keys={["temperature", "humidity"]}
-        title="Geçmiş Veri"
-      />
+          {/* Geçmiş Grafik */}
+          <HistoricalChart
+            key={`device-hist-${device._id}-${telemetryKeys.join(",")}`}
+            deviceId={device._id}
+            keys={telemetryKeys}
+            title="Geçmiş Veri"
+          />
+        </>
+      ) : (
+        <div className="glass rounded-xl p-8 text-center text-text-muted text-sm">
+          Henüz telemetri verisi yok. Cihaz veri göndermeye başladığında grafikler otomatik görünecek.
+        </div>
+      )}
 
       {/* Son Telemetri Tablosu */}
       <div className="glass rounded-xl p-4">

@@ -32,6 +32,7 @@ export default function DashboardPage() {
   const [mode, setMode] = useState("live");
   const [activeAlarms, setActiveAlarms] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [telemetryKeys, setTelemetryKeys] = useState([]);
 
   // Cihazları API'den çek
   const fetchDevices = useCallback(async () => {
@@ -58,12 +59,34 @@ export default function DashboardPage() {
     } catch {}
   }, []);
 
+  // Seçilen cihaza ait telemetri key'lerini çek
+  const fetchKeys = useCallback(async (deviceId) => {
+    try {
+      const res = await fetch(`/api/telemetry/keys?deviceId=${deviceId}`);
+      const data = await res.json();
+      if (data.ok && data.keys.length > 0) {
+        setTelemetryKeys(data.keys);
+      } else {
+        setTelemetryKeys(DEFAULT_KEYS);
+      }
+    } catch {
+      setTelemetryKeys(DEFAULT_KEYS);
+    }
+  }, []);
+
   useEffect(() => {
     fetchDevices();
     fetchAlarms();
     const interval = setInterval(fetchAlarms, 30000);
     return () => clearInterval(interval);
   }, [fetchDevices, fetchAlarms]);
+
+  // Cihaz seçildiğinde key'leri güncelle
+  useEffect(() => {
+    if (selectedDevice?._id) {
+      fetchKeys(selectedDevice._id);
+    }
+  }, [selectedDevice, fetchKeys]);
 
   // Seçili cihaz için telemetri key'lerini tahmin et (simülatör temperature + humidity gönderir)
   // const defaultKeys = ["temperature", "humidity"];
@@ -193,9 +216,9 @@ export default function DashboardPage() {
           {mode === "live" ? (
             <div className="space-y-4">
               <LiveChart
-                key={`live-${selectedDevice._id}`}
+                key={`live-${selectedDevice._id}-${telemetryKeys.join(",")}`}
                 deviceId={selectedDevice._id}
-                keys={DEFAULT_KEYS}
+                keys={telemetryKeys}
                 title={`${selectedDevice.name} — Canlı Telemetri`}
                 maxPoints={60}
               />
@@ -221,9 +244,9 @@ export default function DashboardPage() {
             </div>
           ) : (
             <HistoricalChart
-              key={`hist-${selectedDevice._id}`}
+              key={`hist-${selectedDevice._id}-${telemetryKeys.join(",")}`}
               deviceId={selectedDevice._id}
-              keys={DEFAULT_KEYS}
+              keys={telemetryKeys}
               title={`${selectedDevice.name} — Geçmiş Veri`}
             />
           )}

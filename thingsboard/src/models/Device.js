@@ -60,11 +60,28 @@ const DeviceSchema = new Schema(
       default: false,
     },
 
+    // Kimlik doğrulama yöntemi
+    authType: {
+      type: String,
+      enum: ["TOKEN", "X509"],
+      default: "TOKEN",
+    },
+
     // Cihazın sisteme kimliğini kanıtlaması için benzersiz erişim anahtarı.
-    // Cihaz oluşturulurken otomatik üretilir.
+    // authType === "TOKEN" olan cihazlar için otomatik üretilir.
     accessToken: {
       type: String,
       unique: true,
+      sparse: true,
+      index: true,
+    },
+
+    // X.509 sertifika parmak izi (SHA-256 hash).
+    // authType === "X509" olan cihazlar için sertifika üretildiğinde kaydedilir.
+    certificateFingerprint: {
+      type: String,
+      unique: true,
+      sparse: true,
       index: true,
     },
 
@@ -99,9 +116,13 @@ DeviceSchema.index({ isGateway: 1 });
 /* Hooks                                                                */
 /* ------------------------------------------------------------------ */
 
-// Yeni cihaz oluşturulurken accessToken yoksa otomatik üret
+// Yeni cihaz oluşturulurken authType'a göre accessToken üret
 DeviceSchema.pre("validate", function (next) {
-  if (!this.accessToken) {
+  if (this.authType === "X509") {
+    // X509 cihazlarında token gerekmez
+    this.accessToken = undefined;
+  } else if (!this.accessToken) {
+    // TOKEN cihazlarında otomatik üret
     this.accessToken = crypto.randomBytes(32).toString("base64url");
   }
   next();

@@ -528,62 +528,62 @@ export function TableContent({
   const finalColumns =
     rowActions && rowActions.length > 0
       ? [
-          ...allColumns,
-          {
-            id: "actions",
-            title: "",
-            span: 1,
-            align: "right",
-            cellRender: (row) => (
-              <div
-                className="flex items-center justify-end px-2"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 rounded-lg text-text-muted hover:text-text-main hover:bg-white/40 focus:bg-white/50 transition-all data-[state=open]:bg-white/50"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
+        ...allColumns,
+        {
+          id: "actions",
+          title: "",
+          span: 1,
+          align: "right",
+          cellRender: (row) => (
+            <div
+              className="flex items-center justify-end px-2"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 rounded-lg text-text-muted hover:text-text-main hover:bg-white/40 focus:bg-white/50 transition-all data-[state=open]:bg-white/50"
+                  >
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
 
-                  {/* Menü İçeriği: Glass effect, yumuşak gölge ve border */}
-                  <DropdownMenuPortal>
-                    <DropdownMenuContent
-                      align="end"
-                      className="w-48 p-1 rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-lg ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95"
-                    >
-                      {rowActions.map((action, idx) => (
-                        <DropdownMenuItem
-                          key={idx}
-                          onClick={(e) => action.onClick(row, e)}
-                          className={cn(
-                            "relative flex cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-sm font-medium outline-none transition-colors",
-                            "hover:bg-halo-50 hover:text-halo-700 focus:bg-halo-50 focus:text-halo-700",
-                            "text-text-main/80",
-                            action.className // Eğer "Sil" butonu kırmızı olacaksa dışarıdan gelen class bunu ezer
-                          )}
-                        >
-                          {action.icon && (
-                            <span className="mr-2.5 text-text-muted group-hover:text-halo-600">
-                              {React.cloneElement(action.icon, {
-                                className: "w-4 h-4",
-                              })}
-                            </span>
-                          )}
-                          {action.label}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenuPortal>
-                </DropdownMenu>
-              </div>
-            ),
-          },
-        ]
+                {/* Menü İçeriği: Glass effect, yumuşak gölge ve border */}
+                <DropdownMenuPortal>
+                  <DropdownMenuContent
+                    align="end"
+                    className="w-48 p-1 rounded-xl border border-white/20 bg-white/80 backdrop-blur-xl shadow-lg ring-1 ring-black/5 animate-in fade-in-0 zoom-in-95"
+                  >
+                    {rowActions.map((action, idx) => (
+                      <DropdownMenuItem
+                        key={idx}
+                        onClick={(e) => action.onClick(row, e)}
+                        className={cn(
+                          "relative flex cursor-pointer select-none items-center rounded-lg px-2.5 py-2 text-sm font-medium outline-none transition-colors",
+                          "hover:bg-halo-50 hover:text-halo-700 focus:bg-halo-50 focus:text-halo-700",
+                          "text-text-main/80",
+                          action.className // Eğer "Sil" butonu kırmızı olacaksa dışarıdan gelen class bunu ezer
+                        )}
+                      >
+                        {action.icon && (
+                          <span className="mr-2.5 text-text-muted group-hover:text-halo-600">
+                            {React.cloneElement(action.icon, {
+                              className: "w-4 h-4",
+                            })}
+                          </span>
+                        )}
+                        {action.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenuPortal>
+              </DropdownMenu>
+            </div>
+          ),
+        },
+      ]
       : allColumns;
 
   return (
@@ -656,20 +656,18 @@ export function TableContent({
                 index={index}
                 gridClassName={gridClassName}
                 onClick={() => onRowClick?.(row)}
-                className={`${
-                  isSelected ? "bg-halo-50/40" : ""
-                } ${customClassName}`}
+                className={`${isSelected ? "bg-halo-50/40" : ""
+                  } ${customClassName}`}
               >
                 {finalColumns.map((col) => (
                   <div
                     key={col.id}
-                    className={`col-span-${col.span} flex items-center ${
-                      col.align === "center"
+                    className={`col-span-${col.span} flex items-center ${col.align === "center"
                         ? "justify-center"
                         : col.align === "right"
-                        ? "justify-end"
-                        : ""
-                    }`}
+                          ? "justify-end"
+                          : ""
+                      }`}
                   >
                     {col.cellRender(row, index)}
                   </div>

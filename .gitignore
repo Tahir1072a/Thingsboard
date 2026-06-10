@@ -4,6 +4,7 @@
 **/node_modules/
 **/.pnp
 **/.pnp.js
+certs/
 
 # ==============================================================================
 # BUILD & OUTPUTS (Next.js, Express, Nest.js veya TS derleme çıktıları)

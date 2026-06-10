@@ -1,15 +1,9 @@
-/**
- * /api/device — Cihaz listeleme ve oluşturma
- *
- * GET  → Listeleme + sayfalama + arama
- * POST → Yeni cihaz oluştur (accessToken otomatik üretilir)
- */
-
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Device from "@/models/Device";
 import DeviceProfile from "@/models/DeviceProfile";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { generateDeviceCertificate } from "@/lib/certificate";
 
 // ------------------------------------------------------------------ //
 // GET — Listeleme
@@ -34,7 +28,6 @@ export async function GET(request) {
       filter.$or = [
         { name: { $regex: search, $options: "i" } },
         { tag: { $regex: search, $options: "i" } },
-        { accessToken: search }, // tam eşleşme
       ];
     }
 
@@ -65,14 +58,14 @@ export async function GET(request) {
 }
 
 // ------------------------------------------------------------------ //
-// POST — Yeni cihaz oluştur
+// POST — Yeni cihaz oluştur (Token veya X.509)
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
     const userId = await getSessionUser();
     const body = await request.json();
 
-    const { name, profile, tag, description, isGateway, isPublic, accessToken } = body;
+    const { name, profile, tag, description, isGateway, isPublic, accessToken, authType } = body;
 
     if (!name) {
       return NextResponse.json(
@@ -91,25 +84,46 @@ export async function POST(request) {
       description: description || "",
       isGateway: isGateway ?? false,
       isPublic: isPublic ?? false,
-      accessToken: accessToken || undefined, // undefined → pre-validate hook üretir
+      authType: authType || "TOKEN",
+      accessToken: authType === "X509" ? undefined : (accessToken || undefined),
       status: "active",
     });
 
-    return NextResponse.json(
-      {
-        ok: true,
-        message: "Cihaz başarıyla oluşturuldu.",
-        data: device.toObject(),
-      },
-      { status: 201 }
-    );
+    const responseData = {
+      ok: true,
+      message: "Cihaz başarıyla oluşturuldu.",
+      data: device.toObject(),
+    };
+
+    // X.509 seçildiyse sertifika üret ve response'a ekle
+    if (authType === "X509") {
+      const certs = generateDeviceCertificate(
+        device._id.toString(),
+        device.name
+      );
+
+      // Parmak izini veritabanına kaydet
+      device.certificateFingerprint = certs.fingerprint;
+      await device.save();
+
+      // Sertifika dosyalarını response'a ekle (Frontend ZIP yapacak)
+      responseData.certificates = {
+        deviceKey: certs.deviceKeyPem,
+        deviceCert: certs.deviceCertPem,
+        caCert: certs.caCertPem,
+        fingerprint: certs.fingerprint,
+      };
+      responseData.data = device.toObject(); // Güncel veriyi döndür
+    }
+
+    return NextResponse.json(responseData, { status: 201 });
   } catch (error) {
     console.error("[POST /api/device]", error);
 
-    // Unique constraint hatası (accessToken çakışması)
+    // Unique constraint hatası (accessToken veya fingerprint çakışması)
     if (error.code === 11000) {
       return NextResponse.json(
-        { ok: false, message: "Bu access token zaten kullanımda." },
+        { ok: false, message: "Bu kimlik bilgisi zaten kullanımda." },
         { status: 409 }
       );
     }
@@ -117,3 +131,4 @@ export async function POST(request) {
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
 }
+

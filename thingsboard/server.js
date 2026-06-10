@@ -18,6 +18,10 @@ const { createServer } = require("http");
 const { parse } = require("url");
 const next = require("next");
 const net = require("net");
+const tls = require("tls");
+const fs = require("fs");
+const path = require("path");
+
 // Aedes v1.x ESM modül — main() içinde dynamic import ile yüklenir
 let aedes;
 const { WebSocketServer } = require("ws");
@@ -31,7 +35,10 @@ const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "localhost";
 const PORT = parseInt(process.env.PORT || "3000", 10);
 const MQTT_PORT = parseInt(process.env.MQTT_PORT || "1883", 10);
+const MQTTS_PORT = parseInt(process.env.MQTTS_PORT || "8883", 10);
 const WS_PORT = parseInt(process.env.WS_PORT || "3001", 10);
+const WSS_PORT = parseInt(process.env.WSS_PORT || "3002", 10);
+const certsDir = path.join(__dirname, "certs");
 
 // ------------------------------------------------------------------ //
 // MongoDB bağlantısı ve modeller
@@ -101,6 +108,34 @@ async function verifyDeviceToken(token) {
 }
 
 // ------------------------------------------------------------------ //
+// Sunucunun sertifikasını doğrulama
+// ------------------------------------------------------------------ //
+
+function isServerCertExist() {
+  return fs.existsSync(path.join(certsDir, "server-cert.pem"));
+}
+
+// ------------------------------------------------------------------ //
+// Sertifika parmak izi ile cihaz doğrulama
+// ------------------------------------------------------------------ //
+async function verifyDeviceCertificate(fingerprint) {
+  if (!fingerprint) return null;
+  try {
+    const Device = getDeviceModel();
+    const device = await Device.findOne({
+      certificateFingerprint: fingerprint,
+      authType: "X509",
+    }).lean();
+    if (!device) return null;
+    if (device.status === "inactive") return null;
+    return device;
+  } catch (err) {
+    console.error("[server] Sertifika doğrulama hatası:", err.message);
+    return null;
+  }
+}
+
+// ------------------------------------------------------------------ //
 // Telemetri işleyici
 // ------------------------------------------------------------------ //
 async function ingestTelemetry(items) {
@@ -143,6 +178,54 @@ async function ingestTelemetry(items) {
 }
 
 // ------------------------------------------------------------------ //
+// WS ve WSS Mesaj işleyicisi
+// ------------------------------------------------------------------ //
+async function attachMessageHandler(ws) {
+  ws.on("message", async (raw) => {
+    try {
+      const body = JSON.parse(raw.toString());
+
+      let deviceId = ws.deviceId;
+      let userId = ws.userId;
+
+      // deviceId yoksa, token fallback
+      if (!deviceId) {
+        if (!body.accessToken) {
+          ws.send(JSON.stringify({ error: "accessToken veya sertifika zorunludur." }));
+          return;
+        }
+
+        const device = await verifyDeviceToken(body.accessToken);
+        if (!device) {
+          ws.send(JSON.stringify({ error: "Cihaz doğrulanamadı" }));
+          return;
+        }
+        deviceId = device._id.toString();
+        userId = device.userId ? device.userId.toString() : null;
+      }
+
+      if (!body.key || body.value === undefined) {
+        ws.send(JSON.stringify({ error: "key ve value alanları zorunludur." }));
+        return;
+      }
+
+      await ingestTelemetry([{
+        deviceId,
+        userId,
+        key: body.key,
+        value: body.value,
+        unit: body.unit,
+        protocol: ws.authMethod === "certificate" ? "websocket-tls" : "websocket",
+      }])
+
+    } catch (err) {
+      console.error("[server] Mesaj işleme hatası:", err.message);
+      ws.send(JSON.stringify({ ok: false, message: "Mesaj ayrıştırma hatası" }))
+    }
+  })
+}
+
+// ------------------------------------------------------------------ //
 // MQTT, WebSocket ve Next.js'i sırayla başlat
 // ------------------------------------------------------------------ //
 async function main() {
@@ -153,11 +236,39 @@ async function main() {
 
   aedes = await Aedes.createBroker({
     authenticate: function (client, username, password, callback) {
-      // username Aedes'te Buffer olarak gelebilir
+      // ─── Yol 1: TLS Sertifika ile doğrulama (mTLS) ───
+      if (client.conn && client.conn.getPeerCertificate) {
+        const peerCert = client.conn.getPeerCertificate(true);
+        if (peerCert && peerCert.fingerprint256) {
+          // Node.js fingerprint formatı: "AB:CD:EF:..." → hex string'e çevir
+          const fingerprint = peerCert.fingerprint256.replace(/:/g, "").toLowerCase();
+
+          return verifyDeviceCertificate(fingerprint)
+            .then((device) => {
+              if (!device) {
+                const err = new Error("Geçersiz cihaz sertifikası.");
+                err.returnCode = 4;
+                return callback(err, false);
+              }
+              client.deviceId = device._id.toString();
+              client.deviceName = device.name;
+              client.userId = device.userId ? device.userId.toString() : null;
+              console.log(`[MQTTS] Sertifika auth başarılı: ${device.name} (${client.id})`);
+              callback(null, true);
+            })
+            .catch((err) => {
+              console.error("[MQTTS] Sertifika auth hatası:", err.message);
+              err.returnCode = 4;
+              callback(err, false);
+            });
+        }
+      }
+
+      // ─── Yol 2: Token ile doğrulama (Eski yöntem) ───
       const token = username ? username.toString() : null;
 
       if (!token) {
-        const err = new Error("Access token gerekli (MQTT username alanı).");
+        const err = new Error("Access token veya sertifika gerekli.");
         err.returnCode = 4;
         return callback(err, false);
       }
@@ -173,7 +284,7 @@ async function main() {
           client.deviceId = device._id.toString();
           client.deviceName = device.name;
           client.userId = device.userId ? device.userId.toString() : null;
-          console.log(`[MQTT] Auth başarılı: ${device.name} (${client.id})`);
+          console.log(`[MQTT] Token auth başarılı: ${device.name} (${client.id})`);
           callback(null, true);
         })
         .catch((err) => {
@@ -184,18 +295,37 @@ async function main() {
     },
   });
 
+  // ─── TCP Port (1883) — Token tabanlı cihazlar ───
   const mqttServer = net.createServer(aedes.handle);
-
   mqttServer.listen(MQTT_PORT, () => {
-    console.log(`✅ MQTT Broker başlatıldı  → tcp://localhost:${MQTT_PORT}`);
+    console.log(`✅ MQTT Broker (TCP)  → mqtt://localhost:${MQTT_PORT}`);
   });
 
+  // ─── TLS Port (8883) — Sertifika tabanlı cihazlar (mTLS) ───
+  if (isServerCertExist()) {
+    const tlsOptions = {
+      key: fs.readFileSync(path.join(certsDir, "server-key.pem")),
+      cert: fs.readFileSync(path.join(certsDir, "server-cert.pem")),
+      ca: [fs.readFileSync(path.join(certsDir, "ca-cert.pem"))],
+      requestCert: true,
+      rejectUnauthorized: false,
+    };
+
+    const mqttsServer = tls.createServer(tlsOptions, aedes.handle);
+    mqttsServer.listen(MQTTS_PORT, () => {
+      console.log(`✅ MQTT Broker (TLS)  → mqtts://localhost:${MQTTS_PORT}`);
+    });
+  } else {
+    console.warn("⚠️  TLS sertifikaları bulunamadı (certs/). MQTTS devre dışı.");
+    console.warn("'node scripts/generate-ca.js' çalıştırarak sertifika üretin.");
+  }
+
   aedes.on("client", (client) => {
-    console.log(`[MQTT] Bağlantı:  ${client.id} (${client.deviceName || "?"})`);
+    console.log(`[MQTT] Bağlantı: ${client.id} (${client.deviceName || "?"})`);
   });
 
   aedes.on("clientDisconnect", (client) => {
-    console.log(`[MQTT] Kopma:     ${client.id}`);
+    console.log(`[MQTT] Kopma: ${client.id}`);
   });
 
   aedes.on("publish", async (packet, client) => {
@@ -238,48 +368,77 @@ async function main() {
     const clientIp = req.socket.remoteAddress;
     console.log(`[WS] Bağlantı: ${clientIp}`);
 
-    ws.on("message", async (raw) => {
-      try {
-        const body = JSON.parse(raw.toString());
-
-        if (!body.accessToken) {
-          ws.send(JSON.stringify({ error: "accessToken alanı zorunludur." }));
-          return;
-        }
-
-        const device = await verifyDeviceToken(body.accessToken);
-        if (!device) {
-          ws.send(JSON.stringify({ error: "Geçersiz access token." }));
-          return;
-        }
-
-        const deviceId = device._id.toString();
-        const userId = device.userId ? device.userId.toString() : null;
-
-        if (!body.key || body.value === undefined) {
-          ws.send(JSON.stringify({ error: "key ve value alanları zorunludur." }));
-          return;
-        }
-
-        await ingestTelemetry([{
-          deviceId,
-          userId,
-          key: body.key,
-          value: body.value,
-          unit: body.unit,
-          protocol: "websocket",
-        }]);
-
-      } catch (err) {
-        console.error("[WS] Mesaj işleme hatası:", err.message);
-        ws.send(JSON.stringify({ error: err.message }));
-      }
-    });
+    // ws:// sadece token destekler, pending_token olarak işaretle
+    ws.authMethod = "pending_token";
+    attachMessageHandler(ws);
 
     ws.on("close", () => {
       console.log(`[WS] Kopma: ${clientIp}`);
     });
   });
+
+  if (isServerCertExist) {
+    const wssOptions = {
+      key: fs.readFileSync(path.join(certsDir, "server-key.pem")),
+      cert: fs.readFileSync(path.join(certsDir, "server-cert.pem")),
+      ca: [fs.readFileSync(path.join(certsDir, "ca-cert.pem"))],
+      requestCert: true,
+      rejectUnauthorized: false, // Sertifikasız cihazlarda içeri alınsın.
+    };
+
+    const tlsServer = tls.createServer(wssOptions);
+    const wss_secure = new WebSocketServer({ server: tlsServer });
+
+    tlsServer.listen(WSS_PORT, () => {
+      console.log(`✅ Secure WebSocket sunucusu başlatıldı → wss://localhost:${WSS_PORT}`)
+    });
+
+    wss_secure.on("connection", (ws, req) => {
+      const clientIp = req.socket.remoteAddress;
+      console.log(`[WSS] Bağlantı: ${clientIp}`)
+
+      const tlsSocket = req.socket;
+      const peerCert = tlsSocket.getPeerCertificate(true);
+
+      if (peerCert && peerCert.fingerprint256) {
+        const fingerprint = peerCert.fingerprint256.replace(/:/g, "").toLowerCase();
+
+        verifyDeviceCertificate(fingerprint)
+          .then((device) => {
+            if (!device) {
+              ws.send(JSON.stringify({ error: "Geçersiz cihaz sertifikası." }));
+              ws.close();
+              return;
+            }
+
+            ws.deviceId = device._id.toString();
+            ws.userId = device.userId ? device.userId.toString() : null;
+            ws.authMethod = "certificate";
+
+            console.log(`[WSS] Sertifika auth başarılı: ${device.name}`)
+            ws.send(JSON.stringify({ status: "authenticated", method: "certificate" }));
+
+            attachMessageHandler(ws);
+          })
+          .catch((err) => {
+            console.error("[WSS] Sertifika doğrulama hatası:", err.message);
+            ws.send(JSON.stringify({ error: "Sertifika doğrulama hatası." }));
+            ws.close();
+          });
+      } else {
+        ws.authMethod = "pending_token";
+        attachMessageHandler(ws);
+      }
+
+      ws.on("close", () => {
+        console.log(`[WSS] Kopma: ${clientIp}`);
+      });
+
+    });
+
+  } else {
+    console.warn("⚠️  TLS sertifikaları bulunamadı (certs/). WSS devre dışı.");
+  }
 
   // 4. Next.js HTTP Sunucusu — port 3000
   const app = next({ dev, hostname, port: PORT });

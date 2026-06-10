@@ -13,7 +13,7 @@ import connectDB from "@/lib/db";
 import Device from "@/models/Device";
 import DeviceProfile from "@/models/DeviceProfile";
 
-const CACHE_TTL = 600; // 10 dakika (saniye)
+const CACHE_TTL = 600;
 
 /**
  * Cihaz bilgisini önbellekten veya MongoDB'den getirir.
@@ -28,6 +28,7 @@ export async function getCachedDevice(deviceId) {
     // 1. Önce Redis'e bak
     const cached = await redis.get(cacheKey);
     if (cached) {
+      console.log("Cache'den device verisi çekildi");
       return JSON.parse(cached);
     }
   } catch (err) {
