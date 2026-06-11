@@ -19,8 +19,14 @@ const WidgetSchema = new Schema(
       required: true,
     },
 
-    // Bağlı cihaz
-    deviceId: { type: String, required: true },
+    // Bağlı cihaz(lar)
+    devices: [
+      {
+        id: { type: String, required: true },
+        name: { type: String, default: "" },
+        _id: false,
+      },
+    ],
 
     // Gösterilecek telemetri key'leri
     keys: [{ type: String }],
@@ -28,7 +34,7 @@ const WidgetSchema = new Schema(
     // Widget başlığı
     title: { type: String, default: "Widget" },
 
-    // Tipe özel ek ayarlar (maxPoints, timeRange vb.)
+    // Tipe özel ek ayarlar (min, max, maxPoints, timeRange vb.)
     config: { type: Schema.Types.Mixed, default: {} },
 
     // Grid pozisyonu (react-grid-layout)

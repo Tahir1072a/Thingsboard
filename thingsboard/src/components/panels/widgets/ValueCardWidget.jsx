@@ -9,9 +9,12 @@ import { useEffect, useState, useCallback, useRef } from "react";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 
 export default function ValueCardWidget({
-  deviceId, keys = [], title = "Değer",
+  devices = [], keys = [], title = "Değer",
   config = {},
 }) {
+  const device = devices[0];
+  const deviceId = device?.id;
+  const deviceName = device?.name || "Bilinmeyen Cihaz";
   const key = keys[0] || "value";
   const unit = config.unit || "";
 
@@ -37,14 +40,47 @@ export default function ValueCardWidget({
 
   useEffect(() => {
     if (!deviceId) return;
-    const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
-    es.onopen = () => setConnected(true);
-    es.onerror = () => setConnected(false);
-    es.onmessage = (e) => {
-      try { handleData(JSON.parse(e.data)); } catch {}
+
+    let isMounted = true;
+    const sseRef = { current: null };
+
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(`/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}&limit=1`);
+        const json = await res.json();
+        if (json.ok && json.data && json.data.length > 0 && isMounted) {
+          const item = json.data[0];
+          setValue(item.value);
+          setLastUpdate(new Date(item.timestamp));
+          prevValueRef.current = item.value;
+        }
+      } catch (err) {
+        console.error("Geçmiş veri çekilemedi:", err);
+      }
     };
-    return () => { es.close(); setConnected(false); };
-  }, [deviceId, handleData]);
+
+    const startSSE = () => {
+      const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
+      sseRef.current = es;
+
+      es.onopen = () => { if (isMounted) setConnected(true); };
+      es.onerror = () => { if (isMounted) setConnected(false); };
+      es.onmessage = (e) => {
+        if (!isMounted) return;
+        try { handleData(JSON.parse(e.data)); } catch {}
+      };
+    };
+
+    fetchHistory().then(() => {
+      if (isMounted) startSSE();
+    });
+
+    return () => {
+      isMounted = false;
+      if (sseRef.current) sseRef.current.close();
+      setConnected(false);
+    };
+  }, [deviceId, key, handleData]);
 
   const trendConfig = {
     up: { icon: TrendingUp, color: "text-green-500", bg: "bg-green-50" },
@@ -55,28 +91,36 @@ export default function ValueCardWidget({
   const { icon: TrendIcon, color: trendColor, bg: trendBg } = trendConfig[trend];
 
   return (
-    <div className="h-full flex flex-col justify-between p-1">
-      <div className="flex items-center justify-between shrink-0">
-        <h3 className="text-sm font-semibold text-text-main truncate">{title}</h3>
-        <div className={`p-1 rounded-md ${trendBg}`}>
-          <TrendIcon className={`h-3.5 w-3.5 ${trendColor}`} />
+    <div className="h-full flex flex-col justify-between p-4 relative">
+      {/* Cihaz İsmi Etiketi */}
+      <div className="absolute top-2 left-2 px-2 py-0.5 bg-slate-100/50 backdrop-blur-md rounded border border-slate-200/50 text-[9px] font-bold text-slate-500 uppercase tracking-wider">
+        {deviceName}
+      </div>
+
+      <div className="flex items-center justify-between shrink-0 mt-3">
+        <h3 className="text-sm font-medium text-slate-500 truncate">{title}</h3>
+        <div className={`px-2 py-1 rounded-full flex items-center gap-1 ${trendBg} ${trendColor} bg-opacity-50 backdrop-blur-sm border border-white/20`}>
+          <TrendIcon className="h-3 w-3" />
+          <span className="text-[10px] font-bold uppercase tracking-wider">{trend}</span>
         </div>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center">
-        <span className="text-4xl font-bold tabular-nums text-text-main">
-          {value !== null ? value.toFixed(1) : "—"}
-        </span>
-        <span className="text-sm text-text-muted capitalize mt-1">
-          {unit || key}
-        </span>
+      <div className="flex-1 flex flex-col items-start justify-center pt-2">
+        <div className="flex items-baseline gap-1">
+          <span className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-800 drop-shadow-sm">
+            {value !== null ? value.toFixed(1) : "—"}
+          </span>
+          <span className="text-base font-medium text-slate-500 uppercase">
+            {unit || key}
+          </span>
+        </div>
       </div>
 
-      <div className="flex items-center justify-between text-[10px] text-text-muted shrink-0">
-        <span className="capitalize">{key}</span>
-        <span className="flex items-center gap-1">
-          <span className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-green-500" : "bg-gray-400"}`} />
-          {lastUpdate ? lastUpdate.toLocaleTimeString("tr-TR") : "—"}
+      <div className="flex items-center justify-between text-[10px] text-slate-400 shrink-0 font-medium tracking-wide">
+        <span className="uppercase">{key}</span>
+        <span className="flex items-center gap-1.5">
+          <span className={`h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.2)] ${connected ? "bg-green-400 shadow-green-400/50" : "bg-red-400 shadow-red-400/50"}`} />
+          {lastUpdate ? lastUpdate.toLocaleTimeString("tr-TR") : "Bekleniyor..."}
         </span>
       </div>
     </div>

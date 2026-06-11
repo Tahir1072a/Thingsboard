@@ -41,16 +41,21 @@ export async function authenticateDevice(accessToken) {
  * Güvenli: sadece sayısal karşılaştırmaları destekler (eval yok).
  *
  * Koşul formatı: "key > 50", "temperature <= 30"
+ * Key parametresi koşuldaki key ile eşleşmelidir.
  */
 function evaluateCondition(condition, key, value) {
   if (!condition) return false;
 
-  // "temperature > 50" → operatörü ve eşiği ayıkla
-  const match = condition.match(/^\s*\w+\s*(>=|<=|>|<|==|!=)\s*(-?\d+(?:\.\d+)?)\s*$/);
+  // "temperature > 50" → key, operatörü ve eşiği ayıkla
+  const match = condition.match(/^\s*(\w+)\s*(>=|<=|>|<|==|!=)\s*(-?\d+(?:\.\d+)?)\s*$/);
   if (!match) return false;
 
-  const operator = match[1];
-  const threshold = parseFloat(match[2]);
+  const conditionKey = match[1];
+  const operator = match[2];
+  const threshold = parseFloat(match[3]);
+
+  // Koşuldaki key ile gelen telemetri key'i eşleşmiyorsa tetikleme
+  if (conditionKey !== key) return false;
 
   switch (operator) {
     case ">": return value > threshold;

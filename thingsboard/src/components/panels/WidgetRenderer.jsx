@@ -66,7 +66,7 @@ export default function WidgetRenderer({ widget }) {
   return (
     <div className="h-full w-full">
       <Component
-        deviceId={widget.deviceId}
+        devices={widget.devices || []}
         keys={widget.keys || []}
         title={widget.title}
         config={widget.config || {}}
