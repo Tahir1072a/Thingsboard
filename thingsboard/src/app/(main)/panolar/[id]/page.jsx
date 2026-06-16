@@ -102,7 +102,7 @@ export default function DashboardEditorPage() {
       try {
         const promises = addForm.deviceIds.map(id => fetch(`/api/telemetry/keys?deviceId=${id}`).then(r => r.json()));
         const results = await Promise.all(promises);
-        
+
         let allKeys = new Set();
         results.forEach(data => {
           if (data.ok && data.keys) {
@@ -222,7 +222,7 @@ export default function DashboardEditorPage() {
     }
 
     const typeConfig = WIDGET_TYPES.find((t) => t.type === addForm.type);
-    
+
     // deviceIds dizisindeki ID'lerden obje oluştur {id, name}
     const selectedDevices = addForm.deviceIds.map(id => {
       const d = devices.find(x => x._id === id);

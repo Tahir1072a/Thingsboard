@@ -1,0 +1,63 @@
+services:
+  # ── Uygulama Sunucusu ──
+  app:
+    build: .
+    container_name: thingsboard-app
+    ports:
+      - "${PORT:-3000}:3000"       # Next.js HTTP
+      - "${MQTT_PORT:-1883}:1883"  # MQTT
+      - "${MQTTS_PORT:-8883}:8883" # MQTTS (TLS)
+      - "${WS_PORT:-3001}:3001"    # WebSocket
+      - "${WSS_PORT:-3002}:3002"   # Secure WebSocket
+    env_file: .env
+    environment:
+      - MONGODB_URI=mongodb://mongo:27017/thingsboard
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      mongo:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # ── MongoDB ──
+  mongo:
+    image: mongo:7
+    container_name: thingsboard-mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # ── Redis ──
+  redis:
+    image: redis:7-alpine
+    container_name: thingsboard-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  mongo_data:
+    driver: local
+  redis_data:
+    driver: local

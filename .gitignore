@@ -21,6 +21,7 @@ certs/
 # ==============================================================================
 **/.env
 **/.env.*
+!**/.env.example
 **/*.env
 # Local geliştirme için özel env'ler
 .env.local
