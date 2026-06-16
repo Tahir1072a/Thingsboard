@@ -1,7 +1,7 @@
 # ==============================================================================
 # Aşama 1: Build — Bağımlılıkları kur ve Next.js'i derle
 # ==============================================================================
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
@@ -14,7 +14,7 @@ COPY . .
 
 # Build sırasında gerekli dummy ortam değişkenleri
 # (Runtime'da docker-compose env_file ile gerçek değerler gelir)
-ENV MONGODB_URI=mongodb://localhost:27017/thingsboard
+ENV MONGODB_URI=mongodb://localhost:27018/thingsboard
 ENV REDIS_URL=redis://localhost:6379
 ENV NEXTAUTH_SECRET=build-time-dummy-secret
 ENV NEXTAUTH_URL=http://localhost:3000
@@ -24,7 +24,7 @@ RUN npm run build
 # ==============================================================================
 # Aşama 2: Production — Sadece çalışması gereken dosyaları al
 # ==============================================================================
-FROM node:18-alpine AS runner
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 ENV NODE_ENV=production
@@ -41,7 +41,7 @@ COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
 
 # Sunucu ve yapılandırma dosyaları
-COPY --from=builder /app/server.js ./
+COPY --from=builder /app/server.mjs ./
 COPY --from=builder /app/next.config.mjs ./
 COPY --from=builder /app/middleware.js ./
 COPY --from=builder /app/src ./src
@@ -57,4 +57,4 @@ USER appuser
 # Portlar: Next.js, MQTT, MQTTS, WS, WSS
 EXPOSE 3000 1883 8883 3001 3002
 
-CMD ["node", "server.js"]
+CMD ["node", "server.mjs"]

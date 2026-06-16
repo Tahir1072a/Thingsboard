@@ -215,13 +215,4 @@ export function parseMqttTopic(topic) {
   return { deviceId: null, key: null };
 }
 
-/**
- * server.js'deki MQTT telemetri işleyicisinden gelen
- * "check-alarms" event'ini dinle ve alarm kontrolünü çalıştır.
- */
-emitter.on("check-alarms", (payload) => {
-  const { deviceId, key, value, userId } = payload;
-  checkAlarms(deviceId, key, value, userId).catch((err) => {
-    console.error("[check-alarms listener] Hata:", err.message);
-  });
-});
+

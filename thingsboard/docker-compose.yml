@@ -11,7 +11,7 @@ services:
       - "${WSS_PORT:-3002}:3002"   # Secure WebSocket
     env_file: .env
     environment:
-      - MONGODB_URI=mongodb://mongo:27017/thingsboard
+      - MONGODB_URI=mongodb://mongo:27018/thingsboard
       - REDIS_URL=redis://redis:6379
     depends_on:
       mongo:
@@ -29,13 +29,14 @@ services:
   # ── MongoDB ──
   mongo:
     image: mongo:7
+    command: ["mongod", "--port", "27018"]
     container_name: thingsboard-mongo
     ports:
-      - "27017:27017"
+      - "27018:27018"
     volumes:
       - mongo_data:/data/db
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.runCommand('ping').ok"]
+      test: ["CMD", "mongosh", "--port", "27018", "--eval", "db.runCommand('ping').ok"]
       interval: 10s
       timeout: 5s
       retries: 5
