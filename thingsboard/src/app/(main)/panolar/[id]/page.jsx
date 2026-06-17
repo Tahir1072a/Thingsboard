@@ -19,8 +19,8 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import {
-  Save, ArrowLeft, Plus, X, GripVertical,
-  LayoutDashboard, Trash2, Pencil, Check,
+  Save, ArrowLeft, Plus, X,
+  LayoutDashboard, Pencil, Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -192,14 +192,23 @@ export default function DashboardEditorPage() {
   // Widget ekleme
   // ------------------------------------------------------------------ //
   const handleAddWidget = () => {
-    if (!addForm.type || addForm.deviceIds.length === 0 || !addForm.title) {
-      toast.error("Tip, cihaz ve başlık zorunludur.");
+    if (!addForm.type || !addForm.title) {
+      toast.error("Tip ve başlık zorunludur.");
       return;
     }
 
-    if (addForm.keys.length === 0) {
-      toast.error("En az bir telemetri verisi seçmelisiniz.");
-      return;
+    // image_map için cihaz/key zorunlu değil — sonradan marker ile eklenir
+    const isImageMap = addForm.type === "image_map";
+
+    if (!isImageMap) {
+      if (addForm.deviceIds.length === 0) {
+        toast.error("En az bir cihaz seçmelisiniz.");
+        return;
+      }
+      if (addForm.keys.length === 0) {
+        toast.error("En az bir telemetri verisi seçmelisiniz.");
+        return;
+      }
     }
 
     // Doğrulamalar
@@ -229,13 +238,21 @@ export default function DashboardEditorPage() {
       return { id: d?._id, name: d?.name };
     }).filter(d => d.id);
 
+    // Widget config — tip bazlı
+    let widgetConfig = {};
+    if (addForm.type === "gauge") {
+      widgetConfig = { min: addForm.min, max: addForm.max };
+    } else if (isImageMap) {
+      widgetConfig = { imageSrc: "", markers: [] };
+    }
+
     const newWidget = {
       i: `w-${Date.now()}`,
       type: addForm.type,
-      devices: selectedDevices,
-      keys: addForm.keys,
+      devices: isImageMap ? [] : selectedDevices,
+      keys: isImageMap ? [] : addForm.keys,
       title: addForm.title,
-      config: addForm.type === "gauge" ? { min: addForm.min, max: addForm.max } : {},
+      config: widgetConfig,
       x: 0,
       y: Infinity, // en alta ekle
       w: typeConfig?.defaultSize?.w || 4,
@@ -398,32 +415,20 @@ export default function DashboardEditorPage() {
             margin={[12, 12]}
           >
             {dashboard.widgets.map((widget) => (
-              <div
-                key={widget.i}
-                className="glass-premium flex flex-col transition-all hover:scale-[1.01]"
-              >
-                {/* Widget Header (düzenleme modunda) */}
-                {editMode && (
-                  <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50/80 border-b border-gray-100 shrink-0">
-                    <div className="widget-drag-handle cursor-grab active:cursor-grabbing flex items-center gap-1 text-text-muted">
-                      <GripVertical className="h-3.5 w-3.5" />
-                      <span className="text-[10px] font-medium uppercase tracking-wider">Taşı</span>
-                    </div>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveWidget(widget.i);
-                      }}
-                      className="p-1 rounded hover:bg-red-50 hover:text-red-500 text-gray-400 transition-colors"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                )}
-                {/* Widget İçeriği */}
-                <div className="p-3 flex-1 min-h-0">
-                  <WidgetRenderer widget={widget} />
-                </div>
+              <div key={widget.i}>
+                <WidgetRenderer
+                  widget={widget}
+                  isEditMode={editMode}
+                  onDelete={() => handleRemoveWidget(widget.i)}
+                  onWidgetConfigChange={(newConfig) => {
+                    setDashboard((prev) => ({
+                      ...prev,
+                      widgets: prev.widgets.map((w) =>
+                        w.i === widget.i ? { ...w, config: { ...w.config, ...newConfig } } : w
+                      ),
+                    }));
+                  }}
+                />
               </div>
             ))}
           </ResponsiveGridLayout>
@@ -481,7 +486,8 @@ export default function DashboardEditorPage() {
                 </div>
               </div>
 
-              {/* 2. Cihaz Seçimi */}
+              {/* 2. Cihaz Seçimi (image_map hariç) */}
+              {addForm.type !== "image_map" && (
               <div className="space-y-2">
                 <Label className="font-bold text-sm">2. Cihaz(lar)</Label>
                 <ReactSelect
@@ -513,8 +519,10 @@ export default function DashboardEditorPage() {
                   Birden fazla sensörden gelen veriyi kıyaslamak için birden fazla cihaz seçebilirsiniz (Grafik ve Tablo).
                 </p>
               </div>
+              )}
 
-              {/* 3. Telemetri Key'leri */}
+              {/* 3. Telemetri Key'leri (image_map hariç) */}
+              {addForm.type !== "image_map" && (
               <div className="space-y-2">
                 <Label className="font-bold text-sm">3. Telemetri Key&apos;leri</Label>
                 {addForm.deviceIds.length === 0 ? (
@@ -552,8 +560,9 @@ export default function DashboardEditorPage() {
                   Grafik, Değer Kartı ve Gösterge için 1 veri (key) seçilmelidir. Tablo için birden fazla seçilebilir.
                 </p>
               </div>
+              )}
 
-              {/* 4. Başlık */}
+              {/* 4. Widget Başlığı — image_map için step 2 */}
               <div className="space-y-2">
                 <Label className="font-bold text-sm">4. Widget Başlığı</Label>
                 <Input

@@ -15,7 +15,7 @@ const WidgetSchema = new Schema(
     // Widget tipi
     type: {
       type: String,
-      enum: ["line_chart", "gauge", "value_card", "table"],
+      enum: ["line_chart", "gauge", "value_card", "table", "image_map"],
       required: true,
     },
 

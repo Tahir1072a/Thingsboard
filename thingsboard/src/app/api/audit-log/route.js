@@ -47,6 +47,12 @@ export async function GET(request) {
       filter.entityType = entityType;
     }
 
+    // Kaynak ID filtresi (belirli bir cihaz/profil/dashboard için)
+    const entityId = searchParams.get("entityId");
+    if (entityId) {
+      filter.entityId = entityId;
+    }
+
     // Sonuç filtresi
     const status = searchParams.get("status");
     if (status) {

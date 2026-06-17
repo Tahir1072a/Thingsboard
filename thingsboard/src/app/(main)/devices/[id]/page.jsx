@@ -9,7 +9,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
   ArrowLeft, Activity, Key, Calendar, Tag, Radio,
-  CheckCircle2, XCircle, RefreshCw,
+  CheckCircle2, XCircle, RefreshCw, ScrollText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,8 @@ export default function DeviceDetailPage() {
   const [recentTelemetry, setRecentTelemetry] = useState([]);
   const [telLoading, setTelLoading] = useState(false);
   const [telemetryKeys, setTelemetryKeys] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [auditLoading, setAuditLoading] = useState(false);
 
   const fetchDevice = useCallback(async () => {
     try {
@@ -79,11 +81,27 @@ export default function DeviceDetailPage() {
     }
   }, [id]);
 
+  const fetchAuditLogs = useCallback(async () => {
+    try {
+      setAuditLoading(true);
+      const res = await fetch(`/api/audit-log?entityId=${id}&entityType=DEVICE&limit=10`);
+      const data = await res.json();
+      if (data.ok) {
+        setAuditLogs(data.data || []);
+      }
+    } catch {
+      console.error("Audit log çekilemedi");
+    } finally {
+      setAuditLoading(false);
+    }
+  }, [id]);
+
   useEffect(() => {
     fetchDevice();
     fetchTelemetry();
     fetchKeys();
-  }, [fetchDevice, fetchTelemetry, fetchKeys]);
+    fetchAuditLogs();
+  }, [fetchDevice, fetchTelemetry, fetchKeys, fetchAuditLogs]);
 
   if (loading) {
     return (
@@ -235,6 +253,91 @@ export default function DeviceDetailPage() {
                     </td>
                   </tr>
                 ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {/* Denetim Günlükleri */}
+      <div className="glass rounded-xl p-4">
+        <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center gap-2">
+            <ScrollText className="h-4 w-4 text-halo-600" />
+            <h3 className="text-sm font-semibold text-text-main">Denetim Günlükleri</h3>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchAuditLogs}
+            className="gap-1.5"
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${auditLoading ? "animate-spin" : ""}`} />
+            Yenile
+          </Button>
+        </div>
+
+        <div className="overflow-auto max-h-[300px]">
+          <table className="w-full text-sm">
+            <thead className="sticky top-0 bg-white/90 backdrop-blur-sm">
+              <tr className="border-b border-gray-200">
+                <th className="text-left py-2 px-3 font-semibold text-text-muted text-xs">Zaman</th>
+                <th className="text-left py-2 px-3 font-semibold text-text-muted text-xs">Aksiyon</th>
+                <th className="text-left py-2 px-3 font-semibold text-text-muted text-xs">Sonuç</th>
+                <th className="text-left py-2 px-3 font-semibold text-text-muted text-xs">Detay</th>
+              </tr>
+            </thead>
+            <tbody>
+              {auditLogs.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="text-center py-8 text-text-muted">
+                    {auditLoading ? "Yükleniyor..." : "Bu cihaz için denetim kaydı yok."}
+                  </td>
+                </tr>
+              ) : (
+                auditLogs.map((log, i) => {
+                  const actionLabels = {
+                    DEVICE_CREATE: "Oluşturuldu",
+                    DEVICE_UPDATE: "Güncellendi",
+                    DEVICE_DELETE: "Silindi",
+                    INACTIVE_DEVICE_REJECTED: "Erişim Reddedildi",
+                    SECURITY_ALERT: "Güvenlik Alarmı",
+                  };
+                  const actionColors = {
+                    DEVICE_CREATE: "bg-green-500/10 text-green-600",
+                    DEVICE_UPDATE: "bg-blue-500/10 text-blue-600",
+                    DEVICE_DELETE: "bg-red-500/10 text-red-600",
+                    INACTIVE_DEVICE_REJECTED: "bg-orange-500/10 text-orange-600",
+                    SECURITY_ALERT: "bg-red-500/10 text-red-600 animate-pulse",
+                  };
+                  return (
+                    <tr key={log._id || i} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
+                      <td className="py-1.5 px-3 font-mono text-xs text-text-muted whitespace-nowrap">
+                        {new Date(log.timestamp).toLocaleString("tr-TR", {
+                          day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit",
+                        })}
+                      </td>
+                      <td className="py-1.5 px-3">
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${actionColors[log.action] || "bg-gray-100 text-gray-600"}`}>
+                          {actionLabels[log.action] || log.action}
+                        </span>
+                      </td>
+                      <td className="py-1.5 px-3">
+                        {log.status === "SUCCESS" ? (
+                          <span className="flex items-center gap-1 text-green-600 text-xs">
+                            <CheckCircle2 className="h-3.5 w-3.5" /> Başarılı
+                          </span>
+                        ) : (
+                          <span className="flex items-center gap-1 text-red-500 text-xs">
+                            <XCircle className="h-3.5 w-3.5" /> Başarısız
+                          </span>
+                        )}
+                      </td>
+                      <td className="py-1.5 px-3 text-xs text-text-muted max-w-[200px] truncate">
+                        {log.details?.reason || log.details?.ip || (log.details?.changes ? "Alanlar güncellendi" : "—")}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>

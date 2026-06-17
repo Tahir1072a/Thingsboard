@@ -7,6 +7,7 @@ import {
   Database,
   AlertTriangle,
   Link2,
+  ScrollText,
 } from "lucide-react";
 
 import CommonEntitySheet from "../common/rowDetails/common-entity-sheet";
@@ -18,6 +19,7 @@ import { DeviceAlarmsTab } from "./mock";
 import { DeviceAttributeTab } from "./tabs/device-attribute-tab";
 import { DeviceTelemetryTab } from "./tabs/device-telemetri-tab";
 import { DeviceConnectivityTab } from "./tabs/device-connectivity-tab";
+import { DeviceAuditLogTab } from "./tabs/device-audit-log-tab";
 
 // TODO: Telemetri sayfası yapılacak!
 
@@ -95,9 +97,14 @@ export default function DeviceDetailSheet({ device, open, onOpenChange, onDevice
         id: "connectivity",
         label: "Bağlantı Rehberi",
         icon: Link2,
-        content: <DeviceConnectivityTab device={device} />, // Yeni Sekme
+        content: <DeviceConnectivityTab device={device} />,
       },
-      // Olaylar, İlişkiler vb. eklenecek.
+      {
+        id: "audit-logs",
+        label: "Denetim Günlükleri",
+        icon: ScrollText,
+        content: <DeviceAuditLogTab deviceId={device?._id} />,
+      },
     ],
     [device, isEditing, hasCustomer]
   );

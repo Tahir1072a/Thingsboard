@@ -10,7 +10,6 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Edit3, X } from "lucide-react";
-import { ROW_DETAIL_TAB_NAMES } from "@/lib/constants";
 
 export default function CommonEntitySheet({
   open,
@@ -81,7 +80,7 @@ export default function CommonEntitySheet({
             >
               {/* Tab Menüsü Listesi */}
               <TabsList className="w-full justify-start rounded-none bg-white/50 border-b border-white/20 px-6 gap-2 h-auto py-3 overflow-x-auto flex-nowrap">
-                {ROW_DETAIL_TAB_NAMES.map((tab) => {
+                {tabs.map((tab) => {
                   const TabIcon = tab.icon;
                   return (
                     <TabsTrigger

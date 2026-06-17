@@ -99,7 +99,7 @@ async function trackInactiveAttempt({ deviceId, deviceName, userId, ip, protocol
       userId, action: "INACTIVE_DEVICE_REJECTED", entityType: "DEVICE",
       entityId: deviceId, entityName: deviceName, status: "FAILURE",
       details: { ip, protocol, attemptCount, reason: "Cihaz inactive durumda." },
-    }).catch(() => {});
+    }).catch(() => { });
 
     // 3+ deneme: SSE bildirimi
     if (attemptCount >= INACTIVE_NOTIFY) {
@@ -107,8 +107,10 @@ async function trackInactiveAttempt({ deviceId, deviceName, userId, ip, protocol
         userId: String(userId), action: "INACTIVE_DEVICE_REJECTED",
         entityType: "DEVICE", entityId: String(deviceId), entityName: deviceName,
         status: "FAILURE", timestamp: new Date(),
-        details: { ip, protocol, attemptCount, alert: true,
-          reason: `${deviceName} devre dışı ama ${attemptCount} kez veri göndermeye çalıştı.` },
+        details: {
+          ip, protocol, attemptCount, alert: true,
+          reason: `${deviceName} devre dışı ama ${attemptCount} kez veri göndermeye çalıştı.`
+        },
       });
     }
 
@@ -121,8 +123,10 @@ async function trackInactiveAttempt({ deviceId, deviceName, userId, ip, protocol
         const alarm = await Alarm.create({
           userId, deviceId, deviceName, type: "SECURITY_ALERT",
           severity: "CRITICAL", status: "ACTIVE",
-          details: { key: "inactive_attempts", triggerValue: attemptCount,
-            threshold: `${INACTIVE_SECURITY} deneme/saat`, ip, protocol },
+          details: {
+            key: "inactive_attempts", triggerValue: attemptCount,
+            threshold: `${INACTIVE_SECURITY} deneme/saat`, ip, protocol
+          },
         });
         logger.warn({ device: deviceName, attempts: attemptCount, ip },
           "GÜVENLİK ALARMI: Inactive cihazdan yoğun erişim denemesi");

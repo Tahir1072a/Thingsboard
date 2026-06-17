@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Terminal, Wifi } from "lucide-react";
+import { Copy, Terminal, Wifi, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import toast from "react-hot-toast";
 
@@ -23,9 +23,10 @@ export function DeviceConnectivityTab({ device }) {
   -H "Content-Type: application/json" \\
   -H "X-Access-Token: ${accessToken}" \\
   -d '{
-    "temperature": 24.5,
-    "status": "active",
-    "location": { "lat": 41.0, "lng": 28.9 }
+    "metrics": [
+      { "key": "temperature", "value": 24.5 },
+      { "key": "status", "value": "active" }
+    ]
   }'`;
 
   const mqttSnippet = `// Node.js MQTT Örneği
@@ -43,6 +44,28 @@ client.on("connect", () => {
   client.publish("devices/me/telemetry", payload);
   console.log("Veri gönderildi!");
 });`;
+
+  const wsSnippet = `// Tarayıcı veya Node.js WebSocket Örneği
+const ws = new WebSocket("ws://localhost:3001");
+
+ws.onopen = () => {
+  console.log("WebSocket bağlantısı başarılı!");
+  const payload = JSON.stringify({
+    accessToken: "${accessToken}",
+    key: "temperature",
+    value: 24.5
+  });
+  ws.send(payload);
+  console.log("Veri gönderildi!");
+};
+
+ws.onmessage = (event) => {
+  console.log("Sunucudan gelen mesaj:", event.data);
+};
+
+ws.onerror = (error) => {
+  console.error("WebSocket Hatası:", error);
+};`;
 
   return (
     <div className="space-y-6 animate-fade-in p-4">
@@ -106,8 +129,32 @@ client.on("connect", () => {
             </pre>
           </div>
         </div>
+
+        {/* WEBSOCKET BÖLÜMÜ */}
+        <div className="border border-gray-200 rounded-xl overflow-hidden shadow-sm">
+          <div className="bg-gray-50 px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+            <div className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-gray-500" />
+              <h4 className="font-semibold text-gray-700">WebSocket</h4>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleCopy(wsSnippet)}
+              className="h-8 text-xs bg-white"
+            >
+              <Copy className="h-3 w-3 mr-1.5" />
+              Kodu Kopyala
+            </Button>
+          </div>
+          <div className="bg-gray-900 p-4 overflow-x-auto">
+            <pre className="text-sm text-yellow-400 font-mono">
+              <code>{wsSnippet}</code>
+            </pre>
+          </div>
+        </div>
       </div>
-      
+
       <div className="bg-blue-50 text-blue-800 p-4 rounded-xl border border-blue-200 text-sm">
         <p><strong>Önemli Not:</strong> Yukarıdaki <code>accessToken</code> ({accessToken}) cihazınıza özeldir. Bu anahtarı başkalarıyla paylaşmayın.</p>
       </div>
