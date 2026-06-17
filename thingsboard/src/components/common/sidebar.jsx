@@ -9,6 +9,7 @@ import {
   LayoutDashboard,
   Router,
   UserCheck,
+  ScrollText,
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
@@ -20,6 +21,7 @@ const navLinks = [
   { href: "/panolar", label: "Panolar", icon: LayoutDashboard },
   { href: "/devices", label: "Cihazlar", icon: Router },
   { href: "/device-profile", label: "Cihaz Profilleri", icon: UserCheck },
+  { href: "/audit-logs", label: "Denetim Günlükleri", icon: ScrollText },
 ];
 
 export default function Sidebar() {

@@ -12,6 +12,7 @@ import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/db";
 import Dashboard from "@/models/Dashboard";
 import mongoose from "mongoose";
+import { auditDashboardAction } from "@/lib/audit-service";
 
 // Sahiplik kontrolü
 async function verifyOwnership(id, session) {
@@ -90,6 +91,9 @@ export async function PUT(request, { params }) {
 
     await dashboard.save();
 
+    // Audit log
+    auditDashboardAction(session.user.id, "DASHBOARD_UPDATE", dashboard, { changes: body });
+
     return NextResponse.json({
       ok: true,
       message: "Pano güncellendi.",
@@ -122,6 +126,9 @@ export async function DELETE(request, { params }) {
     }
 
     await Dashboard.findByIdAndDelete(id);
+
+    // Audit log
+    auditDashboardAction(session.user.id, "DASHBOARD_DELETE", result.dashboard);
 
     return NextResponse.json({ ok: true, message: "Pano silindi." });
   } catch (error) {

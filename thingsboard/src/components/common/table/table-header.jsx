@@ -83,13 +83,15 @@ export function TableHeader({
             {isRefreshing ? "Yenileniyor..." : "Yenile"}
           </Button>
 
-          <Button
-            onClick={onAdd}
-            className="bg-gradient-to-r from-halo-600 to-halo-700 hover:from-halo-700 hover:to-halo-800 shadow-lg text-white cursor-pointer"
-          >
-            <PlusCircle className="mr-2 h-5 w-5" />
-            {addButtonName}
-          </Button>
+          {addButtonName && (
+            <Button
+              onClick={onAdd}
+              className="bg-gradient-to-r from-halo-600 to-halo-700 hover:from-halo-700 hover:to-halo-800 shadow-lg text-white cursor-pointer"
+            >
+              <PlusCircle className="mr-2 h-5 w-5" />
+              {addButtonName}
+            </Button>
+          )}
         </div>
       </div>
 

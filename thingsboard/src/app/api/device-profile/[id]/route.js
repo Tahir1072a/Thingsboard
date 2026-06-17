@@ -8,6 +8,7 @@ import DeviceProfile from "@/models/DeviceProfile";
 import mongoose from "mongoose";
 import { getSessionUser } from "@/lib/getSessionUser";
 import { invalidateProfile } from "@/lib/cache";
+import { auditProfileAction } from "@/lib/audit-service";
 
 // GET — Detay
 export async function GET(request, { params }) {
@@ -68,6 +69,9 @@ export async function PUT(request, { params }) {
     // Redis cache'ini temizle
     await invalidateProfile(id);
 
+    // Audit log
+    auditProfileAction(userId, "PROFILE_UPDATE", profile, { changes: body });
+
     return NextResponse.json({
       ok: true,
       message: "Profil güncellendi.",
@@ -105,6 +109,9 @@ export async function DELETE(request, { params }) {
 
     // Redis cache'ini temizle
     await invalidateProfile(id);
+
+    // Audit log
+    auditProfileAction(userId, "PROFILE_DELETE", profile);
 
     return NextResponse.json({ ok: true, message: "Profil silindi." });
   } catch (error) {

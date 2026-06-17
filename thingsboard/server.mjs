@@ -35,6 +35,7 @@ const __dirname = path.dirname(__filename);
 import Device from "./src/models/Device.js";
 import Telemetry from "./src/models/Telemetry.js";
 import Alarm from "./src/models/Alarm.js";
+import AuditLog from "./src/models/AuditLog.js";
 import DeviceProfile from "./src/models/DeviceProfile.js";
 import emitter from "./src/lib/event-emitter.js";
 import logger from "./src/lib/logger.js";
@@ -81,6 +82,59 @@ async function getCachedProfile(profileId) {
 }
 
 // ------------------------------------------------------------------ //
+// Inactive cihaz deneme takıpçısı
+// ------------------------------------------------------------------ //
+const INACTIVE_WINDOW = 3600;
+const INACTIVE_NOTIFY = 3;
+const INACTIVE_SECURITY = 20;
+
+async function trackInactiveAttempt({ deviceId, deviceName, userId, ip, protocol }) {
+  try {
+    const key = `inactive-attempt:${deviceId}`;
+    const attemptCount = await redis.incr(key);
+    if (attemptCount === 1) await redis.expire(key, INACTIVE_WINDOW);
+
+    // Audit log kaydı
+    AuditLog.create({
+      userId, action: "INACTIVE_DEVICE_REJECTED", entityType: "DEVICE",
+      entityId: deviceId, entityName: deviceName, status: "FAILURE",
+      details: { ip, protocol, attemptCount, reason: "Cihaz inactive durumda." },
+    }).catch(() => {});
+
+    // 3+ deneme: SSE bildirimi
+    if (attemptCount >= INACTIVE_NOTIFY) {
+      emitter.emit("audit-log", {
+        userId: String(userId), action: "INACTIVE_DEVICE_REJECTED",
+        entityType: "DEVICE", entityId: String(deviceId), entityName: deviceName,
+        status: "FAILURE", timestamp: new Date(),
+        details: { ip, protocol, attemptCount, alert: true,
+          reason: `${deviceName} devre dışı ama ${attemptCount} kez veri göndermeye çalıştı.` },
+      });
+    }
+
+    // 20+ deneme: Güvenlik alarmı (bir kez)
+    if (attemptCount === INACTIVE_SECURITY) {
+      const existing = await Alarm.findOne({
+        deviceId, type: "SECURITY_ALERT", status: { $in: ["ACTIVE", "ACKNOWLEDGED"] },
+      });
+      if (!existing) {
+        const alarm = await Alarm.create({
+          userId, deviceId, deviceName, type: "SECURITY_ALERT",
+          severity: "CRITICAL", status: "ACTIVE",
+          details: { key: "inactive_attempts", triggerValue: attemptCount,
+            threshold: `${INACTIVE_SECURITY} deneme/saat`, ip, protocol },
+        });
+        logger.warn({ device: deviceName, attempts: attemptCount, ip },
+          "GÜVENLİK ALARMI: Inactive cihazdan yoğun erişim denemesi");
+        emitter.emit("alarm", alarm.toObject());
+      }
+    }
+  } catch (err) {
+    logger.error({ err, deviceId }, "Inactive tracking hatası");
+  }
+}
+
+// ------------------------------------------------------------------ //
 // Ortam değişkenleri
 // ------------------------------------------------------------------ //
 const dev = process.env.NODE_ENV !== "production";
@@ -118,7 +172,13 @@ async function verifyDeviceToken(token) {
   try {
     const device = await Device.findOne({ accessToken: token }).lean();
     if (!device) return null;
-    if (device.status === "inactive") return null;
+    if (device.status === "inactive") {
+      trackInactiveAttempt({
+        deviceId: device._id, deviceName: device.name,
+        userId: device.userId, protocol: "mqtt",
+      });
+      return null;
+    }
     return device;
   } catch (err) {
     logger.error({ err }, "Token doğrulama hatası");
@@ -141,7 +201,13 @@ async function verifyDeviceCertificate(fingerprint) {
       authType: "X509",
     }).lean();
     if (!device) return null;
-    if (device.status === "inactive") return null;
+    if (device.status === "inactive") {
+      trackInactiveAttempt({
+        deviceId: device._id, deviceName: device.name,
+        userId: device.userId, protocol: "mqtts",
+      });
+      return null;
+    }
     return device;
   } catch (err) {
     logger.error({ err }, "Sertifika doğrulama hatası");

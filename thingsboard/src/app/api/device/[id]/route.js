@@ -13,6 +13,7 @@ import DeviceProfile from "@/models/DeviceProfile";
 import mongoose from "mongoose";
 import { getSessionUser } from "@/lib/getSessionUser";
 import { invalidateDevice } from "@/lib/cache";
+import { auditDeviceAction } from "@/lib/audit-service";
 
 // ------------------------------------------------------------------ //
 // GET — Tekil cihaz
@@ -71,6 +72,9 @@ export async function PUT(request, { params }) {
     // Redis cache'ini temizle
     await invalidateDevice(id);
 
+    // Audit log
+    auditDeviceAction(userId, "DEVICE_UPDATE", device, { changes: updateData });
+
     return NextResponse.json({ ok: true, data: device, message: "Cihaz güncellendi." });
   } catch (error) {
     console.error("[PUT /api/device/:id]", error);
@@ -99,6 +103,9 @@ export async function DELETE(request, { params }) {
 
     // Redis cache'ini temizle
     await invalidateDevice(id);
+
+    // Audit log
+    auditDeviceAction(userId, "DEVICE_DELETE", device);
 
     return NextResponse.json({ ok: true, message: "Cihaz silindi." });
   } catch (error) {

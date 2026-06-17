@@ -7,6 +7,7 @@ import connectDB from "@/lib/db";
 import Alarm from "@/models/Alarm";
 import Device from "@/models/Device";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { createAuditLog } from "@/lib/audit-service";
 
 // GET — Alarmları listele (user-scoped)
 export async function GET(request) {
@@ -84,6 +85,15 @@ export async function PUT(request) {
     }
 
     await alarm.save();
+
+    // Audit log
+    createAuditLog({
+      userId,
+      action: action === "acknowledge" ? "ALARM_ACKNOWLEDGE" : "ALARM_CLEAR",
+      entityType: "ALARM",
+      entityId: alarm._id,
+      entityName: `${alarm.type} (${alarm.deviceName || ""})`,
+    });
 
     return NextResponse.json({
       ok: true,

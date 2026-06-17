@@ -2,13 +2,14 @@
  * /api/sse — Server-Sent Events endpoint
  *
  * Browser bu URL'ye bağlandığında açık bir HTTP akışı başlar.
- * Yeni telemetri verisi geldiğinde (handleTelemetry çağrıldığında)
- * singleton emitter "telemetry" eventini yayınlar ve bu endpoint
- * veriyi bağlı tüm istemcilere iletir.
+ * İki event türü yayınlar:
+ *   1. "telemetry" — Gerçek zamanlı cihaz telemetrisi
+ *   2. "audit-log" — Denetim günlüğü olayları
  *
  * Kullanım (istemci tarafı):
  *   const es = new EventSource('/api/sse?deviceId=xxx')
- *   es.onmessage = (e) => { const data = JSON.parse(e.data) }
+ *   es.onmessage = (e) => telemetri verisi
+ *   es.addEventListener('audit-log', (e) => audit log verisi)
  */
 
 import emitter from "@/lib/event-emitter";
@@ -62,6 +63,23 @@ export async function GET(request) {
 
       emitter.on("telemetry", onTelemetry);
 
+      // ── Audit log event listener ──
+      const onAuditLog = (log) => {
+        if (closed) return;
+        // User filtresi — sadece kendi loglarını gör
+        if (userId && log.userId && String(log.userId) !== userId) return;
+
+        try {
+          const payload = JSON.stringify(log);
+          // Named SSE event: frontend'de addEventListener('audit-log', ...) ile dinlenir
+          controller.enqueue(encoder.encode(`event: audit-log\ndata: ${payload}\n\n`));
+        } catch {
+          // stream kapalıysa sessizce geç
+        }
+      };
+
+      emitter.on("audit-log", onAuditLog);
+
       // Keep-alive ping (30 sn'de bir — proxy/nginx timeout'larını önler)
       const pingInterval = setInterval(() => {
         if (closed) {
@@ -80,6 +98,7 @@ export async function GET(request) {
         closed = true;
         clearInterval(pingInterval);
         emitter.off("telemetry", onTelemetry);
+        emitter.off("audit-log", onAuditLog);
         try {
           controller.close();
         } catch {

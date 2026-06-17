@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import DeviceProfile from "@/models/DeviceProfile";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { auditProfileAction } from "@/lib/audit-service";
 
 // GET — Listele (search + pagination)
 export async function GET(request) {
@@ -84,6 +85,9 @@ export async function POST(request) {
       isDefault: isDefault || false,
       alarms: alarms || [],
     });
+
+    // Audit log
+    auditProfileAction(userId, "PROFILE_CREATE", profile);
 
     return NextResponse.json(
       { ok: true, message: "Profil oluşturuldu.", data: profile.toObject() },

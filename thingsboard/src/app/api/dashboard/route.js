@@ -10,6 +10,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/db";
 import Dashboard from "@/models/Dashboard";
+import { auditDashboardAction } from "@/lib/audit-service";
 
 // ------------------------------------------------------------------ //
 // GET — Kullanıcının panolarını listele
@@ -69,6 +70,9 @@ export async function POST(request) {
       ownerId: session.user.id,
       widgets: [],
     });
+
+    // Audit log
+    auditDashboardAction(session.user.id, "DASHBOARD_CREATE", dashboard);
 
     return NextResponse.json(
       { ok: true, message: "Pano oluşturuldu.", data: dashboard.toObject() },

@@ -4,6 +4,7 @@ import Device from "@/models/Device";
 import DeviceProfile from "@/models/DeviceProfile";
 import { getSessionUser } from "@/lib/getSessionUser";
 import { generateDeviceCertificate } from "@/lib/certificate";
+import { auditDeviceAction } from "@/lib/audit-service";
 
 // ------------------------------------------------------------------ //
 // GET — Listeleme
@@ -115,6 +116,9 @@ export async function POST(request) {
       };
       responseData.data = device.toObject(); // Güncel veriyi döndür
     }
+
+    // Audit log
+    auditDeviceAction(userId, "DEVICE_CREATE", responseData.data);
 
     return NextResponse.json(responseData, { status: 201 });
   } catch (error) {
