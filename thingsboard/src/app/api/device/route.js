@@ -77,10 +77,22 @@ export async function POST(request) {
 
     await connectDB();
 
+    // Profile belirtilmemişse kullanıcının default profile'ını ata
+    let assignedProfile = profile || null;
+    if (!assignedProfile) {
+      const defaultProfile = await DeviceProfile.findOne({
+        userId,
+        isDefault: true,
+      }).select("_id").lean();
+      if (defaultProfile) {
+        assignedProfile = defaultProfile._id;
+      }
+    }
+
     const device = await Device.create({
       userId,
       name,
-      profile: profile || null,
+      profile: assignedProfile,
       tag: tag || "",
       description: description || "",
       isGateway: isGateway ?? false,

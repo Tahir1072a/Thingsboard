@@ -252,9 +252,81 @@ async function ingestTelemetry(items) {
 
       // Alarm kontrolü
       checkAlarms(item.deviceId, item.key, parsedValue, item.userId);
+
+      // Transport uyumsuzluk kontrolü
+      checkTransportMismatch(item.deviceId, item.protocol, item.userId);
     } catch (err) {
       logger.error({ err, key: item.key }, "Telemetri kayıt hatası");
     }
+  }
+}
+
+// ------------------------------------------------------------------ //
+// Transport uyumsuzluk kontrolü — ilk seferde uyarı (24 saat TTL)
+// ------------------------------------------------------------------ //
+async function checkTransportMismatch(deviceId, protocol, userId) {
+  try {
+    if (!protocol || protocol === "internal") return;
+
+    const device = await getCachedDevice(deviceId);
+    if (!device || !device.profile) return;
+
+    const profile = await getCachedProfile(device.profile);
+    if (!profile || !profile.transportType) return;
+
+    // Protokol eşleme: mqtt → MQTT, http → HTTP, ws → HTTP (HTTP upgrade)
+    const protocolMap = { mqtt: "MQTT", mqtts: "MQTT", http: "HTTP", ws: "HTTP", wss: "HTTP" };
+    const expected = profile.transportType;
+    const actual = protocolMap[protocol] || protocol.toUpperCase();
+
+    if (actual === expected) return;
+
+    // Redis ile ilk seferi takip et (24 saat TTL)
+    const redisKey = `transport-mismatch:${deviceId}`;
+    const alreadyWarned = await redis.get(redisKey);
+    if (alreadyWarned) return;
+
+    await redis.set(redisKey, "1", "EX", 86400);
+
+    logger.warn(
+      { device: device.name, expected, actual: protocol },
+      "Transport uyumsuzluğu: profil ayarı ile farklı protokol"
+    );
+
+    // Audit log
+    AuditLog.create({
+      userId: userId || device.userId,
+      action: "TRANSPORT_MISMATCH",
+      entityType: "DEVICE",
+      entityId: deviceId,
+      entityName: device.name || "",
+      status: "SUCCESS",
+      details: {
+        expected,
+        actual: protocol,
+        profileName: profile.name,
+        message: `Cihaz "${device.name}" profilde ${expected} tanımlı ama ${protocol} ile veri gönderdi.`,
+      },
+    }).catch(() => {});
+
+    // SSE uyarısı
+    emitter.emit("audit-log", {
+      userId: String(userId || device.userId),
+      action: "TRANSPORT_MISMATCH",
+      entityType: "DEVICE",
+      entityId: String(deviceId),
+      entityName: device.name || "",
+      status: "SUCCESS",
+      details: {
+        expected,
+        actual: protocol,
+        profileName: profile.name,
+        alert: true,
+      },
+      timestamp: new Date(),
+    });
+  } catch (err) {
+    logger.error({ err }, "Transport mismatch kontrolü hatası");
   }
 }
 

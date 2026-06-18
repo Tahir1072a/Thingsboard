@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * DeviceAuditLogTab — Cihaza özel denetim günlükleri sekmesi
+ * ProfileAuditLogTab — Cihaz Profiline özel denetim günlükleri sekmesi
  *
- * DeviceDetailSheet içinde gösterilir.
- * /api/audit-log?entityId={deviceId}&entityType=DEVICE üzerinden veri çeker.
+ * device-audit-log-tab.jsx ile aynı pattern'i kullanır.
+ * /api/audit-log?entityId={profileId}&entityType=DEVICE_PROFILE üzerinden veri çeker.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -12,21 +12,21 @@ import { CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const ACTION_LABELS = {
-  DEVICE_CREATE: "Oluşturuldu",
-  DEVICE_UPDATE: "Güncellendi",
-  DEVICE_DELETE: "Silindi",
-  INACTIVE_DEVICE_REJECTED: "Erişim Reddedildi",
-  SECURITY_ALERT: "Güvenlik Alarmı",
-  AUTH_FAILED: "Kimlik Doğrulama Başarısız",
+  DEVICE_PROFILE_CREATE: "Oluşturuldu",
+  DEVICE_PROFILE_UPDATE: "Güncellendi",
+  DEVICE_PROFILE_DELETE: "Silindi",
+  ALARM_RULE_ADDED: "Alarm Kuralı Eklendi",
+  ALARM_RULE_REMOVED: "Alarm Kuralı Kaldırıldı",
+  TRANSPORT_UPDATED: "Transport Güncellendi",
 };
 
 const ACTION_COLORS = {
-  DEVICE_CREATE: "bg-green-500/10 text-green-600",
-  DEVICE_UPDATE: "bg-blue-500/10 text-blue-600",
-  DEVICE_DELETE: "bg-red-500/10 text-red-600",
-  INACTIVE_DEVICE_REJECTED: "bg-orange-500/10 text-orange-600",
-  SECURITY_ALERT: "bg-red-500/10 text-red-600 animate-pulse",
-  AUTH_FAILED: "bg-orange-500/10 text-orange-600",
+  DEVICE_PROFILE_CREATE: "bg-green-500/10 text-green-600",
+  DEVICE_PROFILE_UPDATE: "bg-blue-500/10 text-blue-600",
+  DEVICE_PROFILE_DELETE: "bg-red-500/10 text-red-600",
+  ALARM_RULE_ADDED: "bg-purple-500/10 text-purple-600",
+  ALARM_RULE_REMOVED: "bg-orange-500/10 text-orange-600",
+  TRANSPORT_UPDATED: "bg-cyan-500/10 text-cyan-600",
 };
 
 function getRelativeTime(dateStr) {
@@ -43,16 +43,16 @@ function getRelativeTime(dateStr) {
   return new Date(dateStr).toLocaleDateString("tr-TR");
 }
 
-export function DeviceAuditLogTab({ deviceId }) {
+export function ProfileAuditLogTab({ profileId }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
 
   const fetchLogs = useCallback(async () => {
-    if (!deviceId) return;
+    if (!profileId) return;
     try {
       setLoading(true);
       const res = await fetch(
-        `/api/audit-log?entityId=${deviceId}&entityType=DEVICE&limit=20`
+        `/api/audit-log?entityId=${profileId}&entityType=DEVICE_PROFILE&limit=20`
       );
       const data = await res.json();
       if (data.ok) {
@@ -63,7 +63,7 @@ export function DeviceAuditLogTab({ deviceId }) {
     } finally {
       setLoading(false);
     }
-  }, [deviceId]);
+  }, [profileId]);
 
   useEffect(() => {
     fetchLogs();
@@ -71,25 +71,28 @@ export function DeviceAuditLogTab({ deviceId }) {
 
   // SSE ile gerçek zamanlı güncelleme
   useEffect(() => {
-    if (!deviceId) return;
+    if (!profileId) return;
     const es = new EventSource("/api/sse");
     es.addEventListener("audit-log", (e) => {
       try {
         const log = JSON.parse(e.data);
-        if (log.entityId === deviceId && log.entityType === "DEVICE") {
+        if (
+          log.entityId === profileId &&
+          log.entityType === "DEVICE_PROFILE"
+        ) {
           setLogs((prev) => [log, ...prev.slice(0, 19)]);
         }
-      } catch { }
+      } catch {}
     });
     return () => es.close();
-  }, [deviceId]);
+  }, [profileId]);
 
   return (
     <div className="space-y-3">
       {/* Başlık + Yenile */}
       <div className="flex items-center justify-between">
         <p className="text-xs text-muted-foreground">
-          Bu cihaza ait son işlem kayıtları
+          Bu profile ait son işlem kayıtları
         </p>
         <Button
           variant="outline"
@@ -112,26 +115,27 @@ export function DeviceAuditLogTab({ deviceId }) {
         </div>
       ) : logs.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground text-sm">
-          Bu cihaz için denetim kaydı bulunmuyor.
+          Bu profil için denetim kaydı bulunmuyor.
         </div>
       ) : (
         <div className="space-y-2">
           {logs.map((log, i) => (
             <div
               key={log._id || i}
-              className={`rounded-lg border p-3 transition-colors hover:bg-muted/30 ${log.action === "SECURITY_ALERT"
-                  ? "border-red-200 bg-red-50/30"
-                  : log.status === "FAILURE"
-                    ? "border-orange-200 bg-orange-50/20"
-                    : "border-border"
-                }`}
+              className={`rounded-lg border p-3 transition-colors hover:bg-muted/30 ${
+                log.status === "FAILURE"
+                  ? "border-orange-200 bg-orange-50/20"
+                  : "border-border"
+              }`}
             >
               <div className="flex items-center justify-between gap-2">
                 {/* Sol: Aksiyon badge */}
                 <div className="flex items-center gap-2 min-w-0">
                   <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${ACTION_COLORS[log.action] || "bg-gray-100 text-gray-600"
-                      }`}
+                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${
+                      ACTION_COLORS[log.action] ||
+                      "bg-gray-100 text-gray-600"
+                    }`}
                   >
                     {ACTION_LABELS[log.action] || log.action}
                   </span>
@@ -153,34 +157,23 @@ export function DeviceAuditLogTab({ deviceId }) {
               {/* Detay satırı */}
               {(log.details?.reason ||
                 log.details?.ip ||
-                log.details?.changes ||
-                log.details?.attemptCount) && (
-                  <div className="mt-1.5 text-[11px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                    {log.details.reason && (
-                      <span>{log.details.reason}</span>
-                    )}
-                    {log.details.ip && (
-                      <span className="font-mono">IP: {log.details.ip}</span>
-                    )}
-                    {log.details.protocol && (
-                      <span className="uppercase">
-                        {log.details.protocol}
+                log.details?.changes) && (
+                <div className="mt-1.5 text-[11px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
+                  {log.details.reason && (
+                    <span>{log.details.reason}</span>
+                  )}
+                  {log.details.ip && (
+                    <span className="font-mono">IP: {log.details.ip}</span>
+                  )}
+                  {log.details.changes &&
+                    typeof log.details.changes === "object" && (
+                      <span>
+                        Değişen:{" "}
+                        {Object.keys(log.details.changes).join(", ")}
                       </span>
                     )}
-                    {log.details.attemptCount && (
-                      <span className="text-orange-600 font-medium">
-                        {log.details.attemptCount}× deneme
-                      </span>
-                    )}
-                    {log.details.changes &&
-                      typeof log.details.changes === "object" && (
-                        <span>
-                          Değişen:{" "}
-                          {Object.keys(log.details.changes).join(", ")}
-                        </span>
-                      )}
-                  </div>
-                )}
+                </div>
+              )}
             </div>
           ))}
         </div>

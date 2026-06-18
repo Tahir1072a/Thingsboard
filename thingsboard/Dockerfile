@@ -13,11 +13,15 @@ RUN npm ci
 COPY . .
 
 # Build sırasında gerekli dummy ortam değişkenleri
-# (Runtime'da docker-compose env_file ile gerçek değerler gelir)
-ENV MONGODB_URI=mongodb://localhost:27018/thingsboard
-ENV REDIS_URL=redis://localhost:6379
-ENV NEXTAUTH_SECRET=build-time-dummy-secret
-ENV NEXTAUTH_URL=http://localhost:3000
+# (ARG kullanıyoruz — final image'a yazılmaz, sadece build aşamasında geçerli)
+ARG MONGODB_URI=mongodb://localhost:27018/thingsboard
+ARG REDIS_URL=redis://localhost:6379
+ARG NEXTAUTH_SECRET=build-time-dummy
+ARG NEXTAUTH_URL=http://localhost:3000
+ENV MONGODB_URI=$MONGODB_URI \
+    REDIS_URL=$REDIS_URL \
+    NEXTAUTH_SECRET=$NEXTAUTH_SECRET \
+    NEXTAUTH_URL=$NEXTAUTH_URL
 
 RUN npm run build
 

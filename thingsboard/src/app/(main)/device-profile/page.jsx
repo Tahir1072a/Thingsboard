@@ -20,10 +20,12 @@ import {
   BellRing,
 } from "lucide-react";
 import AddDevicePorfileModal from "@/components/profiles/device-profile-modal";
+import DeviceProfileDetailSheet from "@/components/device-profiles/device-profile-detail-sheet";
 
 export default function DeviceProfilesPage() {
   const [openForm, setOpenForm] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [selectedProfile, setSelectedProfile] = useState(null);
   const [deviceProfiles, setDeviceProfiles] = useState([]);
   const [pageParams, setPageParams] = useState({ page: 1, limit: 10 });
   const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
@@ -187,6 +189,7 @@ export default function DeviceProfilesPage() {
         columns={columns}
         gridClassName="grid-cols-13"
         title="Cihaz Profili Listesi"
+        onRowClick={setSelectedProfile}
         rowActions={rowActions}
         getRowId={(p) => p._id}
         emptyState={
@@ -209,6 +212,23 @@ export default function DeviceProfilesPage() {
           totalPages: meta.totalPages,
           itemsPerPage: pageParams.limit,
           onPageChange: (p) => setPageParams((prev) => ({ ...prev, page: p })),
+        }}
+      />
+
+      {/* Detay Sheet */}
+      <DeviceProfileDetailSheet
+        open={!!selectedProfile}
+        onOpenChange={(open) => !open && setSelectedProfile(null)}
+        profile={selectedProfile}
+        onProfileUpdated={(updatedProfile) => {
+          setSelectedProfile(updatedProfile);
+          setDeviceProfiles((prev) =>
+            prev.map((p) => (p._id === updatedProfile._id ? updatedProfile : p))
+          );
+        }}
+        onProfileDeleted={(id) => {
+          setSelectedProfile(null);
+          setDeviceProfiles((prev) => prev.filter((p) => p._id !== id));
         }}
       />
 

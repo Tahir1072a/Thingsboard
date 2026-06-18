@@ -43,6 +43,7 @@ const AuditLogSchema = new Schema(
         "INACTIVE_DEVICE_REJECTED",
         "AUTH_FAILED",
         "SECURITY_ALERT",
+        "TRANSPORT_MISMATCH",
       ],
       index: true,
     },

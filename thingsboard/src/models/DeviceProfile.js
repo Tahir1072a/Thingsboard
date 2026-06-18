@@ -63,12 +63,19 @@ const DeviceProfileSchema = new Schema(
 
     expectedKeys: {
       type: [String],
-      default: ["temprature", "humidity"]
+      default: ["temperature", "humidity"]
     },
 
     isDefault: {
       type: Boolean,
       default: false,
+    },
+
+    // Varsayılan dashboard
+    defaultDashboard: {
+      type: Schema.Types.ObjectId,
+      ref: "Dashboard",
+      default: null,
     },
 
     // Gömülü alarm kuralları

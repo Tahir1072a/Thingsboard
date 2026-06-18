@@ -43,7 +43,7 @@ export async function PUT(request, { params }) {
 
     await connectDB();
     const body = await request.json();
-    const { name, description, transportType, isDefault, alarms } = body;
+    const { name, description, transportType, isDefault, alarms, defaultDashboard, expectedKeys } = body;
 
     const profile = await DeviceProfile.findOne({ _id: id, userId });
     if (!profile) {
@@ -63,6 +63,8 @@ export async function PUT(request, { params }) {
     if (transportType !== undefined) profile.transportType = transportType;
     if (isDefault !== undefined) profile.isDefault = isDefault;
     if (alarms !== undefined) profile.alarms = alarms;
+    if (defaultDashboard !== undefined) profile.defaultDashboard = defaultDashboard || null;
+    if (expectedKeys !== undefined) profile.expectedKeys = expectedKeys;
 
     await profile.save();
 
