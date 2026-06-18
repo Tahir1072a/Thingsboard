@@ -115,6 +115,43 @@ export async function GET(request) {
     const filter = { deviceId, userId };
     if (key) filter.key = key;
 
+    // ── latest=true: Her benzersiz key için son değeri döndür ──
+    const latest = searchParams.get("latest");
+    if (latest === "true") {
+      const pipeline = [
+        { $match: { deviceId: device._id, userId: device.userId } },
+        { $sort: { timestamp: -1 } },
+        {
+          $group: {
+            _id: "$key",
+            key: { $first: "$key" },
+            value: { $first: "$value" },
+            valueType: { $first: "$valueType" },
+            unit: { $first: "$unit" },
+            timestamp: { $first: "$timestamp" },
+            protocol: { $first: "$protocol" },
+            docId: { $first: "$_id" },
+          },
+        },
+        { $sort: { key: 1 } },
+      ];
+
+      const results = await Telemetry.aggregate(pipeline);
+      return NextResponse.json({
+        ok: true,
+        count: results.length,
+        data: results.map((r) => ({
+          _id: r.docId,
+          key: r.key,
+          value: r.value,
+          valueType: r.valueType,
+          unit: r.unit,
+          timestamp: r.timestamp,
+          protocol: r.protocol,
+        })),
+      });
+    }
+
     if (from || to) {
       filter.timestamp = {};
       if (from) filter.timestamp.$gte = new Date(from);

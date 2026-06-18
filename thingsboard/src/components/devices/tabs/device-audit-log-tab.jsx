@@ -11,6 +11,8 @@ import { useState, useEffect, useCallback } from "react";
 import { CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
+import { TableContent, TableHeaderSheet } from "@/components/common/table/table-header";
+
 const ACTION_LABELS = {
   DEVICE_CREATE: "Oluşturuldu",
   DEVICE_UPDATE: "Güncellendi",
@@ -18,6 +20,9 @@ const ACTION_LABELS = {
   INACTIVE_DEVICE_REJECTED: "Erişim Reddedildi",
   SECURITY_ALERT: "Güvenlik Alarmı",
   AUTH_FAILED: "Kimlik Doğrulama Başarısız",
+  ALARM_ACKNOWLEDGE: "Alarm Onaylandı",
+  ALARM_CLEAR: "Alarm Temizlendi",
+  TRANSPORT_MISMATCH: "Protokol Uyumsuzluğu",
 };
 
 const ACTION_COLORS = {
@@ -27,6 +32,9 @@ const ACTION_COLORS = {
   INACTIVE_DEVICE_REJECTED: "bg-orange-500/10 text-orange-600",
   SECURITY_ALERT: "bg-red-500/10 text-red-600 animate-pulse",
   AUTH_FAILED: "bg-orange-500/10 text-orange-600",
+  ALARM_ACKNOWLEDGE: "bg-blue-500/10 text-blue-600",
+  ALARM_CLEAR: "bg-green-500/10 text-green-600",
+  TRANSPORT_MISMATCH: "bg-amber-500/10 text-amber-600",
 };
 
 function getRelativeTime(dateStr) {
@@ -69,7 +77,6 @@ export function DeviceAuditLogTab({ deviceId }) {
     fetchLogs();
   }, [fetchLogs]);
 
-  // SSE ile gerçek zamanlı güncelleme
   useEffect(() => {
     if (!deviceId) return;
     const es = new EventSource("/api/sse");
@@ -84,107 +91,97 @@ export function DeviceAuditLogTab({ deviceId }) {
     return () => es.close();
   }, [deviceId]);
 
+  const columns = [
+    {
+      id: "action",
+      title: "İşlem",
+      span: 3,
+      cellRender: (row) => (
+        <div className="flex items-center gap-2">
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${ACTION_COLORS[row.action] || "bg-gray-100 text-gray-600"
+              }`}
+          >
+            {ACTION_LABELS[row.action] || row.action}
+          </span>
+          {row.status === "SUCCESS" ? (
+            <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+          ) : (
+            <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
+          )}
+        </div>
+      )
+    },
+    {
+      id: "details",
+      title: "Detaylar",
+      span: 5,
+      cellRender: (row) => {
+        const { details } = row;
+        if (!details || (!details.reason && !details.ip && !details.changes && !details.attemptCount)) {
+           return <span className="text-muted-foreground text-xs">-</span>;
+        }
+        return (
+          <div className="flex flex-wrap gap-x-3 gap-y-0.5 text-[11px] text-muted-foreground">
+            {details.reason && <span>{details.reason}</span>}
+            {details.ip && <span className="font-mono">IP: {details.ip}</span>}
+            {details.protocol && <span className="uppercase">{details.protocol}</span>}
+            {details.attemptCount && (
+              <span className="text-orange-600 font-medium">
+                {details.attemptCount}× deneme
+              </span>
+            )}
+            {details.changes && typeof details.changes === "object" && (
+              <span>
+                Değişen: {Object.keys(details.changes).join(", ")}
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
+    {
+      id: "timestamp",
+      title: "Zaman",
+      span: 2,
+      cellRender: (row) => (
+        <span className="text-[11px] text-muted-foreground whitespace-nowrap">
+          {getRelativeTime(row.timestamp)}
+        </span>
+      )
+    }
+  ];
+
+  const rowActions = [
+    {
+      label: "Kopyala",
+      icon: <CheckCircle2 />, // Using CheckCircle2 as a placeholder for Copy
+      onClick: (row) => navigator.clipboard.writeText(JSON.stringify(row)),
+    }
+  ];
+
   return (
-    <div className="space-y-3">
-      {/* Başlık + Yenile */}
-      <div className="flex items-center justify-between">
-        <p className="text-xs text-muted-foreground">
-          Bu cihaza ait son işlem kayıtları
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={fetchLogs}
-          className="gap-1.5 h-7 text-xs"
-        >
-          <RefreshCw
-            className={`h-3 w-3 ${loading ? "animate-spin" : ""}`}
-          />
-          Yenile
-        </Button>
-      </div>
-
-      {/* Loglar */}
-      {loading && logs.length === 0 ? (
-        <div className="flex items-center justify-center py-12 text-muted-foreground text-sm">
-          <RefreshCw className="h-4 w-4 animate-spin mr-2" />
-          Yükleniyor...
-        </div>
-      ) : logs.length === 0 ? (
-        <div className="text-center py-12 text-muted-foreground text-sm">
-          Bu cihaz için denetim kaydı bulunmuyor.
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {logs.map((log, i) => (
-            <div
-              key={log._id || i}
-              className={`rounded-lg border p-3 transition-colors hover:bg-muted/30 ${log.action === "SECURITY_ALERT"
-                  ? "border-red-200 bg-red-50/30"
-                  : log.status === "FAILURE"
-                    ? "border-orange-200 bg-orange-50/20"
-                    : "border-border"
-                }`}
-            >
-              <div className="flex items-center justify-between gap-2">
-                {/* Sol: Aksiyon badge */}
-                <div className="flex items-center gap-2 min-w-0">
-                  <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium shrink-0 ${ACTION_COLORS[log.action] || "bg-gray-100 text-gray-600"
-                      }`}
-                  >
-                    {ACTION_LABELS[log.action] || log.action}
-                  </span>
-
-                  {/* Sonuç ikonu */}
-                  {log.status === "SUCCESS" ? (
-                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
-                  ) : (
-                    <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0" />
-                  )}
-                </div>
-
-                {/* Sağ: Zaman */}
-                <span className="text-[11px] text-muted-foreground whitespace-nowrap shrink-0">
-                  {getRelativeTime(log.timestamp)}
-                </span>
-              </div>
-
-              {/* Detay satırı */}
-              {(log.details?.reason ||
-                log.details?.ip ||
-                log.details?.changes ||
-                log.details?.attemptCount) && (
-                  <div className="mt-1.5 text-[11px] text-muted-foreground flex flex-wrap gap-x-3 gap-y-0.5">
-                    {log.details.reason && (
-                      <span>{log.details.reason}</span>
-                    )}
-                    {log.details.ip && (
-                      <span className="font-mono">IP: {log.details.ip}</span>
-                    )}
-                    {log.details.protocol && (
-                      <span className="uppercase">
-                        {log.details.protocol}
-                      </span>
-                    )}
-                    {log.details.attemptCount && (
-                      <span className="text-orange-600 font-medium">
-                        {log.details.attemptCount}× deneme
-                      </span>
-                    )}
-                    {log.details.changes &&
-                      typeof log.details.changes === "object" && (
-                        <span>
-                          Değişen:{" "}
-                          {Object.keys(log.details.changes).join(", ")}
-                        </span>
-                      )}
-                  </div>
-                )}
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="flex flex-col h-full">
+      <TableHeaderSheet
+        title="Denetim Günlükleri"
+        actions={[
+          {
+            icon: <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />,
+            onClick: fetchLogs,
+            tooltip: "Yenile",
+          }
+        ]}
+      />
+      <TableContent
+        data={logs}
+        columns={columns}
+        title={`${logs.length} işlem kaydı`}
+        rowActions={rowActions}
+        gridClassName="grid-cols-12"
+        emptyState="Bu cihaz için denetim kaydı bulunmuyor."
+        getRowId={(row) => row._id || row.id || Math.random().toString()}
+        rowClassName={(row) => row.action === "SECURITY_ALERT" ? "bg-red-50/10" : row.status === "FAILURE" ? "bg-orange-50/10" : ""}
+      />
     </div>
   );
 }

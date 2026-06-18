@@ -43,7 +43,7 @@ const AlarmSchema = new Schema(
 
     severity: {
       type: String,
-      enum: ["CRITICAL", "MAJOR", "MINOR"],
+      enum: ["CRITICAL", "MAJOR", "MINOR", "WARNING"],
       default: "MAJOR",
     },
 
@@ -56,9 +56,15 @@ const AlarmSchema = new Schema(
 
     // Tetikleme detayları
     details: {
-      key: String,        // Hangi telemetri key'i tetikledi
-      triggerValue: Number, // Tetikleyen değer
-      threshold: String,    // Koşul ifadesi
+      key: String,
+      triggerValue: Schema.Types.Mixed,
+      threshold: String,
+    },
+
+    // Başlangıç zamanı (alarm tetiklendiği an)
+    startTime: {
+      type: Date,
+      default: () => new Date(),
     },
 
     // Temizlenme zamanı
@@ -73,6 +79,28 @@ const AlarmSchema = new Schema(
     toObject: { virtuals: true },
   }
 );
+
+// Alarm süresi (milisaniye cinsinden)
+AlarmSchema.virtual("durationMs").get(function () {
+  const end = this.clearedAt || new Date();
+  return end.getTime() - (this.startTime || this.createdAt).getTime();
+});
+
+// Alarm süresi (okunabilir format)
+AlarmSchema.virtual("duration").get(function () {
+  const ms = this.durationMs;
+  if (ms < 0) return "0 sn";
+  const sec = Math.floor(ms / 1000);
+  if (sec < 60) return `${sec} sn`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} dk`;
+  const hr = Math.floor(min / 60);
+  const remainMin = min % 60;
+  if (hr < 24) return remainMin > 0 ? `${hr} saat ${remainMin} dk` : `${hr} saat`;
+  const days = Math.floor(hr / 24);
+  const remainHr = hr % 24;
+  return remainHr > 0 ? `${days} gün ${remainHr} saat` : `${days} gün`;
+});
 
 const Alarm =
   mongoose.models.Alarm || mongoose.model("Alarm", AlarmSchema);

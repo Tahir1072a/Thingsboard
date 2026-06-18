@@ -26,7 +26,6 @@ export async function GET(request) {
   const userId = session?.user?.id ?? null;
 
   const { searchParams } = new URL(request.url);
-  // isteğe bağlı: belirli bir cihazı izlemek için
   const deviceIdFilter = searchParams.get("deviceId") ?? null;
 
   const encoder = new TextEncoder();

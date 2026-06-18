@@ -44,6 +44,56 @@ export default function Header({ pageTitle = "Anasayfa" }) {
     return () => clearInterval(interval);
   }, [fetchAlarmCount]);
 
+  // SSE ile anlık alarm bildirimi
+  useEffect(() => {
+    const es = new EventSource("/api/sse");
+    es.addEventListener("alarm", (e) => {
+      try {
+        const alarm = JSON.parse(e.data);
+        // Sadece yeni aktif alarmlar için bildirim göster
+        if (alarm.status === "ACTIVE") {
+          const severityEmoji = alarm.severity === "CRITICAL" ? "🔴" : alarm.severity === "MAJOR" ? "🟠" : "🟡";
+          toast(
+            (t) => (
+              <div
+                className="flex items-start gap-3 cursor-pointer"
+                onClick={() => {
+                  toast.dismiss(t.id);
+                  router.push("/alarmlar");
+                }}
+              >
+                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-semibold text-sm">
+                    {severityEmoji} {alarm.type}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5">
+                    {alarm.deviceName} • {alarm.details?.key}: {alarm.details?.triggerValue}
+                  </div>
+                  <div className="text-xs text-blue-500 mt-1">
+                    Alarma git →
+                  </div>
+                </div>
+              </div>
+            ),
+            {
+              duration: 8000,
+              style: { border: alarm.severity === "CRITICAL" ? "1px solid #ef4444" : "1px solid #f97316" },
+            }
+          );
+          // Badge'ı hemen güncelle
+          setActiveCount((prev) => prev + 1);
+          setRecentAlarms((prev) => [alarm, ...prev.slice(0, 4)]);
+        } else if (alarm.status === "CLEARED") {
+          // Temizlenen alarmı listeden kaldır
+          setActiveCount((prev) => Math.max(0, prev - 1));
+          setRecentAlarms((prev) => prev.filter((a) => a._id !== alarm._id));
+        }
+      } catch {}
+    });
+    return () => es.close();
+  }, [router]);
+
   const handleAcknowledge = async (alarmId) => {
     try {
       const res = await fetch("/api/alarm", {
@@ -131,6 +181,7 @@ export default function Header({ pageTitle = "Anasayfa" }) {
                   <DropdownMenuItem
                     key={alarm._id}
                     className="flex items-start gap-3 py-3 px-3 cursor-pointer hover:bg-white/60 rounded-lg"
+                    onClick={() => router.push("/alarmlar")}
                   >
                     <AlertTriangle className={`h-4 w-4 mt-0.5 shrink-0 ${SEVERITY_COLORS[alarm.severity] || ""}`} />
                     <div className="flex-1 min-w-0">
@@ -138,7 +189,7 @@ export default function Header({ pageTitle = "Anasayfa" }) {
                         {alarm.type}
                       </div>
                       <div className="text-[11px] text-text-muted">
-                        {alarm.deviceName} • {alarm.details?.key}: {alarm.details?.triggerValue?.toFixed(1)}
+                        {alarm.deviceName} • {alarm.details?.key}: {typeof alarm.details?.triggerValue === "number" ? alarm.details.triggerValue.toFixed(1) : alarm.details?.triggerValue}
                       </div>
                     </div>
                     <button

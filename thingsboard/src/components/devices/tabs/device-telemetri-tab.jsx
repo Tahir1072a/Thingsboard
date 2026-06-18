@@ -1,9 +1,18 @@
+"use client";
+
+/**
+ * DeviceTelemetryTab — Cihaza özel telemetri sekmesi
+ *
+ * Her benzersiz key için son değeri gösterir.
+ * GET /api/telemetry?deviceId={id}&latest=true ile veri çeker.
+ * SSE ile gelen yeni telemetri verisiyle anlık güncellenir.
+ */
+
 import {
   TableContent,
   TableHeaderSheet,
 } from "@/components/common/table/table-header";
 import {
-  Plus,
   RotateCw,
   LineChart,
   Copy,
@@ -14,85 +23,8 @@ import {
   Braces,
   Clock,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-
-// Telemetri için farklı bir config - genelde sadece görüntüleme
-const TELEMETRY_CONFIG = {
-  canAdd: false, // Telemetri cihazdan gelir, manuel eklenmez
-  canRefresh: true,
-  canSearch: true,
-  canDelete: true, // Geçmiş veriyi silebilirsin
-  canViewChart: true, // Grafik görüntüleme
-};
-
-// Mock Telemetri Verisi
-const MOCK_TELEMETRY = [
-  {
-    id: "1",
-    key: "temperature",
-    value: "24.5",
-    type: "number",
-    lastUpdateTs: "2025-11-05 15:41:45",
-    unit: "°C",
-  },
-  {
-    id: "2",
-    key: "humidity",
-    value: "65",
-    type: "number",
-    lastUpdateTs: "2025-11-05 15:41:45",
-    unit: "%",
-  },
-  {
-    id: "3",
-    key: "isOnline",
-    value: "true",
-    type: "boolean",
-    lastUpdateTs: "2025-11-05 15:41:42",
-    unit: null,
-  },
-  {
-    id: "4",
-    key: "status",
-    value: "running",
-    type: "string",
-    lastUpdateTs: "2025-11-05 15:40:30",
-    unit: null,
-  },
-  {
-    id: "5",
-    key: "errorCount",
-    value: "0",
-    type: "number",
-    lastUpdateTs: "2025-11-05 15:39:00",
-    unit: null,
-  },
-  {
-    id: "6",
-    key: "location",
-    value: '{"lat": 41.0082, "lng": 28.9784}',
-    type: "json",
-    lastUpdateTs: "2025-11-05 15:35:00",
-    unit: null,
-  },
-  {
-    id: "7",
-    key: "batteryLevel",
-    value: "87",
-    type: "number",
-    lastUpdateTs: "2025-11-05 15:41:45",
-    unit: "%",
-  },
-  {
-    id: "8",
-    key: "signalStrength",
-    value: "-67",
-    type: "number",
-    lastUpdateTs: "2025-11-05 15:41:40",
-    unit: "dBm",
-  },
-];
 
 // Veri tipi ikonu
 const TypeIcon = ({ type }) => {
@@ -122,16 +54,17 @@ const TypeIcon = ({ type }) => {
 // Değer formatla
 const formatValue = (value, type, unit) => {
   if (type === "boolean") {
+    const boolVal = value === "true" || value === true;
     return (
       <Badge
         variant="outline"
         className={
-          value === "true"
+          boolVal
             ? "bg-green-50 text-green-600 border-green-200"
             : "bg-red-50 text-red-600 border-red-200"
         }
       >
-        {value === "true" ? "True" : "False"}
+        {boolVal ? "True" : "False"}
       </Badge>
     );
   }
@@ -139,24 +72,33 @@ const formatValue = (value, type, unit) => {
   if (type === "json") {
     return (
       <span className="text-xs font-mono bg-orange-50 text-orange-600 px-2 py-1 rounded truncate max-w-[150px] block">
-        {value}
+        {typeof value === "object" ? JSON.stringify(value) : value}
       </span>
     );
   }
 
   return (
     <span className="font-mono text-text-main">
-      {value}
+      {String(value)}
       {unit && <span className="text-text-muted ml-1 text-xs">{unit}</span>}
     </span>
   );
 };
 
-// Zaman farkını hesapla
-const getTimeAgo = (timestamp) => {
-  // Basit bir gösterim - gerçek uygulamada date-fns kullanılabilir
-  return timestamp.split(" ")[1]; // Sadece saat kısmı
-};
+// Relative time
+function getRelativeTime(dateStr) {
+  const now = Date.now();
+  const diff = now - new Date(dateStr).getTime();
+  const sec = Math.floor(diff / 1000);
+  if (sec < 60) return `${sec} sn önce`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min} dk önce`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr} saat önce`;
+  const days = Math.floor(hr / 24);
+  if (days < 7) return `${days} gün önce`;
+  return new Date(dateStr).toLocaleDateString("tr-TR");
+}
 
 // Tablo kolonları
 const columns = [
@@ -173,8 +115,8 @@ const columns = [
   },
   {
     id: "value",
-    title: "Değer",
-    span: 3,
+    title: "Son Değer",
+    span: 4,
     cellRender: (row) => formatValue(row.value, row.type, row.unit),
   },
   {
@@ -184,7 +126,7 @@ const columns = [
     cellRender: (row) => (
       <div className="flex items-center gap-1.5 text-sm text-text-muted">
         <Clock className="h-3.5 w-3.5" />
-        <span>{getTimeAgo(row.lastUpdateTs)}</span>
+        <span>{getRelativeTime(row.timestamp)}</span>
       </div>
     ),
   },
@@ -192,86 +134,83 @@ const columns = [
 
 export function DeviceTelemetryTab({ deviceId }) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedKeys, setSelectedKeys] = useState([]);
-  const [telemetryData, setTelemetryData] = useState(MOCK_TELEMETRY);
+  const [telemetryData, setTelemetryData] = useState([]);
+  const [loading, setLoading] = useState(false);
 
-
-
-  const [liveData, setLiveData] = useState([]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const fetchTelemetry = async () => {
+  const fetchTelemetry = useCallback(async () => {
     if (!deviceId) return;
     try {
-      const res = await fetch(`/api/telemetry?deviceId=${deviceId}&limit=50`);
+      setLoading(true);
+      const res = await fetch(
+        `/api/telemetry?deviceId=${deviceId}&latest=true`
+      );
       const data = await res.json();
       if (data.ok && data.data) {
-        // API'den gelen veriyi bizim formata uygun hale getirelim
         const formatted = data.data.map((item) => ({
           id: item._id,
           key: item.key,
-          value: typeof item.value === 'object' ? JSON.stringify(item.value) : String(item.value),
+          value: item.value,
           type: item.valueType || "string",
-          lastUpdateTs: new Date(item.timestamp).toISOString().replace("T", " ").substring(0, 19),
+          timestamp: item.timestamp,
           unit: item.unit,
+          protocol: item.protocol,
         }));
-        setLiveData(formatted);
+        setTelemetryData(formatted);
       }
     } catch (err) {
       console.error("Telemetry fetch hatası", err);
+    } finally {
+      setLoading(false);
     }
-  };
-
+  }, [deviceId]);
 
   useEffect(() => {
     fetchTelemetry();
+  }, [fetchTelemetry]);
 
+  // SSE Canlı Güncelleme
+  useEffect(() => {
     if (!deviceId) return;
 
-    // SSE Canlı Bağlantı
-    const eventSource = new EventSource(`/api/sse?deviceId=${deviceId}`);
-    
-    eventSource.onmessage = (e) => {
-      // ping vb. mesajları atla
-      if (e.data === "connected" || e.data === "ping") return;
-
+    const es = new EventSource("/api/sse");
+    es.addEventListener("telemetry", (e) => {
       try {
         const item = JSON.parse(e.data);
+        // Sadece bu cihaza ait telemetriyi al
+        if (String(item.deviceId) !== String(deviceId)) return;
+
         const newItem = {
-          id: Date.now().toString(), // Benzersiz ID
+          id: item._id || Date.now().toString(),
           key: item.key,
-          value: typeof item.value === 'object' ? JSON.stringify(item.value) : String(item.value),
-          type: item.protocol === "http" && typeof item.value === "object" ? "json" : typeof item.value === "boolean" ? "boolean" : !isNaN(Number(item.value)) ? "number" : "string",
-          lastUpdateTs: new Date(item.timestamp).toISOString().replace("T", " ").substring(0, 19),
+          value: item.value,
+          type: item.valueType || (typeof item.value === "number" ? "number" : "string"),
+          timestamp: item.timestamp || new Date().toISOString(),
           unit: item.unit,
+          protocol: item.protocol,
         };
 
-        // Gelen veriyi canlı verinin en üstüne ekle, aynı key varsa eskisini sil
-        setLiveData((prev) => {
-          const filtered = prev.filter(p => p.key !== newItem.key);
-          return [newItem, ...filtered];
+        // Aynı key varsa güncelle, yoksa ekle
+        setTelemetryData((prev) => {
+          const idx = prev.findIndex((p) => p.key === newItem.key);
+          if (idx >= 0) {
+            const updated = [...prev];
+            updated[idx] = newItem;
+            return updated;
+          }
+          return [...prev, newItem].sort((a, b) => a.key.localeCompare(b.key));
         });
-      } catch (err) {
-        // Parse error
-      }
-    };
+      } catch {}
+    });
 
-    return () => {
-      eventSource.close();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    return () => es.close();
   }, [deviceId]);
 
-  // Combine live data with mock data
-  const combinedData = [...liveData, ...telemetryData.filter(m => !liveData.some(l => l.key === m.key))];
-
-  const filteredData = combinedData.filter(
+  const filteredData = telemetryData.filter(
     (item) =>
       item.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
       String(item.value).toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleRefresh = () => fetchTelemetry();
   const handleSearch = (value) => setSearchQuery(value);
   const handleViewChart = (row) => console.log("View chart:", row.key);
   const handleDelete = (row) => console.log("Delete telemetry:", row.key);
@@ -286,7 +225,11 @@ export function DeviceTelemetryTab({ deviceId }) {
     {
       label: "Anahtarı Kopyala",
       icon: <Copy />,
-      onClick: (row) => navigator.clipboard.writeText(row.key),
+      onClick: async (row) => {
+        await navigator.clipboard.writeText(row.key);
+        const toast = await import("react-hot-toast");
+        toast.default.success("Anahtar kopyalandı");
+      },
     },
     {
       label: "Veriyi Sil",
@@ -296,7 +239,6 @@ export function DeviceTelemetryTab({ deviceId }) {
     },
   ];
 
-  // Toplu grafik görüntüleme
   const bulkActions = [
     {
       label: "Seçilenleri Grafikte Göster",
@@ -317,8 +259,8 @@ export function DeviceTelemetryTab({ deviceId }) {
         title="Telemetri"
         actions={[
           {
-            icon: <RotateCw className="h-4 w-4" />,
-            onClick: handleRefresh,
+            icon: <RotateCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />,
+            onClick: fetchTelemetry,
             tooltip: "Yenile",
           },
           {
@@ -333,11 +275,11 @@ export function DeviceTelemetryTab({ deviceId }) {
       <TableContent
         data={filteredData}
         columns={columns}
-        title={`${filteredData.length} telemetri anahtarı`}
+        title={`${filteredData.length} benzersiz telemetri anahtarı`}
         onRowClick={handleRowClick}
         rowActions={rowActions}
         bulkActions={bulkActions}
-        gridClassName="grid-cols-11"
+        gridClassName="grid-cols-12"
         emptyState={
           searchQuery
             ? `"${searchQuery}" için sonuç bulunamadı`

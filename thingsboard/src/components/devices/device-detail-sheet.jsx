@@ -14,8 +14,8 @@ import CommonEntitySheet from "../common/rowDetails/common-entity-sheet";
 import EntityActionBar from "../common/rowDetails/entity-action-bar";
 import { DeviceDetailForm, DeviceEditForm } from "./device-details-form";
 
-// Mock Tablarımızı import ediyoruz
-import { DeviceAlarmsTab } from "./mock";
+// Gerçek alarm sekmesi
+import { DeviceAlarmsTab } from "./tabs/device-alarms-tab";
 import { DeviceAttributeTab } from "./tabs/device-attribute-tab";
 import { DeviceTelemetryTab } from "./tabs/device-telemetri-tab";
 import { DeviceConnectivityTab } from "./tabs/device-connectivity-tab";
@@ -91,7 +91,7 @@ export default function DeviceDetailSheet({ device, open, onOpenChange, onDevice
         id: "alarms",
         label: "Alarmlar",
         icon: AlertTriangle,
-        content: <DeviceAlarmsTab deviceId={device?._id} />, // Mock Bileşen
+        content: <DeviceAlarmsTab deviceId={device?._id} />,
       },
       {
         id: "connectivity",
