@@ -127,7 +127,7 @@ export default function Sidebar() {
               collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
             )}
           >
-            Pengona Things
+            Almira Things
           </span>
         </div>
       </div>

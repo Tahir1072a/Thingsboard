@@ -4,17 +4,19 @@
  * BaseWidgetCard — Tüm widget'lar için evrensel wrapper bileşeni
  *
  * Glassmorphism estetik, Framer Motion giriş animasyonu,
- * Edit Mode'da kesikli border + drag handle + delete butonu.
+ * Edit Mode'da kesikli border + drag handle + düzenle/klonla/sil butonları.
  */
 
 import { motion } from "framer-motion";
-import { GripVertical, Trash2 } from "lucide-react";
+import { GripVertical, Trash2, Settings2, Copy } from "lucide-react";
 
 export default function BaseWidgetCard({
   title,
   isEditMode = false,
   isLive,
   onDelete,
+  onEdit,
+  onClone,
   children,
 }) {
   return (
@@ -43,13 +45,41 @@ export default function BaseWidgetCard({
           </h3>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           {/* LIVE göstergesi */}
           {isLive && (
-            <span className="flex items-center gap-1 text-[10px] font-medium text-green-600">
+            <span className="flex items-center gap-1 text-[10px] font-medium text-green-600 mr-1">
               <span className="h-1.5 w-1.5 rounded-full bg-green-500 animate-pulse" />
               LIVE
             </span>
+          )}
+
+          {/* Düzenle butonu (sadece edit mode) */}
+          {isEditMode && onEdit && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onEdit();
+              }}
+              title="Widget'ı düzenle"
+              className="p-1 rounded-md hover:bg-blue-50 hover:text-blue-500 text-gray-400 transition-colors"
+            >
+              <Settings2 className="h-3.5 w-3.5" />
+            </button>
+          )}
+
+          {/* Klonla butonu (sadece edit mode) */}
+          {isEditMode && onClone && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onClone();
+              }}
+              title="Widget'ı klonla"
+              className="p-1 rounded-md hover:bg-indigo-50 hover:text-indigo-500 text-gray-400 transition-colors"
+            >
+              <Copy className="h-3.5 w-3.5" />
+            </button>
           )}
 
           {/* Sil butonu (sadece edit mode) */}
@@ -59,6 +89,7 @@ export default function BaseWidgetCard({
                 e.stopPropagation();
                 onDelete();
               }}
+              title="Widget'ı sil"
               className="p-1 rounded-md hover:bg-red-50 hover:text-red-500 text-gray-400 transition-colors"
             >
               <Trash2 className="h-3.5 w-3.5" />

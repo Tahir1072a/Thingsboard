@@ -3,6 +3,7 @@
 /**
  * GaugeWidget — Yarım Daire Gösterge
  * SSE ile anlık telemetri değeri gösterir.
+ * publicToken verildiğinde SSE yerine polling kullanır.
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -10,7 +11,7 @@ import { RadialBarChart, RadialBar, ResponsiveContainer } from "recharts";
 
 export default function GaugeWidget({
   devices = [], keys = [], title = "Gauge",
-  config = {},
+  config = {}, publicToken,
 }) {
   const device = devices[0];
   const deviceId = device?.id;
@@ -29,15 +30,24 @@ export default function GaugeWidget({
     }
   }, [key]);
 
+  // Telemetri URL'ini belirle
+  const getTelemetryUrl = useCallback((params = "") => {
+    if (publicToken) {
+      return `/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}${params}`;
+    }
+    return `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}${params}`;
+  }, [publicToken, deviceId, key]);
+
   useEffect(() => {
     if (!deviceId) return;
 
     let isMounted = true;
     const sseRef = { current: null };
+    let pollInterval = null;
 
     const fetchHistory = async () => {
       try {
-        const res = await fetch(`/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}&limit=1`);
+        const res = await fetch(getTelemetryUrl("&limit=1"));
         const json = await res.json();
         if (json.ok && json.data && json.data.length > 0 && isMounted) {
           setValue(json.data[0].value);
@@ -47,28 +57,51 @@ export default function GaugeWidget({
       }
     };
 
-    const startSSE = () => {
-      const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
-      sseRef.current = es;
+    const startLiveData = () => {
+      if (publicToken) {
+        // Public mod: 10 saniyede bir polling
+        pollInterval = setInterval(async () => {
+          if (!isMounted) return;
+          try {
+            const res = await fetch(getTelemetryUrl("&limit=1"));
+            const json = await res.json();
+            if (json.ok && json.data && json.data.length > 0) {
+              handleData({
+                key,
+                value: json.data[0].value,
+              });
+            }
+            if (isMounted) setConnected(true);
+          } catch {
+            if (isMounted) setConnected(false);
+          }
+        }, 10000);
+        setConnected(true);
+      } else {
+        // SSE modu (orijinal)
+        const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
+        sseRef.current = es;
 
-      es.onopen = () => { if (isMounted) setConnected(true); };
-      es.onerror = () => { if (isMounted) setConnected(false); };
-      es.onmessage = (e) => {
-        if (!isMounted) return;
-        try { handleData(JSON.parse(e.data)); } catch {}
-      };
+        es.onopen = () => { if (isMounted) setConnected(true); };
+        es.onerror = () => { if (isMounted) setConnected(false); };
+        es.onmessage = (e) => {
+          if (!isMounted) return;
+          try { handleData(JSON.parse(e.data)); } catch {}
+        };
+      }
     };
 
     fetchHistory().then(() => {
-      if (isMounted) startSSE();
+      if (isMounted) startLiveData();
     });
 
     return () => {
       isMounted = false;
       if (sseRef.current) sseRef.current.close();
+      if (pollInterval) clearInterval(pollInterval);
       setConnected(false);
     };
-  }, [deviceId, key, handleData]);
+  }, [deviceId, key, handleData, publicToken, getTelemetryUrl]);
 
   const percentage = value !== null ? Math.min(100, Math.max(0, ((value - min) / (max - min)) * 100)) : 0;
 

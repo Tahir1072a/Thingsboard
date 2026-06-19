@@ -1,61 +1,60 @@
-"use client";
-
-import Link from "next/link";
 import { Suspense } from "react";
-import { Separator } from "@/components/ui/separator";
-import MarketingPanel from "@/components/auth/marketingPanel";
 import ActivateForm from "@/components/auth/activate";
-
-function ActivatePageContent() {
-  const activationFeatures = [
-    "Güvenli parola oluşturma",
-    "E-posta ile doğrulama",
-    "Anında hesap erişimi",
-    "MFA (TOTP) uyumluluğu",
-    "Yüksek erişilebilirlik",
-  ];
-
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-spotify-900 via-spotify-800 to-spotify-700 text-foreground flex items-center justify-center p-6">
-      <div className="w-full max-w-5xl grid grid-cols-1 md:grid-cols-2 rounded-2xl shadow-2xl overflow-hidden border border-white/10 bg-muted/10 backdrop-blur-sm">
-        <MarketingPanel
-          title="Hesabınızı aktive edin. <br /> Sadece bir adım kaldı."
-          description="Güvenli parolanızı oluşturarak platforma erişim sağlayın."
-          features={activationFeatures}
-        />
-
-        {/* SAĞ PANEL: Form Alanı */}
-        <div className="bg-auth-card text-auth-foreground p-6 sm:p-10">
-          <div className="mb-6 flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="h-9 w-9 rounded-full bg-spotify-500/90" />
-              <span className="font-semibold tracking-tight">
-                Pengona Things
-              </span>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              <span className="opacity-80">Hesabın zaten aktif mi?</span>{" "}
-              <Link
-                href="/login" // Giriş yap'a geri dön
-                className="text-spotify-400 hover:text-spotify-300 underline-offset-4 hover:underline"
-              >
-                Giriş yap
-              </Link>
-            </div>
-          </div>
-          <Separator className="mb-6 opacity-20" />
-
-          <ActivateForm />
-        </div>
-      </div>
-    </div>
-  );
-}
+import Image from "next/image";
 
 export default function ActivatePage() {
   return (
-    <Suspense fallback={<div>Yükleniyor...</div>}>
-      <ActivatePageContent />
-    </Suspense>
+    <main className="relative z-10 w-full max-w-[1000px] h-[600px] bg-[#0a0a0a] rounded-[2.5rem] shadow-2xl border border-white/5 grid grid-cols-1 md:grid-cols-2 overflow-hidden m-4">
+      {/* --- SOL TARAF --- */}
+      <aside className="relative hidden md:block h-full p-4">
+        <div className="relative h-full w-full rounded-[2rem] overflow-hidden">
+          <Image
+            src={"/login.jpeg"}
+            alt="Activate Background"
+            fill
+            className="object-cover"
+            priority
+          />
+
+          <div className="absolute inset-0 bg-[url('https://images.unsplash.com/photo-1605901309584-818e25960b8f?q=80&w=2000&auto=format&fit=crop')] bg-cover bg-center" />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+          <div className="absolute bottom-8 left-8 z-20 text-white">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-white text-black rounded-lg flex items-center justify-center font-bold">
+                A
+              </div>
+              <span className="text-xl font-bold tracking-wide">
+                Almira Things
+              </span>
+            </div>
+            <p className="text-gray-300 text-sm font-medium">
+              Tüm IoT cihazlarınızı tek bir yerden yönetin
+            </p>
+          </div>
+        </div>
+      </aside>
+
+      {/* --- SAĞ TARAF --- */}
+      <section className="w-full flex flex-col justify-center px-8 md:px-16 py-12 bg-[#0a0a0a] text-white">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-medium mb-2 text-white">Hesabınızı aktive edin</h1>
+          <p className="text-sm text-gray-400">Sadece bir adım kaldı.</p>
+        </div>
+
+        <Suspense fallback={null}>
+          <ActivateForm />
+        </Suspense>
+
+        <div className="mt-8 text-center text-xs text-gray-500">
+          <p>
+            Hesabın zaten aktif mi?{" "}
+            <a href="/login" className="text-red-400 hover:underline">
+              Giriş yap
+            </a>
+          </p>
+        </div>
+      </section>
+    </main>
   );
 }

@@ -39,8 +39,8 @@ caCert.validity.notAfter = new Date();
 caCert.validity.notAfter.setFullYear(caCert.validity.notBefore.getFullYear() + 10); // 10 yıl
 
 const caAttrs = [
-  { name: "commonName", value: "PengonaThings Root CA" },
-  { name: "organizationName", value: "PengonaThings" },
+  { name: "commonName", value: "AlmiraThings Root CA" },
+  { name: "organizationName", value: "AlmiraThings" },
   { name: "countryName", value: "TR" },
 ];
 caCert.setSubject(caAttrs);
@@ -86,7 +86,7 @@ serverCert.validity.notAfter.setFullYear(serverCert.validity.notBefore.getFullYe
 
 const serverAttrs = [
   { name: "commonName", value: "localhost" },
-  { name: "organizationName", value: "PengonaThings" },
+  { name: "organizationName", value: "AlmiraThings" },
   { name: "countryName", value: "TR" },
 ];
 serverCert.setSubject(serverAttrs);

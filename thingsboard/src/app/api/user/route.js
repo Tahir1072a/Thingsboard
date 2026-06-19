@@ -144,12 +144,12 @@ export async function POST(request) {
     try {
       await sendMail({
         to: email,
-        subject: "Pengona Things — Hesap Daveti",
+        subject: "Almira Things — Hesap Daveti",
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-            <h2 style="color: #6d28d9;">Pengona Things Platformuna Davet Edildiniz</h2>
+            <h2 style="color: #6d28d9;">Almira Things Platformuna Davet Edildiniz</h2>
             <p>Merhaba ${firstName || ""},</p>
-            <p>Pengona Things IoT platformunda <strong>${roleLabels[inviteRole] || inviteRole}</strong> rolü ile bir hesap oluşturuldu.</p>
+            <p>Almira Things IoT platformunda <strong>${roleLabels[inviteRole] || inviteRole}</strong> rolü ile bir hesap oluşturuldu.</p>
             <p>Hesabınızı aktifleştirmek ve şifrenizi belirlemek için aşağıdaki bağlantıya tıklayın:</p>
             <p style="margin: 24px 0;">
               <a href="${activateUrl}" style="background: linear-gradient(135deg, #6d28d9, #4f46e5); color: white; padding: 12px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">

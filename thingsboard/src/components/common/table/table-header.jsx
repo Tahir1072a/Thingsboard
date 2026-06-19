@@ -590,7 +590,7 @@ export function TableContent({
                             })}
                           </span>
                         )}
-                        {action.label}
+                        {typeof action.label === "function" ? action.label(row) : action.label}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>

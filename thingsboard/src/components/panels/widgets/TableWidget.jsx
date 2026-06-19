@@ -4,6 +4,7 @@
  * TableWidget — Pivot Tablo Widget
  * Cihazları satır, seçili metrikleri sütun olarak gösterir.
  * Her cihazın en güncel (anlık) değerini yansıtır.
+ * publicToken verildiğinde SSE yerine polling kullanır.
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -11,7 +12,7 @@ import { ArrowUpUp, ArrowDownDown } from "lucide-react";
 
 export default function TableWidget({
   devices = [], keys = [], title = "Veri Tablosu",
-  config = {},
+  config = {}, publicToken,
 }) {
   // Veri yapısı: { [deviceId]: { [key]: value, _time: timestamp } }
   const [deviceData, setDeviceData] = useState({});
@@ -37,17 +38,26 @@ export default function TableWidget({
     });
   }, [keys, devices]);
 
+  // Telemetri URL'ini belirle
+  const getTelemetryUrl = useCallback((deviceId, params = "") => {
+    if (publicToken) {
+      return `/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(deviceId)}${params}`;
+    }
+    return `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}${params}`;
+  }, [publicToken]);
+
   useEffect(() => {
     if (devices.length === 0 || keys.length === 0) return;
 
     let isMounted = true;
     const sseRef = { current: null };
+    let pollInterval = null;
 
     // 1. Tüm cihazların son değerlerini çek (Pivot için limit 1 yeterli)
     const fetchHistory = async () => {
       try {
         const promises = devices.map(d => 
-          fetch(`/api/telemetry?deviceId=${encodeURIComponent(d.id)}&limit=${Math.max(10, keys.length)}`)
+          fetch(getTelemetryUrl(d.id, `&limit=${Math.max(10, keys.length)}`))
             .then(res => res.json())
             .then(json => ({ deviceId: d.id, data: json.data || [] }))
         );
@@ -76,33 +86,64 @@ export default function TableWidget({
       }
     };
 
-    // 2. Canlı veriyi (SSE) başlat
-    const startSSE = () => {
-      const url = devices.length === 1 
-        ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
-        : `/api/sse`;
-        
-      const es = new EventSource(url);
-      sseRef.current = es;
+    // 2. Canlı veriyi başlat
+    const startLiveData = () => {
+      if (publicToken) {
+        // Public mod: 10 saniyede bir polling
+        pollInterval = setInterval(async () => {
+          if (!isMounted) return;
+          try {
+            const promises = devices.map(d =>
+              fetch(getTelemetryUrl(d.id, `&limit=${Math.max(10, keys.length)}`))
+                .then(res => res.json())
+                .then(json => ({ deviceId: d.id, data: json.data || [] }))
+            );
+            const results = await Promise.all(promises);
+            results.forEach(({ deviceId, data }) => {
+              data.forEach(item => {
+                handleData({
+                  deviceId,
+                  key: item.key,
+                  value: item.value,
+                  timestamp: item.timestamp,
+                });
+              });
+            });
+            if (isMounted) setConnected(true);
+          } catch {
+            if (isMounted) setConnected(false);
+          }
+        }, 10000);
+        setConnected(true);
+      } else {
+        // SSE modu (orijinal)
+        const url = devices.length === 1 
+          ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
+          : `/api/sse`;
+          
+        const es = new EventSource(url);
+        sseRef.current = es;
 
-      es.onopen = () => { if (isMounted) setConnected(true); };
-      es.onerror = () => { if (isMounted) setConnected(false); };
-      es.onmessage = (e) => {
-        if (!isMounted) return;
-        try { handleData(JSON.parse(e.data)); } catch {}
-      };
+        es.onopen = () => { if (isMounted) setConnected(true); };
+        es.onerror = () => { if (isMounted) setConnected(false); };
+        es.onmessage = (e) => {
+          if (!isMounted) return;
+          try { handleData(JSON.parse(e.data)); } catch {}
+        };
+      }
     };
 
     fetchHistory().then(() => {
-      if (isMounted) startSSE();
+      if (isMounted) startLiveData();
     });
 
     return () => {
       isMounted = false;
       if (sseRef.current) sseRef.current.close();
+      if (pollInterval) clearInterval(pollInterval);
       setConnected(false);
     };
-  }, [devices, keys, handleData]);
+  }, [devices, keys, handleData, publicToken, getTelemetryUrl]);
 
   return (
     <div className="h-full flex flex-col">

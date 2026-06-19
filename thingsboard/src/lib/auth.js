@@ -102,41 +102,42 @@ export const authOptions = {
   // ──────────────────────────────────────────────
   callbacks: {
     /**
-     * signIn callback — Google ile ilk girişte kullanıcı oluştur
+     * signIn callback — Google ile giriş kontrolü
+     *
+     * Sistemde kayıtlı olmayan kullanıcılar Google ile giriş yapamaz.
+     * Önce /register üzerinden tenant oluşturmalı veya davet almalıdır.
      */
     async signIn({ user, account }) {
       if (account?.provider === "google") {
         try {
           await connectDB();
 
-          let dbUser = await User.findOne({ email: user.email });
+          const dbUser = await User.findOne({ email: user.email });
 
           if (!dbUser) {
-            // Google ile ilk giriş → yeni kullanıcı oluştur
-            dbUser = await User.create({
-              email: user.email,
-              firstName: user.name?.split(" ")[0] ?? "",
-              lastName: user.name?.split(" ").slice(1).join(" ") ?? "",
-              provider: "google",
-              googleId: account.providerAccountId,
-              image: user.image,
-              isActive: true,
-            });
-          } else if (!dbUser.googleId) {
-            // E-posta mevcuttu ama Google ile bağlı değildi → ilişkilendir
-            dbUser.googleId = account.providerAccountId;
-            dbUser.image = user.image ?? dbUser.image;
-            dbUser.lastLoginAt = new Date();
-            await dbUser.save();
-          } else {
-            // Mevcut Google kullanıcısı — son giriş güncelle
-            dbUser.lastLoginAt = new Date();
-            await dbUser.save();
+            // Kayıtlı değil → giriş engelle
+            // NextAuth error sayfasına yönlendir
+            return "/login?error=UnregisteredUser";
           }
 
+          // Aktif değilse giriş engelle
           if (!dbUser.isActive) {
-            return false; // giriş engelle
+            return "/login?error=AccountDisabled";
           }
+
+          // Tenant kontrolü (SYSTEM_ADMIN hariç)
+          if (dbUser.role !== "SYSTEM_ADMIN" && !dbUser.tenantId) {
+            return "/login?error=NoTenant";
+          }
+
+          // Google hesabını ilişkilendir (ilk Google girişi)
+          if (!dbUser.googleId) {
+            dbUser.googleId = account.providerAccountId;
+            dbUser.image = user.image ?? dbUser.image;
+          }
+
+          dbUser.lastLoginAt = new Date();
+          await dbUser.save();
 
           return true;
         } catch (error) {

@@ -6,6 +6,9 @@
  * Widget type'a göre doğru bileşeni render eder.
  * BaseWidgetCard ile sarmalayarak tutarlı görünüm sağlar.
  * react-grid-layout item'ları içinde kullanılır.
+ *
+ * publicToken prop'u verildiğinde, widget'lar telemetriyi
+ * public API üzerinden polling ile alır (SSE yerine).
  */
 
 import LineChartWidget from "./widgets/LineChartWidget";
@@ -13,8 +16,12 @@ import GaugeWidget from "./widgets/GaugeWidget";
 import ValueCardWidget from "./widgets/ValueCardWidget";
 import TableWidget from "./widgets/TableWidget";
 import ImageMapWidget from "./widgets/ImageMapWidget";
+import BarChartWidget from "./widgets/BarChartWidget";
+import PieChartWidget from "./widgets/PieChartWidget";
+import StatCardWidget from "./widgets/StatCardWidget";
+import AlarmWidget from "./widgets/AlarmWidget";
 import BaseWidgetCard from "./BaseWidgetCard";
-import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle } from "lucide-react";
+import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell } from "lucide-react";
 
 const WIDGET_MAP = {
   line_chart: LineChartWidget,
@@ -22,6 +29,10 @@ const WIDGET_MAP = {
   value_card: ValueCardWidget,
   table: TableWidget,
   image_map: ImageMapWidget,
+  bar_chart: BarChartWidget,
+  pie_chart: PieChartWidget,
+  stat_card: StatCardWidget,
+  alarm_list: AlarmWidget,
 };
 
 export const WIDGET_TYPES = [
@@ -60,6 +71,34 @@ export const WIDGET_TYPES = [
     description: "2D plan üzerinde cihaz konumları",
     defaultSize: { w: 6, h: 5 },
   },
+  {
+    type: "bar_chart",
+    label: "Çubuk Grafik",
+    icon: BarChart3,
+    description: "Karşılaştırmalı çubuk grafik",
+    defaultSize: { w: 6, h: 4 },
+  },
+  {
+    type: "pie_chart",
+    label: "Pasta Grafik",
+    icon: PieChart,
+    description: "Dağılım ve oran gösterimi",
+    defaultSize: { w: 4, h: 4 },
+  },
+  {
+    type: "stat_card",
+    label: "Çoklu Metrik",
+    icon: LayoutGrid,
+    description: "Birden fazla metriği yan yana göster",
+    defaultSize: { w: 6, h: 3 },
+  },
+  {
+    type: "alarm_list",
+    label: "Alarm Listesi",
+    icon: Bell,
+    description: "Cihaz alarmlarını canlı göster",
+    defaultSize: { w: 6, h: 4 },
+  },
 ];
 
 export default function WidgetRenderer({
@@ -67,6 +106,7 @@ export default function WidgetRenderer({
   isEditMode = false,
   onDelete,
   onWidgetConfigChange,
+  publicToken,
 }) {
   const Component = WIDGET_MAP[widget.type];
 
@@ -95,6 +135,7 @@ export default function WidgetRenderer({
         isEditMode={isEditMode}
         widgetId={widget.i}
         onConfigChange={onWidgetConfigChange}
+        publicToken={publicToken}
       />
     </BaseWidgetCard>
   );

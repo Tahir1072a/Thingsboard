@@ -70,7 +70,7 @@ export function generateDeviceCertificate(deviceId, deviceName) {
   // Cihaz kimlik bilgileri
   const deviceAttrs = [
     { name: "commonName", value: deviceId },
-    { name: "organizationName", value: "PengonaThings" },
+    { name: "organizationName", value: "AlmiraThings" },
   ];
   cert.setSubject(deviceAttrs);
   cert.setIssuer(caCert.subject.attributes); // CA tarafından imzalandığını belirt

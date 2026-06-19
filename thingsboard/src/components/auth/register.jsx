@@ -104,7 +104,7 @@ export default function RegisterForm() {
                 id="org"
                 type="text"
                 {...register("organizationName")}
-                placeholder="Örn. Pengona A.Ş."
+                placeholder="Örn. Almira A.Ş."
                 className="bg-white/5 border-white/20 focus-visible:ring-red-600"
               />
               {errors.organizationName && (

@@ -31,7 +31,7 @@ export default function RegisterPage() {
                 T
               </div>
               <span className="font-semibold tracking-tight">
-                Pengona Things
+                Almira Things
               </span>
             </div>
             <div className="text-sm text-gray-500">

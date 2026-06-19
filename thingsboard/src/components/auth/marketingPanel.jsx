@@ -22,7 +22,7 @@ export default function MarketingPanel({ title, description, features }) {
         </div>
       </div>
       <div className="text-xs text-gray-500">
-        &copy; {new Date().getFullYear()} Pengona A.Ş. Tüm hakları saklıdır.
+        &copy; {new Date().getFullYear()} Almira A.Ş. Tüm hakları saklıdır.
       </div>
     </div>
   );

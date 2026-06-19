@@ -15,7 +15,10 @@ const WidgetSchema = new Schema(
     // Widget tipi
     type: {
       type: String,
-      enum: ["line_chart", "gauge", "value_card", "table", "image_map"],
+      enum: [
+        "line_chart", "gauge", "value_card", "table", "image_map",
+        "bar_chart", "pie_chart", "stat_card", "alarm_list",
+      ],
       required: true,
     },
 
@@ -78,6 +81,25 @@ const DashboardSchema = new Schema(
 
     // Widget konfigürasyonları
     widgets: [WidgetSchema],
+
+    // ── Paylaşım ──
+    isPublic: {
+      type: Boolean,
+      default: false,
+    },
+
+    // Public erişim token'ı (URL'de kullanılır)
+    publicToken: {
+      type: String,
+      default: null,
+      unique: true,
+      sparse: true,
+    },
+
+    shareSettings: {
+      expiresAt: { type: Date, default: null },
+      embedEnabled: { type: Boolean, default: false },
+    },
   },
   {
     timestamps: true,

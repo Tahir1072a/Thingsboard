@@ -3,6 +3,7 @@
 /**
  * LineChartWidget — Çizgi Grafik Widget
  * SSE ile canlı telemetri verisi gösterir.
+ * publicToken verildiğinde SSE yerine polling kullanır.
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -18,7 +19,7 @@ const COLORS = [
 
 export default function LineChartWidget({
   devices = [], keys = [], title = "Çizgi Grafik",
-  config = {},
+  config = {}, publicToken,
 }) {
   const maxPoints = config.maxPoints || 60;
   const targetKey = keys[0] || "value"; // LineChart artık tek key alıyor
@@ -56,17 +57,26 @@ export default function LineChartWidget({
     setLastValues((prev) => ({ ...prev, [device.name]: value }));
   }, [targetKey, devices, maxPoints]);
 
+  // Telemetri URL'ini belirle (public vs authenticated)
+  const getTelemetryUrl = useCallback((deviceId, params = "") => {
+    if (publicToken) {
+      return `/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(targetKey)}${params}`;
+    }
+    return `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(targetKey)}${params}`;
+  }, [publicToken, targetKey]);
+
   useEffect(() => {
     if (devices.length === 0) return;
 
     let isMounted = true;
     const sseRef = { current: null };
+    let pollInterval = null;
 
     // 1. Önce geçmiş verileri çek
     const fetchHistory = async () => {
       try {
         const promises = devices.map(d => 
-          fetch(`/api/telemetry?deviceId=${encodeURIComponent(d.id)}&key=${encodeURIComponent(targetKey)}&limit=${maxPoints}`)
+          fetch(getTelemetryUrl(d.id, `&limit=${maxPoints}`))
             .then(res => res.json())
             .then(json => ({ deviceName: d.name, data: json.data || [] }))
         );
@@ -94,7 +104,6 @@ export default function LineChartWidget({
           });
 
           // Zamanlara göre sırala ve son maxPoints kadarını al
-          // (Gruplama yapıldığında object key sırası güvenli olmayabilir ama TR saat formatında genelde sıralı kalır)
           const sortedKeys = Object.keys(grouped).sort();
           const arr = sortedKeys.map(k => grouped[k]).slice(-maxPoints);
           
@@ -106,34 +115,64 @@ export default function LineChartWidget({
       }
     };
 
-    // 2. Canlı veriyi (SSE) başlat
-    const startSSE = () => {
-      // Eğer tek cihaz varsa sadece ona abone ol, çok cihaz varsa hepsini dinle ve client tarafında filtrele
-      const url = devices.length === 1 
-        ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
-        : `/api/sse`;
-        
-      const es = new EventSource(url);
-      sseRef.current = es;
+    // 2. Canlı veriyi başlat
+    const startLiveData = () => {
+      if (publicToken) {
+        // Public mod: 10 saniyede bir polling
+        pollInterval = setInterval(async () => {
+          if (!isMounted) return;
+          try {
+            const promises = devices.map(d =>
+              fetch(getTelemetryUrl(d.id, "&limit=1"))
+                .then(res => res.json())
+                .then(json => ({ deviceId: d.id, data: json.data || [] }))
+            );
+            const results = await Promise.all(promises);
+            results.forEach(({ deviceId, data }) => {
+              if (data.length > 0) {
+                addPoint({
+                  deviceId,
+                  key: targetKey,
+                  value: data[0].value,
+                  timestamp: data[0].timestamp,
+                });
+              }
+            });
+            if (isMounted) setConnected(true);
+          } catch {
+            if (isMounted) setConnected(false);
+          }
+        }, 10000);
+        setConnected(true);
+      } else {
+        // SSE modu (orijinal)
+        const url = devices.length === 1 
+          ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
+          : `/api/sse`;
+          
+        const es = new EventSource(url);
+        sseRef.current = es;
 
-      es.onopen = () => { if (isMounted) setConnected(true); };
-      es.onerror = () => { if (isMounted) setConnected(false); };
-      es.onmessage = (e) => {
-        if (!isMounted) return;
-        try { addPoint(JSON.parse(e.data)); } catch {}
-      };
+        es.onopen = () => { if (isMounted) setConnected(true); };
+        es.onerror = () => { if (isMounted) setConnected(false); };
+        es.onmessage = (e) => {
+          if (!isMounted) return;
+          try { addPoint(JSON.parse(e.data)); } catch {}
+        };
+      }
     };
 
     fetchHistory().then(() => {
-      if (isMounted) startSSE();
+      if (isMounted) startLiveData();
     });
 
     return () => {
       isMounted = false;
       if (sseRef.current) sseRef.current.close();
+      if (pollInterval) clearInterval(pollInterval);
       setConnected(false);
     };
-  }, [devices, targetKey, maxPoints]); // addPoint dependency'si sorun yaratmamalı
+  }, [devices, targetKey, maxPoints, publicToken, getTelemetryUrl]); // addPoint dependency'si sorun yaratmamalı
 
   return (
     <div className="h-full flex flex-col">

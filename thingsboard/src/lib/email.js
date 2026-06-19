@@ -27,3 +27,6 @@ export const sendEmail = async ({ to, subject, html }) => {
     throw new Error("E-posta gönderimi sırasında bir hata oluştu.");
   }
 };
+
+// user/route.js "sendMail" olarak import ediyor — alias
+export const sendMail = sendEmail;

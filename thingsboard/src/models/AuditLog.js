@@ -55,6 +55,9 @@ const AuditLogSchema = new Schema(
         "USER_CREATE",
         "USER_UPDATE",
         "USER_DELETE",
+        "USER_ACTIVATE",
+        // Alarm yönetimi
+        "ALARM_DELETE",
       ],
       index: true,
     },
@@ -62,7 +65,7 @@ const AuditLogSchema = new Schema(
     // ── Hangi kaynak? ──
     entityType: {
       type: String,
-      enum: ["DEVICE", "DEVICE_PROFILE", "DASHBOARD", "ALARM", "USER"],
+      enum: ["DEVICE", "DEVICE_PROFILE", "DASHBOARD", "ALARM", "USER", "TENANT"],
       required: [true, "entityType zorunludur."],
       index: true,
     },

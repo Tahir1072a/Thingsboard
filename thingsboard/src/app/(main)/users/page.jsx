@@ -382,7 +382,7 @@ export default function UsersPage() {
     {
       id: "status",
       title: "Durum",
-      span: 2,
+      span: 1,
       cellRender: (user) => (
         <div className="flex items-center">
           <div

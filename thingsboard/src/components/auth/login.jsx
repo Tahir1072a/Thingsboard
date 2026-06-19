@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import toast from "react-hot-toast";
@@ -19,10 +19,27 @@ const loginSchema = z.object({
   password: z.string().min(1, "Parola boş olamaz."),
 });
 
+// Google OAuth hata mesajları
+const AUTH_ERROR_MESSAGES = {
+  UnregisteredUser: "Bu e-posta ile kayıtlı bir hesap bulunamadı. Lütfen önce kayıt olun ve organizasyonunuzu oluşturun.",
+  AccountDisabled: "Hesabınız devre dışı bırakılmış. Yöneticinizle iletişime geçin.",
+  NoTenant: "Hesabınız bir organizasyona bağlı değil. Lütfen yöneticinizle iletişime geçin.",
+};
+
 export default function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
+  const callbackUrl = "/dashboard";
+  const authError = searchParams.get("error");
+
+  // Google OAuth hata mesajlarını göster
+  useEffect(() => {
+    if (authError && AUTH_ERROR_MESSAGES[authError]) {
+      toast.error(AUTH_ERROR_MESSAGES[authError], { duration: 6000 });
+      // URL'den error parametresini temizle
+      router.replace("/login", { scroll: false });
+    }
+  }, [authError, router]);
 
   const {
     register: registerLogin,
