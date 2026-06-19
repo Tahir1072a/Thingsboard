@@ -88,8 +88,10 @@ export default function DeviceProfilesPage() {
       placeholder: "İletişim Tipi",
       options: [
         { label: "MQTT", value: "MQTT" },
+        { label: "MQTTS (TLS)", value: "MQTTS" },
         { label: "HTTP", value: "HTTP" },
-        { label: "COAP", value: "COAP" },
+        { label: "WebSocket", value: "WS" },
+        { label: "WSS (Secure)", value: "WSS" },
       ],
     },
   ];

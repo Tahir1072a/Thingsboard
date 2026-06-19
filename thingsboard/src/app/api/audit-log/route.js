@@ -68,10 +68,16 @@ export async function GET(request) {
       if (to) filter.timestamp.$lte = new Date(to);
     }
 
-    // Arama (entityName içinde)
+    // Arama
     const search = searchParams.get("search");
     if (search) {
-      filter.entityName = { $regex: search, $options: "i" };
+      filter.$or = [
+        { entityName: { $regex: search, $options: "i" } },
+        { action: { $regex: search, $options: "i" } },
+        { status: { $regex: search, $options: "i" } },
+        { "details.ip": { $regex: search, $options: "i" } },
+        { "details.reason": { $regex: search, $options: "i" } }
+      ];
     }
 
     // Sorgu

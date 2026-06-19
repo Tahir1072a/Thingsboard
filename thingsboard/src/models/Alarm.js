@@ -61,6 +61,13 @@ const AlarmSchema = new Schema(
       threshold: String,
     },
 
+    // Alarm kaynağı (profil kuralı mı, cihaz kuralı mı?)
+    source: {
+      type: String,
+      enum: ["PROFILE", "DEVICE"],
+      default: "PROFILE",
+    },
+
     // Başlangıç zamanı (alarm tetiklendiği an)
     startTime: {
       type: Date,

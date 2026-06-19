@@ -15,17 +15,28 @@ export async function GET(request) {
     const userId = await getSessionUser();
     await connectDB();
 
-    const { searchParams } = new URL(request.url);
+    const searchParams = new URL(request.url).searchParams;
     const status = searchParams.get("status") || ""; // ACTIVE, CLEARED, ACKNOWLEDGED
     const severity = searchParams.get("severity") || "";
     const deviceId = searchParams.get("deviceId") || "";
-    const limit = parseInt(searchParams.get("limit") || "50");
+    const search = searchParams.get("search") || "";
+    const limit = parseInt(searchParams.get("limit") || "10");
     const page = parseInt(searchParams.get("page") || "1");
 
     const filter = { userId };
     if (status) filter.status = status;
     if (severity) filter.severity = severity;
     if (deviceId) filter.deviceId = deviceId;
+    
+    if (search) {
+      filter.$or = [
+        { type: { $regex: search, $options: "i" } },
+        { status: { $regex: search, $options: "i" } },
+        { severity: { $regex: search, $options: "i" } },
+        { "details.key": { $regex: search, $options: "i" } },
+        { "details.threshold": { $regex: search, $options: "i" } }
+      ];
+    }
 
     const [data, total] = await Promise.all([
       Alarm.find(filter)

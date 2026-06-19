@@ -96,6 +96,25 @@ const DeviceSchema = new Schema(
       of: Schema.Types.Mixed,
       default: {},
     },
+
+    // Cihaz bazlı alarm kuralları (profil kurallarına ek olarak)
+    alarms: [
+      {
+        alarmType: { type: String, required: true },
+        severity: {
+          type: String,
+          enum: ["CRITICAL", "MAJOR", "MINOR", "WARNING"],
+          default: "MAJOR",
+        },
+        createCondition: { type: String, required: true },
+        clearCondition: { type: String, default: "" },
+        timeWindow: {
+          enabled: { type: Boolean, default: false },
+          durationSeconds: { type: Number, default: 300 },
+          triggerCount: { type: Number, default: 3 },
+        },
+      },
+    ],
   },
   {
     timestamps: true,

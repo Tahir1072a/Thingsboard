@@ -7,7 +7,7 @@
  * Salt-okunur (informational) tab.
  */
 
-import { Wifi, Globe, Radio, Tag, Shield, Server } from "lucide-react";
+import { Wifi, Globe, Radio, Tag, Shield, Server, Lock } from "lucide-react";
 
 // --- Transport tipi yapılandırmaları ---
 const TRANSPORT_CONFIG = {
@@ -21,7 +21,6 @@ const TRANSPORT_CONFIG = {
         title: "Bağlantı Portları",
         items: [
           { label: "TCP Port", value: "1883" },
-          { label: "TLS Port", value: "8883" },
         ],
       },
       {
@@ -39,6 +38,34 @@ const TRANSPORT_CONFIG = {
         title: "Kimlik Doğrulama",
         description:
           "Cihaz erişim anahtarı (Access Token) MQTT kullanıcı adı olarak kullanılır. Şifre alanı boş bırakılır.",
+      },
+    ],
+  },
+  MQTTS: {
+    label: "MQTTS (TLS)",
+    color: "from-indigo-500 to-indigo-700",
+    badgeClass: "bg-indigo-100 text-indigo-700 border-indigo-200",
+    icon: Lock,
+    info: [
+      {
+        title: "Bağlantı Portları",
+        items: [
+          { label: "TLS Port", value: "8883" },
+        ],
+      },
+      {
+        title: "Topic Formatı",
+        code: "v1/devices/me/telemetry",
+      },
+      {
+        title: "Şifreleme",
+        description:
+          "TLS 1.2+ ile şifreli bağlantı. X.509 sertifika veya Access Token ile kimlik doğrulama desteklenir.",
+      },
+      {
+        title: "Kimlik Doğrulama",
+        description:
+          "Access Token ile: kullanıcı adı olarak token kullanılır. X.509 ile: istemci sertifikası sunulur.",
       },
     ],
   },
@@ -70,27 +97,61 @@ const TRANSPORT_CONFIG = {
       },
     ],
   },
-  COAP: {
-    label: "CoAP",
-    color: "from-orange-500 to-orange-700",
-    badgeClass: "bg-orange-100 text-orange-700 border-orange-200",
+  WS: {
+    label: "WebSocket",
+    color: "from-purple-500 to-purple-700",
+    badgeClass: "bg-purple-100 text-purple-700 border-purple-200",
     icon: Radio,
     info: [
       {
-        title: "Telemetri Endpoint",
-        code: "coap://{host}/api/v1/{accessToken}/telemetry",
-      },
-      {
-        title: "Port Bilgisi",
+        title: "Bağlantı Bilgisi",
         items: [
-          { label: "UDP Port", value: "5683" },
-          { label: "DTLS Port", value: "5684" },
+          { label: "Port", value: "3001" },
+          { label: "Protokol", value: "ws://" },
         ],
       },
       {
-        title: "Durum",
+        title: "Bağlantı URL",
+        code: "ws://{host}:3001",
+      },
+      {
+        title: "Mesaj Formatı",
         description:
-          "CoAP desteği gelecek güncellemelerde tam olarak yapılandırılacaktır. Şu anda temel telemetri gönderimi desteklenmektedir.",
+          'JSON formatında: { "key": "temperature", "value": 25.4, "unit": "°C" }. Bağlantı sonrası ilk mesajda accessToken gönderilmelidir.',
+      },
+      {
+        title: "Kimlik Doğrulama",
+        description:
+          'Bağlantı sonrası ilk mesaj olarak { "type": "auth", "token": "{accessToken}" } gönderilir.',
+      },
+    ],
+  },
+  WSS: {
+    label: "WSS (Secure)",
+    color: "from-violet-500 to-violet-700",
+    badgeClass: "bg-violet-100 text-violet-700 border-violet-200",
+    icon: Lock,
+    info: [
+      {
+        title: "Bağlantı Bilgisi",
+        items: [
+          { label: "Port", value: "3002" },
+          { label: "Protokol", value: "wss://" },
+        ],
+      },
+      {
+        title: "Bağlantı URL",
+        code: "wss://{host}:3002",
+      },
+      {
+        title: "Şifreleme",
+        description:
+          "TLS ile şifreli WebSocket bağlantısı. Üretim ortamında önerilen protokoldür.",
+      },
+      {
+        title: "Kimlik Doğrulama",
+        description:
+          'Bağlantı sonrası ilk mesaj olarak { "type": "auth", "token": "{accessToken}" } gönderilir.',
       },
     ],
   },

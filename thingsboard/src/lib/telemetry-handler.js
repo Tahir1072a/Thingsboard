@@ -9,9 +9,8 @@
 import connectDB from "@/lib/db";
 import Device from "@/models/Device";
 import Telemetry from "@/models/Telemetry";
-import Alarm from "@/models/Alarm";
 import emitter from "@/lib/event-emitter";
-import { getCachedDevice, getCachedProfile } from "@/lib/cache";
+import { checkAlarms, updateTelemetryContext } from "@/lib/alarm-engine";
 
 /**
  * Access token ile cihazı doğrula.
@@ -34,111 +33,6 @@ export async function authenticateDevice(accessToken) {
   }
 
   return device;
-}
-
-/**
- * Basit karşılaştırma koşulunu değerlendir.
- * Güvenli: sadece sayısal karşılaştırmaları destekler (eval yok).
- *
- * Koşul formatı: "key > 50", "temperature <= 30"
- * Key parametresi koşuldaki key ile eşleşmelidir.
- */
-function evaluateCondition(condition, key, value) {
-  if (!condition) return false;
-
-  // "temperature > 50" → key, operatörü ve eşiği ayıkla
-  const match = condition.match(/^\s*(\w+)\s*(>=|<=|>|<|==|!=)\s*(-?\d+(?:\.\d+)?)\s*$/);
-  if (!match) return false;
-
-  const conditionKey = match[1];
-  const operator = match[2];
-  const threshold = parseFloat(match[3]);
-
-  // Koşuldaki key ile gelen telemetri key'i eşleşmiyorsa tetikleme
-  if (conditionKey !== key) return false;
-
-  switch (operator) {
-    case ">": return value > threshold;
-    case ">=": return value >= threshold;
-    case "<": return value < threshold;
-    case "<=": return value <= threshold;
-    case "==": return value === threshold;
-    case "!=": return value !== threshold;
-    default: return false;
-  }
-}
-
-/**
- * Telemetri verisi kaydedildikten sonra alarm kurallarını kontrol et.
- */
-async function checkAlarms(deviceId, key, value, userId) {
-  try {
-    // Cihazı bul → profilini al (Redis cache üzerinden)
-    const device = await getCachedDevice(deviceId);
-    if (!device || !device.profile || device.profile === "default") return;
-
-    // Profili bul (Redis cache üzerinden)
-    const profile = await getCachedProfile(device.profile);
-    if (!profile || !profile.alarms || profile.alarms.length === 0) return;
-
-    for (const rule of profile.alarms) {
-      // Tetikleme koşulunu kontrol et
-      const triggered = evaluateCondition(rule.createCondition, key, value);
-
-      if (triggered) {
-        // Bu cihaz + bu alarm tipi için aktif alarm var mı?
-        const existing = await Alarm.findOne({
-          deviceId,
-          type: rule.alarmType,
-          status: { $in: ["ACTIVE", "ACKNOWLEDGED"] },
-        });
-
-        if (!existing) {
-          // Yeni alarm oluştur (userId dahil)
-          const alarm = await Alarm.create({
-            userId: userId || device.userId,
-            deviceId,
-            deviceName: device.name,
-            profileId: profile._id,
-            type: rule.alarmType,
-            severity: rule.severity,
-            status: "ACTIVE",
-            details: {
-              key,
-              triggerValue: value,
-              threshold: rule.createCondition,
-            },
-          });
-
-          console.log(`🚨 ALARM: ${device.name} → ${rule.alarmType} (${rule.severity})`);
-          emitter.emit("alarm", alarm.toObject());
-        }
-      }
-
-      // Temizleme koşulunu kontrol et
-      if (rule.clearCondition) {
-        const shouldClear = evaluateCondition(rule.clearCondition, key, value);
-        if (shouldClear) {
-          const activeAlarm = await Alarm.findOne({
-            deviceId,
-            type: rule.alarmType,
-            status: { $in: ["ACTIVE", "ACKNOWLEDGED"] },
-          });
-
-          if (activeAlarm) {
-            activeAlarm.status = "CLEARED";
-            activeAlarm.clearedAt = new Date();
-            await activeAlarm.save();
-            console.log(`✅ ALARM TEMİZLENDİ: ${device.name} → ${rule.alarmType}`);
-            emitter.emit("alarm", activeAlarm.toObject());
-          }
-        }
-      }
-    }
-  } catch (err) {
-    // Alarm kontrolü telemetriyi engellemeyecek
-    console.error("[alarm-check] Hata:", err.message);
-  }
 }
 
 /**
@@ -194,6 +88,11 @@ export async function handleTelemetry(payload) {
 
   // SSE event'i yayınla (userId dahil)
   emitter.emit("telemetry", { ...lean, userId: String(userId) });
+
+  // Telemetri context cache güncelle (bileşik koşullar için)
+  updateTelemetryContext(deviceId, key, parsedValue);
+
+  // Alarm kurallarını kontrol et (merkezi motor)
   checkAlarms(deviceId, key, parsedValue, userId);
 
   return lean;
@@ -214,5 +113,3 @@ export function parseMqttTopic(topic) {
 
   return { deviceId: null, key: null };
 }
-
-

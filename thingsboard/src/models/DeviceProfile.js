@@ -16,10 +16,10 @@ const AlarmRuleSchema = new Schema(
     },
     severity: {
       type: String,
-      enum: ["CRITICAL", "MAJOR", "MINOR"],
+      enum: ["CRITICAL", "MAJOR", "MINOR", "WARNING"],
       default: "MAJOR",
     },
-    // Tetikleme koşulu (JS ifadesi): "temperature > 50"
+    // Tetikleme koşulu: "temperature > 50" veya "temperature > 50 AND humidity > 80"
     createCondition: {
       type: String,
       required: [true, "Tetikleme koşulu zorunludur."],
@@ -28,6 +28,12 @@ const AlarmRuleSchema = new Schema(
     clearCondition: {
       type: String,
       default: "",
+    },
+    // Zaman penceresi: "Son X saniyede N kez tetiklenirse"
+    timeWindow: {
+      enabled: { type: Boolean, default: false },
+      durationSeconds: { type: Number, default: 300 },  // 5 dakika
+      triggerCount: { type: Number, default: 3 },
     },
   },
   { _id: false }
@@ -57,13 +63,13 @@ const DeviceProfileSchema = new Schema(
 
     transportType: {
       type: String,
-      enum: ["MQTT", "HTTP", "COAP"],
+      enum: ["MQTT", "MQTTS", "HTTP", "WS", "WSS"],
       default: "MQTT",
     },
 
     expectedKeys: {
       type: [String],
-      default: ["temperature", "humidity"]
+      default: [],
     },
 
     isDefault: {

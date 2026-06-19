@@ -9,6 +9,10 @@ import {
   Square,
   MoreVertical,
   ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,7 +33,7 @@ import {
   DropdownMenuPortal,
   DropdownMenuTrigger,
 } from "@radix-ui/react-dropdown-menu";
-import { cn } from "@/lib/utils";
+import { cn, spanClasses } from "@/lib/utils";
 
 // Cihaz ekleme, arama ve filtreleme olayları dinamik bir yapı olacak şekilde bu componente yazılmalıdır.
 // Component tüm table'ların headerı olarak kullanılacaktır.
@@ -135,14 +139,24 @@ export function TableHeaderSheet({
     }
   }, [isSearchOpen]);
 
+  const onSearchRef = useRef(onSearch);
+  useEffect(() => {
+    onSearchRef.current = onSearch;
+  }, [onSearch]);
+
+  const prevSearchRef = useRef(searchValue);
+
   // Debounced search
   useEffect(() => {
-    if (!onSearch) return;
+    if (!onSearchRef.current) return;
+    if (prevSearchRef.current === searchValue) return;
+
     const timer = setTimeout(() => {
-      onSearch(searchValue);
+      prevSearchRef.current = searchValue;
+      onSearchRef.current(searchValue);
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchValue, onSearch]);
+  }, [searchValue]);
 
   const handleSearchClose = () => {
     setIsSearchOpen(false);
@@ -589,7 +603,7 @@ export function TableContent({
       : allColumns;
 
   return (
-    <div className="glass overflow-hidden">
+    <div className="glass overflow-hidden flex flex-col flex-1 min-h-0">
       {selectedIds.length > 0 && bulkActions ? (
         <div className="p-6 border-b border-white/20 bg-halo-50/10 transition-colors">
           <div className="flex items-center justify-between">
@@ -641,7 +655,7 @@ export function TableContent({
 
       <CustomTableHeader columns={finalColumns} gridClassName={gridClassName} />
 
-      <div className="divide-y divide-white/10">
+      <div className="divide-y divide-white/10 overflow-y-auto flex-1 min-h-0">
         {data?.length === 0 ? (
           <div className="p-12 text-center text-text-muted">
             {emptyState || "Veri bulunamadı"}
@@ -664,12 +678,15 @@ export function TableContent({
                 {finalColumns.map((col) => (
                   <div
                     key={col.id}
-                    className={`col-span-${col.span} flex items-center ${col.align === "center"
+                    className={cn(
+                      spanClasses[col.span] || "col-span-1",
+                      "flex items-center min-w-0",
+                      col.align === "center"
                         ? "justify-center"
                         : col.align === "right"
                           ? "justify-end"
                           : ""
-                      }`}
+                    )}
                   >
                     {col.cellRender(row, index)}
                   </div>
@@ -688,47 +705,107 @@ export function TableContent({
           </div>
 
           <div className="flex gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="glass-hover border-white/60"
-              disabled={pagination.currentPage === 1}
-              onClick={() =>
-                pagination.onPageChange(pagination.currentPage - 1)
-              }
-            >
-              Önceki
-            </Button>
+            {(() => {
+              const total = pagination.totalPages || 1;
+              const current = pagination.currentPage || 1;
 
-            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map(
-              (page) => (
-                <Button
-                  key={page}
-                  variant="outline"
-                  size="sm"
-                  className={
-                    page === pagination.currentPage
-                      ? "glass-hover border-white/60 bg-gradient-to-r from-halo-600 to-halo-700 text-white border-transparent"
-                      : "glass-hover border-white/60"
-                  }
-                  onClick={() => pagination.onPageChange(page)}
-                >
-                  {page}
-                </Button>
-              )
-            )}
+              const getVisiblePages = () => {
+                if (total <= 7) {
+                  return Array.from({ length: total }, (_, i) => i + 1);
+                }
+                
+                if (current <= 4) {
+                  return [1, 2, 3, 4, 5, '...', total];
+                }
+                
+                if (current >= total - 3) {
+                  return [1, '...', total - 4, total - 3, total - 2, total - 1, total];
+                }
+                
+                return [1, '...', current - 1, current, current + 1, '...', total];
+              };
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="glass-hover border-white/60"
-              disabled={pagination.currentPage === pagination.totalPages}
-              onClick={() =>
-                pagination.onPageChange(pagination.currentPage + 1)
-              }
-            >
-              Sonraki
-            </Button>
+              const visiblePages = getVisiblePages();
+
+              return (
+                <>
+                  {/* İlk Sayfa */}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="glass-hover border-white/60 w-8 h-8 rounded-md"
+                    disabled={current === 1}
+                    onClick={() => pagination.onPageChange(1)}
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
+
+                  {/* Önceki Sayfa */}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="glass-hover border-white/60 w-8 h-8 rounded-md"
+                    disabled={current === 1}
+                    onClick={() => pagination.onPageChange(current - 1)}
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  {/* Sayfa Numaraları */}
+                  {visiblePages.map((page, idx) => (
+                    page === '...' ? (
+                      <div key={`ellipsis-${idx}`} className="flex items-center justify-center w-8 h-8 text-text-muted">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </div>
+                    ) : (
+                      <Button
+                        key={page}
+                        variant="outline"
+                        size="icon"
+                        className={
+                          page === current
+                            ? "glass-hover border-white/60 bg-gradient-to-r from-halo-600 to-halo-700 text-white border-transparent w-8 h-8 rounded-md font-medium"
+                            : "glass-hover border-white/60 w-8 h-8 rounded-md font-medium"
+                        }
+                        onClick={() => pagination.onPageChange(page)}
+                      >
+                        {page}
+                      </Button>
+                    )
+                  ))}
+
+                  {/* Sonraki Sayfa */}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className={
+                      current === total
+                        ? "glass-hover border-white/60 w-8 h-8 rounded-md"
+                        : "glass-hover border-white/60 bg-gradient-to-r from-halo-600 to-halo-700 text-white border-transparent w-8 h-8 rounded-md"
+                    }
+                    disabled={current === total}
+                    onClick={() => pagination.onPageChange(current + 1)}
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+
+                  {/* Son Sayfa */}
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className={
+                      current === total
+                        ? "glass-hover border-white/60 w-8 h-8 rounded-md"
+                        : "glass-hover border-white/60 bg-gradient-to-r from-halo-600 to-halo-700 text-white border-transparent w-8 h-8 rounded-md"
+                    }
+                    disabled={current === total}
+                    onClick={() => pagination.onPageChange(total)}
+                  >
+                    <ChevronsRight className="h-4 w-4" />
+                  </Button>
+                </>
+              );
+            })()}
           </div>
         </div>
       )}

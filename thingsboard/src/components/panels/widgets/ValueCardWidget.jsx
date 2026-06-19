@@ -97,8 +97,7 @@ export default function ValueCardWidget({
         {deviceName}
       </div>
 
-      <div className="flex items-center justify-between shrink-0 mt-3">
-        <h3 className="text-sm font-medium text-slate-500 truncate">{title}</h3>
+      <div className="flex items-center justify-end shrink-0 mt-3">
         <div className={`px-2 py-1 rounded-full flex items-center gap-1 ${trendBg} ${trendColor} bg-opacity-50 backdrop-blur-sm border border-white/20`}>
           <TrendIcon className="h-3 w-3" />
           <span className="text-[10px] font-bold uppercase tracking-wider">{trend}</span>

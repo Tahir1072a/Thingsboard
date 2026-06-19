@@ -137,8 +137,7 @@ export default function LineChartWidget({
 
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-2 shrink-0 px-1">
-        <h3 className="text-sm font-medium text-slate-500 truncate">{title}</h3>
+      <div className="flex items-center justify-end mb-2 shrink-0 px-1">
         <span className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${connected ? "text-green-500" : "text-gray-400"}`}>
           <span className={`h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.2)] ${connected ? "bg-green-400 shadow-green-400/50 animate-pulse" : "bg-red-400 shadow-red-400/50"}`} />
           {connected ? "LIVE" : "WAIT"}

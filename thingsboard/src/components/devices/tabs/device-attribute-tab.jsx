@@ -3,7 +3,8 @@ import {
   TableHeaderSheet,
 } from "@/components/common/table/table-header";
 import { Copy, Edit, Plus, RotateCw, Search, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import Fuse from "fuse.js";
 
 const SCOPE_CONFIG = {
   SERVER_SCOPE: {
@@ -149,17 +150,31 @@ const columns = [
 export function DeviceAttributeTab() {
   const [scope, setScope] = useState("SERVER_SCOPE");
   const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
   const currentConfig = SCOPE_CONFIG[scope];
 
-  const filteredData = MOCK_ATTRIBUTES[scope].filter(
-    (attr) =>
-      attr.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      attr.value.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredData = useMemo(() => {
+    const rawData = MOCK_ATTRIBUTES[scope] || [];
+    if (!searchQuery) return rawData;
+    const fuse = new Fuse(rawData, {
+      keys: ["key", "value"],
+      threshold: 0.3,
+    });
+    return fuse.search(searchQuery).map((res) => res.item);
+  }, [scope, searchQuery]);
+
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(start, start + itemsPerPage);
+  }, [filteredData, currentPage]);
 
   const handleAdd = () => console.log("Add clicked");
   const handleRefresh = () => console.log("Refresh clicked");
-  const handleSearch = (value) => setSearchQuery(value);
+  const handleSearch = (value) => {
+    setSearchQuery(value || "");
+    setCurrentPage(1);
+  };
   const handleEdit = (row) => console.log("Edit:", row);
   const handleDelete = (row) => console.log("Delete:", row);
   const handleRowClick = (row) => console.log("Row clicked:", row);
@@ -214,13 +229,19 @@ export function DeviceAttributeTab() {
       />
 
       <TableContent
-        data={filteredData}
+        data={paginatedData}
         columns={columns}
         title={`${filteredData.length} öznitelik`}
         onRowClick={handleRowClick}
         rowActions={rowActions}
         bulkActions={[]}
         gridClassName="grid-cols-12"
+        pagination={{
+          currentPage,
+          totalPages: Math.ceil(filteredData.length / itemsPerPage) || 1,
+          itemsPerPage,
+          onPageChange: setCurrentPage,
+        }}
         emptyState={
           searchQuery
             ? `"${searchQuery}" için sonuç bulunamadı`

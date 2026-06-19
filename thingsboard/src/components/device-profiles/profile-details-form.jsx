@@ -42,8 +42,10 @@ const labelStyle = FORM_STYLES.variants.label;
 // --- Transport tipi renkleri ---
 const TRANSPORT_COLORS = {
   MQTT: "bg-blue-100 text-blue-700 border-blue-200",
+  MQTTS: "bg-indigo-100 text-indigo-700 border-indigo-200",
   HTTP: "bg-green-100 text-green-700 border-green-200",
-  COAP: "bg-orange-100 text-orange-700 border-orange-200",
+  WS: "bg-purple-100 text-purple-700 border-purple-200",
+  WSS: "bg-violet-100 text-violet-700 border-violet-200",
   DEFAULT: "bg-gray-100 text-gray-600 border-gray-200",
 };
 
@@ -340,8 +342,10 @@ export function ProfileEditForm({ data, onSave }) {
             className={editableInputStyle}
           >
             <option value="MQTT">MQTT</option>
+            <option value="MQTTS">MQTTS (TLS)</option>
             <option value="HTTP">HTTP</option>
-            <option value="COAP">CoAP</option>
+            <option value="WS">WebSocket</option>
+            <option value="WSS">WSS (Secure)</option>
           </select>
         </div>
 

@@ -96,7 +96,7 @@ export default function DeviceProfileDetailSheet({
         id: "alarm-rules",
         label: "Alarm Kuralları",
         icon: AlertTriangle,
-        content: <ProfileAlarmRulesTab profile={profile} />,
+        content: <ProfileAlarmRulesTab profile={profile} onProfileUpdated={onProfileUpdated} />,
       },
       {
         id: "audit-logs",

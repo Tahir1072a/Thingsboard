@@ -37,7 +37,7 @@ import {
 
 const alarmSchema = z.object({
   alarmType: z.string().min(1, "Alarm tipi giriniz (örn: High Temp)"),
-  severity: z.enum(["CRITICAL", "MAJOR", "MINOR"]),
+  severity: z.enum(["CRITICAL", "MAJOR", "MINOR", "WARNING"]),
   createRules: z.object({
     condition: z
       .string()
@@ -51,7 +51,7 @@ const alarmSchema = z.object({
 const profileSchema = z.object({
   name: z.string().min(2, "Profil adı gereklidir."),
   description: z.string().optional(),
-  transportType: z.enum(["MQTT", "HTTP", "COAP"]),
+  transportType: z.enum(["MQTT", "MQTTS", "HTTP", "WS", "WSS"]),
   isDefault: z.boolean().default(false),
   // Alarm Kuralları Dizisi
   alarms: z.array(alarmSchema).optional(),
@@ -233,16 +233,28 @@ export default function AddDevicePorfileModal({ open, onOpenChange }) {
                               MQTT
                             </SelectItem>
                             <SelectItem
+                              value="MQTTS"
+                              className="py-3 cursor-pointer focus:bg-halo-50 focus:text-halo-700"
+                            >
+                              MQTTS (TLS)
+                            </SelectItem>
+                            <SelectItem
                               value="HTTP"
                               className="py-3 cursor-pointer focus:bg-halo-50 focus:text-halo-700"
                             >
                               HTTP
                             </SelectItem>
                             <SelectItem
-                              value="COAP"
+                              value="WS"
                               className="py-3 cursor-pointer focus:bg-halo-50 focus:text-halo-700"
                             >
-                              COAP
+                              WebSocket
+                            </SelectItem>
+                            <SelectItem
+                              value="WSS"
+                              className="py-3 cursor-pointer focus:bg-halo-50 focus:text-halo-700"
+                            >
+                              WSS (Secure)
                             </SelectItem>
                           </SelectContent>
                         </Select>
@@ -380,6 +392,12 @@ export default function AddDevicePorfileModal({ open, onOpenChange }) {
                                     className="text-yellow-500 cursor-pointer"
                                   >
                                     MINOR
+                                  </SelectItem>
+                                  <SelectItem
+                                    value="WARNING"
+                                    className="text-amber-500 cursor-pointer"
+                                  >
+                                    WARNING
                                   </SelectItem>
                                 </SelectContent>
                               </Select>

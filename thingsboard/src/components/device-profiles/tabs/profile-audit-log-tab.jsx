@@ -48,24 +48,34 @@ function getRelativeTime(dateStr) {
 export function ProfileAuditLogTab({ profileId }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchLogs = useCallback(async () => {
     if (!profileId) return;
     try {
       setLoading(true);
-      const res = await fetch(
-        `/api/audit-log?entityId=${profileId}&entityType=DEVICE_PROFILE&limit=20`
-      );
+      const url = new URL("/api/audit-log", window.location.origin);
+      url.searchParams.set("entityId", profileId);
+      url.searchParams.set("entityType", "DEVICE_PROFILE");
+      url.searchParams.set("limit", itemsPerPage);
+      url.searchParams.set("page", currentPage);
+      if (searchQuery) url.searchParams.set("search", searchQuery);
+
+      const res = await fetch(url);
       const data = await res.json();
       if (data.ok) {
         setLogs(data.data || []);
+        setTotalPages(data.pagination?.totalPages || 1);
       }
     } catch {
       console.error("Audit log çekilemedi");
     } finally {
       setLoading(false);
     }
-  }, [profileId]);
+  }, [profileId, currentPage, searchQuery]);
 
   useEffect(() => {
     fetchLogs();
@@ -77,16 +87,15 @@ export function ProfileAuditLogTab({ profileId }) {
     es.addEventListener("audit-log", (e) => {
       try {
         const log = JSON.parse(e.data);
-        if (
-          log.entityId === profileId &&
-          log.entityType === "DEVICE_PROFILE"
-        ) {
-          setLogs((prev) => [log, ...prev.slice(0, 19)]);
+        if (log.entityId === profileId && log.entityType === "DEVICE_PROFILE") {
+          if (currentPage === 1) {
+            setLogs((prev) => [log, ...prev.slice(0, itemsPerPage - 1)]);
+          }
         }
       } catch {}
     });
     return () => es.close();
-  }, [profileId]);
+  }, [profileId, currentPage, itemsPerPage]);
 
   const columns = [
     {
@@ -155,7 +164,7 @@ export function ProfileAuditLogTab({ profileId }) {
   return (
     <div className="flex flex-col h-full">
       <TableHeaderSheet
-        title="Denetim Günlükleri"
+        title="Profil Denetim Günlükleri"
         actions={[
           {
             icon: <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />,
@@ -163,6 +172,7 @@ export function ProfileAuditLogTab({ profileId }) {
             tooltip: "Yenile",
           }
         ]}
+        onSearch={(val) => { setSearchQuery(val || ""); setCurrentPage(1); }}
       />
       <TableContent
         data={logs}
@@ -170,7 +180,17 @@ export function ProfileAuditLogTab({ profileId }) {
         title={`${logs.length} işlem kaydı`}
         rowActions={rowActions}
         gridClassName="grid-cols-12"
-        emptyState="Bu profil için denetim kaydı bulunmuyor."
+        pagination={{
+          currentPage,
+          totalPages,
+          itemsPerPage,
+          onPageChange: setCurrentPage,
+        }}
+        emptyState={
+          searchQuery
+            ? `"${searchQuery}" için sonuç bulunamadı`
+            : "Bu profil için denetim kaydı bulunmuyor."
+        }
         getRowId={(row) => row._id || row.id || Math.random().toString()}
         rowClassName={(row) => row.status === "FAILURE" ? "bg-orange-50/10" : ""}
       />

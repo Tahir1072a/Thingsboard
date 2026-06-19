@@ -88,8 +88,7 @@ export default function GaugeWidget({
       </div>
 
       {/* Başlık ve Durum */}
-      <div className="flex items-center justify-between w-full mb-2 shrink-0 px-2 mt-4">
-        <h3 className="text-sm font-medium text-slate-500 truncate">{title}</h3>
+      <div className="flex items-center justify-end w-full mb-2 shrink-0 px-2 mt-4">
         <span className={`h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.2)] ${connected ? "bg-green-400 shadow-green-400/50" : "bg-red-400 shadow-red-400/50"}`} />
       </div>
 

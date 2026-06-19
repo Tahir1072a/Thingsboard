@@ -331,24 +331,144 @@ async function checkTransportMismatch(deviceId, protocol, userId) {
 }
 
 // ------------------------------------------------------------------ //
-// Alarm kontrolü — cache üzerinden profil kurallarını değerlendirir
+// Alarm kontrolü — Seviye 2: AND/OR, string, timeWindow, cihaz kuralları
 // ------------------------------------------------------------------ //
+
+/**
+ * Tekli koşul değerlendir: "key operator threshold"
+ */
+function evaluateSingle(expr, key, value, context) {
+  if (!expr) return false;
+  const match = expr.match(/^\s*(\w+)\s*(>=|<=|>|<|==|!=)\s*(.+?)\s*$/);
+  if (!match) return false;
+  const [, conditionKey, operator, thresholdRaw] = match;
+
+  let actualValue;
+  if (conditionKey === key) {
+    actualValue = value;
+  } else if (context[conditionKey] !== undefined) {
+    actualValue = context[conditionKey];
+  } else {
+    return false;
+  }
+
+  const thresholdNum = parseFloat(thresholdRaw);
+  const isNumeric = !isNaN(thresholdNum) && typeof actualValue === "number";
+
+  if (isNumeric) {
+    switch (operator) {
+      case ">":  return actualValue > thresholdNum;
+      case ">=": return actualValue >= thresholdNum;
+      case "<":  return actualValue < thresholdNum;
+      case "<=": return actualValue <= thresholdNum;
+      case "==": return actualValue === thresholdNum;
+      case "!=": return actualValue !== thresholdNum;
+      default:   return false;
+    }
+  } else {
+    const strValue = String(actualValue);
+    const strThreshold = thresholdRaw.replace(/^["']|["']$/g, "");
+    switch (operator) {
+      case "==": return strValue === strThreshold;
+      case "!=": return strValue !== strThreshold;
+      default:   return false;
+    }
+  }
+}
+
+/**
+ * Bileşik koşul değerlendirici (AND/OR destekli)
+ */
+function evaluateCondition(condition, key, value, context = {}) {
+  if (!condition) return false;
+  if (condition.includes(" AND ")) {
+    return condition.split(" AND ").every((p) => evaluateCondition(p.trim(), key, value, context));
+  }
+  if (condition.includes(" OR ")) {
+    return condition.split(" OR ").some((p) => evaluateCondition(p.trim(), key, value, context));
+  }
+  return evaluateSingle(condition, key, value, context);
+}
+
+/**
+ * Redis sorted set ile sliding window kontrolü
+ */
+async function checkTimeWindow(deviceId, alarmType, windowConfig) {
+  const { durationSeconds, triggerCount } = windowConfig;
+  const redisKey = `alarm-window:${deviceId}:${alarmType}`;
+  const now = Date.now();
+  try {
+    await redis.zremrangebyscore(redisKey, 0, now - durationSeconds * 1000);
+    await redis.zadd(redisKey, now, `${now}`);
+    await redis.expire(redisKey, durationSeconds + 60);
+    const count = await redis.zcard(redisKey);
+    return count >= triggerCount;
+  } catch {
+    return true;
+  }
+}
+
+/**
+ * Telemetri context cache güncelle
+ */
+async function updateTelemetryCtx(deviceId, key, value) {
+  try {
+    await redis.hset(`telemetry-ctx:${deviceId}`, key, JSON.stringify(value));
+    await redis.expire(`telemetry-ctx:${deviceId}`, 3600);
+  } catch {}
+}
+
+/**
+ * Telemetri context cache oku
+ */
+async function getTelemetryCtx(deviceId) {
+  try {
+    const raw = await redis.hgetall(`telemetry-ctx:${deviceId}`);
+    const ctx = {};
+    for (const [k, v] of Object.entries(raw || {})) {
+      try { ctx[k] = JSON.parse(v); } catch { ctx[k] = v; }
+    }
+    return ctx;
+  } catch {
+    return {};
+  }
+}
+
 async function checkAlarms(deviceId, key, value, userId) {
   try {
     const device = await getCachedDevice(deviceId);
-    if (!device || !device.profile || device.profile === "default") return;
+    if (!device) return;
 
-    const profile = await getCachedProfile(device.profile);
-    if (!profile || !profile.alarms || profile.alarms.length === 0) return;
+    // Context cache güncelle
+    await updateTelemetryCtx(deviceId, key, value);
+    const context = await getTelemetryCtx(deviceId);
 
-    for (const rule of profile.alarms) {
-      const triggered = evaluateCondition(rule.createCondition, key, value);
+    // Profil alarm kuralları
+    let profileRules = [];
+    if (device.profile && device.profile !== "default") {
+      const profile = await getCachedProfile(device.profile);
+      if (profile?.alarms?.length) {
+        profileRules = profile.alarms.map((r) => ({ ...r, _source: "PROFILE", _profileId: profile._id }));
+      }
+    }
+
+    // Cihaz bazlı alarm kuralları
+    const deviceRules = (device.alarms || []).map((r) => ({ ...r, _source: "DEVICE" }));
+
+    const allRules = [...profileRules, ...deviceRules];
+    if (allRules.length === 0) return;
+
+    for (const rule of allRules) {
+      const triggered = evaluateCondition(rule.createCondition, key, value, context);
 
       if (triggered) {
+        if (rule.timeWindow?.enabled) {
+          const windowMet = await checkTimeWindow(deviceId, rule.alarmType, rule.timeWindow);
+          if (!windowMet) continue;
+        }
+
         const existing = await Alarm.findOne({
-          deviceId,
-          type: rule.alarmType,
-          status: { $in: ["ACTIVE", "ACKNOWLEDGED"] },
+          deviceId, type: rule.alarmType, status: { $in: ["ACTIVE", "ACKNOWLEDGED"] },
         });
 
         if (!existing) {
@@ -356,19 +476,20 @@ async function checkAlarms(deviceId, key, value, userId) {
             userId: userId || device.userId,
             deviceId,
             deviceName: device.name,
-            profileId: profile._id,
+            profileId: rule._source === "PROFILE" ? rule._profileId : undefined,
             type: rule.alarmType,
             severity: rule.severity,
             status: "ACTIVE",
+            source: rule._source,
             details: { key, triggerValue: value, threshold: rule.createCondition },
           });
-          logger.info({ device: device.name, type: rule.alarmType, severity: rule.severity }, "ALARM tetiklendi");
+          logger.info({ device: device.name, type: rule.alarmType, severity: rule.severity, source: rule._source }, "ALARM tetiklendi");
           emitter.emit("alarm", alarm.toObject());
         }
       }
 
       if (rule.clearCondition) {
-        const shouldClear = evaluateCondition(rule.clearCondition, key, value);
+        const shouldClear = evaluateCondition(rule.clearCondition, key, value, context);
         if (shouldClear) {
           const activeAlarm = await Alarm.findOne({
             deviceId, type: rule.alarmType, status: { $in: ["ACTIVE", "ACKNOWLEDGED"] },
@@ -385,27 +506,6 @@ async function checkAlarms(deviceId, key, value, userId) {
     }
   } catch (err) {
     logger.error({ err }, "Alarm kontrolü sırasında hata");
-  }
-}
-
-/**
- * Koşul değerlendirici — güvenli regex tabanlı (eval yok)
- */
-function evaluateCondition(condition, key, value) {
-  if (!condition) return false;
-  const match = condition.match(/^\s*(\w+)\s*(>=|<=|>|<|==|!=)\s*(-?\d+(?:\.\d+)?)\s*$/);
-  if (!match) return false;
-  const [, conditionKey, operator, thresholdStr] = match;
-  if (conditionKey !== key) return false;
-  const threshold = parseFloat(thresholdStr);
-  switch (operator) {
-    case ">": return value > threshold;
-    case ">=": return value >= threshold;
-    case "<": return value < threshold;
-    case "<=": return value <= threshold;
-    case "==": return value === threshold;
-    case "!=": return value !== threshold;
-    default: return false;
   }
 }
 

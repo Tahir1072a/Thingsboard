@@ -54,24 +54,34 @@ function getRelativeTime(dateStr) {
 export function DeviceAuditLogTab({ deviceId }) {
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchLogs = useCallback(async () => {
     if (!deviceId) return;
     try {
       setLoading(true);
-      const res = await fetch(
-        `/api/audit-log?entityId=${deviceId}&entityType=DEVICE&limit=20`
-      );
+      const url = new URL("/api/audit-log", window.location.origin);
+      url.searchParams.set("entityId", deviceId);
+      url.searchParams.set("entityType", "DEVICE");
+      url.searchParams.set("limit", itemsPerPage);
+      url.searchParams.set("page", currentPage);
+      if (searchQuery) url.searchParams.set("search", searchQuery);
+
+      const res = await fetch(url);
       const data = await res.json();
       if (data.ok) {
         setLogs(data.data || []);
+        setTotalPages(data.pagination?.totalPages || 1);
       }
     } catch {
       console.error("Audit log çekilemedi");
     } finally {
       setLoading(false);
     }
-  }, [deviceId]);
+  }, [deviceId, currentPage, searchQuery]);
 
   useEffect(() => {
     fetchLogs();
@@ -84,12 +94,14 @@ export function DeviceAuditLogTab({ deviceId }) {
       try {
         const log = JSON.parse(e.data);
         if (log.entityId === deviceId && log.entityType === "DEVICE") {
-          setLogs((prev) => [log, ...prev.slice(0, 19)]);
+          if (currentPage === 1) {
+            setLogs((prev) => [log, ...prev.slice(0, itemsPerPage - 1)]);
+          }
         }
       } catch { }
     });
     return () => es.close();
-  }, [deviceId]);
+  }, [deviceId, currentPage, itemsPerPage]);
 
   const columns = [
     {
@@ -171,6 +183,7 @@ export function DeviceAuditLogTab({ deviceId }) {
             tooltip: "Yenile",
           }
         ]}
+        onSearch={(val) => { setSearchQuery(val || ""); setCurrentPage(1); }}
       />
       <TableContent
         data={logs}
@@ -178,7 +191,17 @@ export function DeviceAuditLogTab({ deviceId }) {
         title={`${logs.length} işlem kaydı`}
         rowActions={rowActions}
         gridClassName="grid-cols-12"
-        emptyState="Bu cihaz için denetim kaydı bulunmuyor."
+        pagination={{
+          currentPage,
+          totalPages,
+          itemsPerPage,
+          onPageChange: setCurrentPage,
+        }}
+        emptyState={
+          searchQuery
+            ? `"${searchQuery}" için sonuç bulunamadı`
+            : "Bu cihaz için denetim kaydı bulunmuyor."
+        }
         getRowId={(row) => row._id || row.id || Math.random().toString()}
         rowClassName={(row) => row.action === "SECURITY_ALERT" ? "bg-red-50/10" : row.status === "FAILURE" ? "bg-orange-50/10" : ""}
       />

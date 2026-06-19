@@ -23,7 +23,8 @@ import {
   Braces,
   Clock,
 } from "lucide-react";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import Fuse from "fuse.js";
 import { Badge } from "@/components/ui/badge";
 
 // Veri tipi ikonu
@@ -136,6 +137,8 @@ export function DeviceTelemetryTab({ deviceId }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [telemetryData, setTelemetryData] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchTelemetry = useCallback(async () => {
     if (!deviceId) return;
@@ -205,13 +208,24 @@ export function DeviceTelemetryTab({ deviceId }) {
     return () => es.close();
   }, [deviceId]);
 
-  const filteredData = telemetryData.filter(
-    (item) =>
-      item.key.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      String(item.value).toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredData = useMemo(() => {
+    if (!searchQuery) return telemetryData;
+    const fuse = new Fuse(telemetryData, {
+      keys: ["key", "value"],
+      threshold: 0.3,
+    });
+    return fuse.search(searchQuery).map((res) => res.item);
+  }, [telemetryData, searchQuery]);
 
-  const handleSearch = (value) => setSearchQuery(value);
+  const paginatedData = useMemo(() => {
+    const start = (currentPage - 1) * itemsPerPage;
+    return filteredData.slice(start, start + itemsPerPage);
+  }, [filteredData, currentPage]);
+
+  const handleSearch = (value) => {
+    setSearchQuery(value || "");
+    setCurrentPage(1);
+  };
   const handleViewChart = (row) => console.log("View chart:", row.key);
   const handleDelete = (row) => console.log("Delete telemetry:", row.key);
   const handleRowClick = (row) => console.log("Row clicked:", row);
@@ -273,13 +287,19 @@ export function DeviceTelemetryTab({ deviceId }) {
       />
 
       <TableContent
-        data={filteredData}
+        data={paginatedData}
         columns={columns}
         title={`${filteredData.length} benzersiz telemetri anahtarı`}
         onRowClick={handleRowClick}
         rowActions={rowActions}
         bulkActions={bulkActions}
         gridClassName="grid-cols-12"
+        pagination={{
+          currentPage,
+          totalPages: Math.ceil(filteredData.length / itemsPerPage) || 1,
+          itemsPerPage,
+          onPageChange: setCurrentPage,
+        }}
         emptyState={
           searchQuery
             ? `"${searchQuery}" için sonuç bulunamadı`

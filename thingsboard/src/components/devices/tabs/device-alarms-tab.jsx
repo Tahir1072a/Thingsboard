@@ -18,6 +18,7 @@ import {
   BellOff,
   ShieldAlert,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { TableContent, TableHeaderSheet } from "@/components/common/table/table-header";
 
 const SEVERITY_CONFIG = {
@@ -61,22 +62,33 @@ function getRelativeTime(dateStr) {
 export function DeviceAlarmsTab({ deviceId }) {
   const [alarms, setAlarms] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const itemsPerPage = 10;
 
   const fetchAlarms = useCallback(async () => {
     if (!deviceId) return;
     try {
       setLoading(true);
-      const res = await fetch(`/api/alarm?deviceId=${deviceId}&limit=20`);
+      const url = new URL("/api/alarm", window.location.origin);
+      url.searchParams.set("deviceId", deviceId);
+      url.searchParams.set("limit", itemsPerPage);
+      url.searchParams.set("page", currentPage);
+      if (searchQuery) url.searchParams.set("search", searchQuery);
+
+      const res = await fetch(url);
       const data = await res.json();
       if (data.ok) {
         setAlarms(data.data || []);
+        setTotalPages(data.pagination?.totalPages || 1);
       }
     } catch {
       console.error("Alarmlar çekilemedi");
     } finally {
       setLoading(false);
     }
-  }, [deviceId]);
+  }, [deviceId, currentPage, searchQuery]);
 
   useEffect(() => {
     fetchAlarms();
@@ -96,7 +108,10 @@ export function DeviceAlarmsTab({ deviceId }) {
               updated[idx] = alarm;
               return updated;
             }
-            return [alarm, ...prev.slice(0, 19)];
+            if (currentPage === 1) {
+              return [alarm, ...prev.slice(0, itemsPerPage - 1)];
+            }
+            return prev;
           });
         }
       } catch {}
@@ -243,6 +258,7 @@ export function DeviceAlarmsTab({ deviceId }) {
             tooltip: "Yenile",
           }
         ]}
+        onSearch={(val) => { setSearchQuery(val || ""); setCurrentPage(1); }}
       />
       <TableContent
         data={alarms}
@@ -251,7 +267,17 @@ export function DeviceAlarmsTab({ deviceId }) {
         rowActions={rowActions}
         bulkActions={bulkActions}
         gridClassName="grid-cols-12"
-        emptyState="Bu cihaz için alarm kaydı bulunmuyor."
+        pagination={{
+          currentPage,
+          totalPages,
+          itemsPerPage,
+          onPageChange: setCurrentPage,
+        }}
+        emptyState={
+          searchQuery
+            ? `"${searchQuery}" için sonuç bulunamadı`
+            : "Bu cihaz için alarm kaydı bulunmuyor."
+        }
         getRowId={(row) => row._id}
         rowClassName={(row) => row.status === "ACTIVE" ? (row.severity === "CRITICAL" ? "bg-red-50/10" : row.severity === "MAJOR" ? "bg-orange-50/10" : "bg-yellow-50/10") : ""}
       />
