@@ -1,10 +1,11 @@
 /**
- * rbac.js — Rol Tabanlı Erişim Kontrolü (RBAC)
+ * rbac.js — Rol Tabanlı Erişim Kontrolü (RBAC) — Multi-Tenant
  *
  * Roller:
- * - ADMIN:    Tam yetki (kullanıcı yönetimi dahil)
- * - OPERATOR: Cihaz/profil/dashboard/alarm CRUD
- * - VIEWER:   Sadece okuma
+ * - SYSTEM_ADMIN: Platform yöneticisi (tenantId: null), tüm tenant'lara erişim
+ * - TENANT_ADMIN: Tenant yöneticisi (kullanıcı yönetimi dahil)
+ * - OPERATOR:     Cihaz/profil/dashboard/alarm CRUD
+ * - VIEWER:       Sadece okuma
  */
 
 import { getServerSession } from "next-auth";
@@ -12,41 +13,43 @@ import { authOptions } from "@/lib/auth";
 import { NextResponse } from "next/server";
 
 // Rol hiyerarşisi (yetki seviyesi)
-const ROLE_LEVEL = { ADMIN: 3, OPERATOR: 2, VIEWER: 1 };
+const ROLE_LEVEL = { SYSTEM_ADMIN: 4, TENANT_ADMIN: 3, OPERATOR: 2, VIEWER: 1 };
 
 // Rol etiketleri (Türkçe)
 export const ROLE_LABELS = {
-  ADMIN: "Yönetici",
+  SYSTEM_ADMIN: "Sistem Yöneticisi",
+  TENANT_ADMIN: "Yönetici",
   OPERATOR: "Operatör",
   VIEWER: "İzleyici",
 };
 
 /**
- * Oturum bilgilerini al (userId + role).
- * Session yoksa { userId: null, role: null } döner.
+ * Oturum bilgilerini al (userId + role + tenantId).
+ * Session yoksa { userId: null, role: null, tenantId: null } döner.
  */
 export async function getSession() {
   const session = await getServerSession(authOptions);
   if (!session?.user?.id) {
-    return { userId: null, role: null, session: null };
+    return { userId: null, role: null, tenantId: null, session: null };
   }
   return {
     userId: session.user.id,
     role: session.user.role || "VIEWER",
+    tenantId: session.user.tenantId || null,
     session,
   };
 }
 
 /**
  * Auth + rol kontrolü yapan middleware.
- * Başarılıysa { userId, role } döner.
+ * Başarılıysa { userId, role, tenantId } döner.
  * Başarısızsa NextResponse (401/403) döner.
  *
  * @param {...string} allowedRoles - İzin verilen roller
- * @returns {Promise<{userId: string, role: string} | NextResponse>}
+ * @returns {Promise<{userId: string, role: string, tenantId: string|null} | NextResponse>}
  */
 export async function requireAuth(...allowedRoles) {
-  const { userId, role } = await getSession();
+  const { userId, role, tenantId } = await getSession();
 
   if (!userId) {
     return NextResponse.json(
@@ -63,21 +66,28 @@ export async function requireAuth(...allowedRoles) {
     );
   }
 
-  return { userId, role };
+  return { userId, role, tenantId };
 }
 
 /**
- * Yazma yetkisi kontrolü (ADMIN veya OPERATOR)
+ * Yazma yetkisi kontrolü (SYSTEM_ADMIN, TENANT_ADMIN veya OPERATOR)
  */
 export async function requireWrite() {
-  return requireAuth("ADMIN", "OPERATOR");
+  return requireAuth("SYSTEM_ADMIN", "TENANT_ADMIN", "OPERATOR");
 }
 
 /**
- * Sadece ADMIN yetkisi
+ * Tenant-level admin (TENANT_ADMIN veya SYSTEM_ADMIN)
  */
-export async function requireAdmin() {
-  return requireAuth("ADMIN");
+export async function requireTenantAdmin() {
+  return requireAuth("SYSTEM_ADMIN", "TENANT_ADMIN");
+}
+
+/**
+ * Sadece SYSTEM_ADMIN yetkisi (platform yönetimi)
+ */
+export async function requireSystemAdmin() {
+  return requireAuth("SYSTEM_ADMIN");
 }
 
 /**
@@ -94,7 +104,22 @@ export function isAuthError(result) {
   return result instanceof NextResponse;
 }
 
+/**
+ * Tenant filtresi oluştur.
+ * SYSTEM_ADMIN tüm tenant'ları görebilir (boş filtre).
+ * Diğer roller sadece kendi tenant'larını görür.
+ *
+ * @param {string|null} tenantId
+ * @param {string} role
+ * @returns {Object} MongoDB filtre objesi
+ */
+export function tenantFilter(tenantId, role) {
+  if (role === "SYSTEM_ADMIN") return {};
+  return { tenantId };
+}
+
 // Yardımcı fonksiyonlar
-export const canWrite = (role) => ["ADMIN", "OPERATOR"].includes(role);
-export const canManageUsers = (role) => role === "ADMIN";
-export const canViewAuditLogs = (role) => ["ADMIN", "OPERATOR"].includes(role);
+export const canWrite = (role) => ["SYSTEM_ADMIN", "TENANT_ADMIN", "OPERATOR"].includes(role);
+export const canManageUsers = (role) => ["SYSTEM_ADMIN", "TENANT_ADMIN"].includes(role);
+export const canViewAuditLogs = (role) => ["SYSTEM_ADMIN", "TENANT_ADMIN", "OPERATOR"].includes(role);
+export const isSystemAdmin = (role) => role === "SYSTEM_ADMIN";

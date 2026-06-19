@@ -16,6 +16,13 @@ const AuditLogSchema = new Schema(
       index: true,
     },
 
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tenant",
+      default: null,
+      index: true,
+    },
+
     // ── Ne yaptı? ──
     action: {
       type: String,

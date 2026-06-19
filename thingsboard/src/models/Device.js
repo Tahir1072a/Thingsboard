@@ -16,6 +16,13 @@ const DeviceSchema = new Schema(
       index: true,
     },
 
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tenant",
+      required: [true, "tenantId zorunludur."],
+      index: true,
+    },
+
     name: {
       type: String,
       required: [true, "Cihaz adı zorunludur."],
@@ -127,8 +134,8 @@ const DeviceSchema = new Schema(
 /* İndeksler                                                            */
 /* ------------------------------------------------------------------ */
 DeviceSchema.index({ name: "text", tag: "text" });
-DeviceSchema.index({ userId: 1, name: 1 });
-DeviceSchema.index({ userId: 1, profile: 1, status: 1 });
+DeviceSchema.index({ tenantId: 1, name: 1 });
+DeviceSchema.index({ tenantId: 1, profile: 1, status: 1 });
 DeviceSchema.index({ isGateway: 1 });
 
 /* ------------------------------------------------------------------ */

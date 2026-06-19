@@ -185,9 +185,10 @@ async function checkTimeWindow(deviceId, alarmType, windowConfig) {
  * @param {string} deviceId
  * @param {string} key       — gelen telemetri key'i
  * @param {*}      value     — gelen telemetri değeri
- * @param {string} userId
+ * @param {object} ownerInfo — { userId, tenantId }
  */
-export async function checkAlarms(deviceId, key, value, userId) {
+export async function checkAlarms(deviceId, key, value, ownerInfo = {}) {
+  const { userId, tenantId } = ownerInfo;
   try {
     await connectDB();
 
@@ -250,6 +251,7 @@ export async function checkAlarms(deviceId, key, value, userId) {
         if (!existing) {
           const alarm = await Alarm.create({
             userId: userId || device.userId,
+            tenantId: tenantId || device.tenantId,
             deviceId,
             deviceName: device.name,
             profileId: rule._source === "PROFILE" ? rule._profileId : undefined,

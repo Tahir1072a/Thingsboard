@@ -11,7 +11,7 @@ import { auditDeviceAction } from "@/lib/audit-service";
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
 
     const { searchParams } = new URL(request.url);
 
@@ -22,7 +22,7 @@ export async function GET(request) {
 
     await connectDB();
 
-    const filter = { userId };
+    const filter = { tenantId };
 
     // Metin araması
     if (search) {
@@ -63,7 +63,7 @@ export async function GET(request) {
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     const body = await request.json();
 
     const { name, profile, tag, description, isGateway, isPublic, accessToken, authType } = body;
@@ -81,7 +81,7 @@ export async function POST(request) {
     let assignedProfile = profile || null;
     if (!assignedProfile) {
       const defaultProfile = await DeviceProfile.findOne({
-        userId,
+        tenantId,
         isDefault: true,
       }).select("_id").lean();
       if (defaultProfile) {
@@ -91,6 +91,7 @@ export async function POST(request) {
 
     const device = await Device.create({
       userId,
+      tenantId,
       name,
       profile: assignedProfile,
       tag: tag || "",
@@ -130,7 +131,7 @@ export async function POST(request) {
     }
 
     // Audit log
-    auditDeviceAction(userId, "DEVICE_CREATE", responseData.data);
+    auditDeviceAction(userId, "DEVICE_CREATE", responseData.data, {}, tenantId);
 
     return NextResponse.json(responseData, { status: 201 });
   } catch (error) {

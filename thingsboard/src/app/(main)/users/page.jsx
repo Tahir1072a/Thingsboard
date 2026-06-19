@@ -42,9 +42,9 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
 // --- Helpers ---
-const roleLabels = { ADMIN: "Yönetici", OPERATOR: "Operatör", VIEWER: "İzleyici" };
+const roleLabels = { TENANT_ADMIN: "Yönetici", OPERATOR: "Operatör", VIEWER: "İzleyici" };
 const roleColors = {
-  ADMIN: "bg-purple-500/10 text-purple-600",
+  TENANT_ADMIN: "bg-purple-500/10 text-purple-600",
   OPERATOR: "bg-blue-500/10 text-blue-600",
   VIEWER: "bg-gray-500/10 text-gray-600",
 };
@@ -155,7 +155,7 @@ function UserEditModal({ open, onOpenChange, user, onSuccess }) {
                 <SelectValue placeholder="Rol seçiniz" />
               </SelectTrigger>
               <SelectContent className="bg-white/95 backdrop-blur-xl border-gray-200 shadow-xl">
-                <SelectItem value="ADMIN" className="py-3 cursor-pointer focus:bg-halo-50">Yönetici</SelectItem>
+                <SelectItem value="TENANT_ADMIN" className="py-3 cursor-pointer focus:bg-halo-50">Yönetici</SelectItem>
                 <SelectItem value="OPERATOR" className="py-3 cursor-pointer focus:bg-halo-50">Operatör</SelectItem>
                 <SelectItem value="VIEWER" className="py-3 cursor-pointer focus:bg-halo-50">İzleyici</SelectItem>
               </SelectContent>
@@ -318,7 +318,7 @@ export default function UsersPage() {
       key: "role",
       placeholder: "Rol",
       options: [
-        { label: "Yönetici", value: "ADMIN" },
+        { label: "Yönetici", value: "TENANT_ADMIN" },
         { label: "Operatör", value: "OPERATOR" },
         { label: "İzleyici", value: "VIEWER" },
       ],

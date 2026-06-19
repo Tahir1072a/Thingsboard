@@ -1,34 +1,35 @@
 /**
- * /api/user — Kullanıcı Yönetimi API
+ * /api/user — Kullanıcı Yönetimi API (Multi-Tenant)
  *
- * GET  — Kullanıcı listesi (sadece ADMIN)
- * POST — Kullanıcı davet et (sadece ADMIN)
+ * GET  — Kullanıcı listesi (TENANT_ADMIN: kendi tenant'ı, SYSTEM_ADMIN: tümü)
+ * POST — Kullanıcı davet et (TENANT_ADMIN veya SYSTEM_ADMIN)
  */
 
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/models/User";
-import { requireAdmin, isAuthError } from "@/lib/rbac";
-import { genToken, hashPassword } from "@/lib/security";
+import { requireTenantAdmin, isAuthError } from "@/lib/rbac";
+import { genToken } from "@/lib/security";
 import { createAuditLog } from "@/lib/audit-service";
 import { sendMail } from "@/lib/email";
 
 export async function GET(request) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireTenantAdmin();
     if (isAuthError(auth)) return auth;
-    const { userId } = auth;
+    const { userId, role, tenantId } = auth;
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") || "1", 10));
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20", 10)));
     const search = searchParams.get("search") || "";
-    const role = searchParams.get("role") || "";
+    const filterRole = searchParams.get("role") || "";
     const active = searchParams.get("active");
 
     await connectDB();
 
-    const filter = {};
+    // SYSTEM_ADMIN tüm kullanıcıları, TENANT_ADMIN sadece kendi tenant'ını görür
+    const filter = role === "SYSTEM_ADMIN" ? {} : { tenantId };
 
     if (search) {
       const escaped = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -39,8 +40,8 @@ export async function GET(request) {
       ];
     }
 
-    if (role && ["ADMIN", "OPERATOR", "VIEWER"].includes(role)) {
-      filter.role = role;
+    if (filterRole && ["SYSTEM_ADMIN", "TENANT_ADMIN", "OPERATOR", "VIEWER"].includes(filterRole)) {
+      filter.role = filterRole;
     }
 
     if (active === "true") filter.isActive = true;
@@ -66,22 +67,21 @@ export async function GET(request) {
     });
   } catch (error) {
     console.error("[GET /api/user]", error);
-    const status = error.statusCode || 500;
     return NextResponse.json(
       { ok: false, error: error.message || "Sunucu hatası." },
-      { status }
+      { status: error.statusCode || 500 }
     );
   }
 }
 
 export async function POST(request) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireTenantAdmin();
     if (isAuthError(auth)) return auth;
-    const { userId } = auth;
+    const { userId, role, tenantId } = auth;
 
     const body = await request.json();
-    const { email, firstName, lastName, role } = body;
+    const { email, firstName, lastName, role: inviteRole } = body;
 
     if (!email) {
       return NextResponse.json(
@@ -90,16 +90,30 @@ export async function POST(request) {
       );
     }
 
-    if (!["ADMIN", "OPERATOR", "VIEWER"].includes(role)) {
+    // TENANT_ADMIN sadece OPERATOR ve VIEWER davet edebilir
+    // SYSTEM_ADMIN tüm rolleri atayabilir
+    const allowedRoles =
+      role === "SYSTEM_ADMIN"
+        ? ["SYSTEM_ADMIN", "TENANT_ADMIN", "OPERATOR", "VIEWER"]
+        : ["OPERATOR", "VIEWER"];
+
+    if (!allowedRoles.includes(inviteRole)) {
       return NextResponse.json(
-        { ok: false, error: "Geçersiz rol. ADMIN, OPERATOR veya VIEWER seçin." },
+        { ok: false, error: `Geçersiz rol. İzin verilen: ${allowedRoles.join(", ")}` },
+        { status: 400 }
+      );
+    }
+
+    // TENANT_ADMIN ise tenantId zorunlu
+    if (role !== "SYSTEM_ADMIN" && !tenantId) {
+      return NextResponse.json(
+        { ok: false, error: "Tenant bilgisi bulunamadı." },
         { status: 400 }
       );
     }
 
     await connectDB();
 
-    // E-posta benzersizlik kontrolü
     const existing = await User.findOne({ email: email.toLowerCase() });
     if (existing) {
       return NextResponse.json(
@@ -108,16 +122,15 @@ export async function POST(request) {
       );
     }
 
-    // Davet token'ı oluştur
     const inviteToken = genToken(32);
-    const inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 gün
+    const inviteTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    // Kullanıcı oluştur (şifresiz, aktif değil — aktivasyon bekliyor)
     const user = await User.create({
       email: email.toLowerCase(),
       firstName: firstName || "",
       lastName: lastName || "",
-      role,
+      role: inviteRole,
+      tenantId: tenantId, // Davet edilen, davet edenin tenant'ına bağlanır
       provider: "invite",
       isActive: false,
       invitedBy: userId,
@@ -125,7 +138,8 @@ export async function POST(request) {
       inviteTokenExpiry,
     });
 
-    // Davet e-postası gönder
+    // Davet e-postası
+    const roleLabels = { TENANT_ADMIN: "Yönetici", OPERATOR: "Operatör", VIEWER: "İzleyici" };
     const activateUrl = `${process.env.NEXTAUTH_URL}/activate?uid=${user._id}&token=${inviteToken}`;
     try {
       await sendMail({
@@ -135,7 +149,7 @@ export async function POST(request) {
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
             <h2 style="color: #6d28d9;">Pengona Things Platformuna Davet Edildiniz</h2>
             <p>Merhaba ${firstName || ""},</p>
-            <p>Pengona Things IoT platformunda <strong>${role === "ADMIN" ? "Yönetici" : role === "OPERATOR" ? "Operatör" : "İzleyici"}</strong> rolü ile bir hesap oluşturuldu.</p>
+            <p>Pengona Things IoT platformunda <strong>${roleLabels[inviteRole] || inviteRole}</strong> rolü ile bir hesap oluşturuldu.</p>
             <p>Hesabınızı aktifleştirmek ve şifrenizi belirlemek için aşağıdaki bağlantıya tıklayın:</p>
             <p style="margin: 24px 0;">
               <a href="${activateUrl}" style="background: linear-gradient(135deg, #6d28d9, #4f46e5); color: white; padding: 12px 32px; text-decoration: none; border-radius: 8px; font-weight: bold;">
@@ -148,21 +162,20 @@ export async function POST(request) {
       });
     } catch (mailErr) {
       console.error("[POST /api/user] Davet maili gönderilemedi:", mailErr);
-      // E-posta gönderilmese bile kullanıcı oluşturuldu — dev URL logla
       if (process.env.NODE_ENV === "development") {
         console.log("[DEV] Aktivasyon URL:", activateUrl);
       }
     }
 
-    // Denetim günlüğü
     await createAuditLog({
       userId,
+      tenantId,
       action: "USER_CREATE",
       entityType: "USER",
       entityId: user._id,
       entityName: user.fullName || user.email,
       status: "SUCCESS",
-      details: { invitedRole: role, email },
+      details: { invitedRole: inviteRole, email },
     });
 
     return NextResponse.json(

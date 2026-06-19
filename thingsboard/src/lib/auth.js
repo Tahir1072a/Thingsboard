@@ -65,6 +65,7 @@ export const authOptions = {
           firstName: user.firstName,
           lastName: user.lastName,
           role: user.role,
+          tenantId: user.tenantId ? user.tenantId.toString() : null,
           organizationName: user.organizationName,
           image: user.image,
         };
@@ -160,6 +161,7 @@ export const authOptions = {
           if (dbUser) {
             token.id = dbUser._id.toString();
             token.role = dbUser.role;
+            token.tenantId = dbUser.tenantId ? dbUser.tenantId.toString() : null;
             token.firstName = dbUser.firstName;
             token.lastName = dbUser.lastName;
             token.organizationName = dbUser.organizationName;
@@ -168,6 +170,7 @@ export const authOptions = {
           // Credentials → authorize'dan gelen user objesini kullan
           token.id = user.id;
           token.role = user.role;
+          token.tenantId = user.tenantId || null;
           token.firstName = user.firstName;
           token.lastName = user.lastName;
           token.organizationName = user.organizationName;
@@ -183,6 +186,7 @@ export const authOptions = {
     async session({ session, token }) {
       session.user.id = token.id;
       session.user.role = token.role;
+      session.user.tenantId = token.tenantId || null;
       session.user.firstName = token.firstName;
       session.user.lastName = token.lastName;
       session.user.organizationName = token.organizationName;

@@ -4,7 +4,8 @@ import mongoose, { Schema } from "mongoose";
  * User Modeli
  *
  * NextAuth.js Credentials + Google Provider ile uyumlu kullanıcı şeması.
- * Roller: ADMIN (Yönetici), OPERATOR (Operatör), VIEWER (İzleyici)
+ * Roller: SYSTEM_ADMIN, TENANT_ADMIN, OPERATOR, VIEWER
+ * Multi-tenant: Her kullanıcı bir tenant'a bağlıdır (SYSTEM_ADMIN hariç).
  */
 const UserSchema = new Schema(
   {
@@ -51,8 +52,17 @@ const UserSchema = new Schema(
 
     role: {
       type: String,
-      enum: ["ADMIN", "OPERATOR", "VIEWER"],
+      enum: ["SYSTEM_ADMIN", "TENANT_ADMIN", "OPERATOR", "VIEWER"],
       default: "VIEWER",
+    },
+
+    // Multi-tenant: Kullanıcının bağlı olduğu kiracı
+    // SYSTEM_ADMIN için null (platform seviyesi)
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tenant",
+      default: null,
+      index: true,
     },
 
     isActive: {
@@ -139,6 +149,7 @@ UserSchema.virtual("fullName").get(function () {
 /* Indexes                                                              */
 /* ------------------------------------------------------------------ */
 UserSchema.index({ role: 1, isActive: 1 });
+UserSchema.index({ tenantId: 1, role: 1 });
 
 /* ------------------------------------------------------------------ */
 /* Model                                                                */

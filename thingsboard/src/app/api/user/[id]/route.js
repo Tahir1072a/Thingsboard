@@ -1,22 +1,23 @@
 /**
- * /api/user/[id] — Tekil Kullanıcı Yönetimi
+ * /api/user/[id] — Tekil Kullanıcı Yönetimi (Multi-Tenant)
  *
- * GET    — Kullanıcı detayı (ADMIN)
- * PUT    — Kullanıcı güncelle (ADMIN)
- * DELETE — Kullanıcı sil (ADMIN)
+ * GET    — Kullanıcı detayı (TENANT_ADMIN / SYSTEM_ADMIN)
+ * PUT    — Kullanıcı güncelle (TENANT_ADMIN / SYSTEM_ADMIN)
+ * DELETE — Kullanıcı sil (TENANT_ADMIN / SYSTEM_ADMIN)
  */
 
 import { NextResponse } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/db";
 import User from "@/models/User";
-import { requireAdmin, isAuthError } from "@/lib/rbac";
+import { requireTenantAdmin, isAuthError } from "@/lib/rbac";
 import { createAuditLog } from "@/lib/audit-service";
 
 export async function GET(request, { params }) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireTenantAdmin();
     if (isAuthError(auth)) return auth;
+    const { role, tenantId } = auth;
 
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -27,7 +28,12 @@ export async function GET(request, { params }) {
     }
 
     await connectDB();
-    const user = await User.findById(id)
+
+    // TENANT_ADMIN sadece kendi tenant'ındaki kullanıcıları görebilir
+    const filter = { _id: id };
+    if (role !== "SYSTEM_ADMIN") filter.tenantId = tenantId;
+
+    const user = await User.findOne(filter)
       .select("-password -resetToken -resetTokenExpiry -inviteToken -inviteTokenExpiry")
       .lean();
 
@@ -50,9 +56,9 @@ export async function GET(request, { params }) {
 
 export async function PUT(request, { params }) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireTenantAdmin();
     if (isAuthError(auth)) return auth;
-    const { userId } = auth;
+    const { userId, role: authRole, tenantId } = auth;
 
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -67,7 +73,11 @@ export async function PUT(request, { params }) {
 
     await connectDB();
 
-    const user = await User.findById(id);
+    // TENANT_ADMIN sadece kendi tenant'ındaki kullanıcıları düzenleyebilir
+    const findFilter = { _id: id };
+    if (authRole !== "SYSTEM_ADMIN") findFilter.tenantId = tenantId;
+
+    const user = await User.findOne(findFilter);
     if (!user) {
       return NextResponse.json(
         { ok: false, error: "Kullanıcı bulunamadı." },
@@ -83,11 +93,15 @@ export async function PUT(request, { params }) {
       );
     }
 
-    // Son ADMIN'i deaktif edemez / rolünü düşüremez
-    if (user.role === "ADMIN") {
-      const adminCount = await User.countDocuments({ role: "ADMIN", isActive: true });
+    // Son TENANT_ADMIN'i koruması
+    if (user.role === "TENANT_ADMIN" && user.tenantId) {
+      const adminCount = await User.countDocuments({
+        tenantId: user.tenantId,
+        role: "TENANT_ADMIN",
+        isActive: true,
+      });
       if (adminCount <= 1) {
-        if (isActive === false || (role && role !== "ADMIN")) {
+        if (isActive === false || (role && role !== "TENANT_ADMIN")) {
           return NextResponse.json(
             { ok: false, error: "Son yönetici deaktif edilemez veya rolü düşürülemez." },
             { status: 400 }
@@ -96,8 +110,14 @@ export async function PUT(request, { params }) {
       }
     }
 
+    // TENANT_ADMIN sadece OPERATOR/VIEWER atayabilir, SYSTEM_ADMIN her şeyi
+    const allowedRoles =
+      authRole === "SYSTEM_ADMIN"
+        ? ["SYSTEM_ADMIN", "TENANT_ADMIN", "OPERATOR", "VIEWER"]
+        : ["TENANT_ADMIN", "OPERATOR", "VIEWER"];
+
     const changes = {};
-    if (role && ["ADMIN", "OPERATOR", "VIEWER"].includes(role)) {
+    if (role && allowedRoles.includes(role)) {
       changes.role = role;
       user.role = role;
     }
@@ -118,6 +138,7 @@ export async function PUT(request, { params }) {
 
     await createAuditLog({
       userId,
+      tenantId,
       action: "USER_UPDATE",
       entityType: "USER",
       entityId: user._id,
@@ -149,9 +170,9 @@ export async function PUT(request, { params }) {
 
 export async function DELETE(request, { params }) {
   try {
-    const auth = await requireAdmin();
+    const auth = await requireTenantAdmin();
     if (isAuthError(auth)) return auth;
-    const { userId } = auth;
+    const { userId, role: authRole, tenantId } = auth;
 
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -161,7 +182,6 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // Kendi kendini silemez
     if (id === userId) {
       return NextResponse.json(
         { ok: false, error: "Kendi hesabınızı silemezsiniz." },
@@ -171,7 +191,11 @@ export async function DELETE(request, { params }) {
 
     await connectDB();
 
-    const user = await User.findById(id);
+    // TENANT_ADMIN sadece kendi tenant'ındaki kullanıcıları silebilir
+    const findFilter = { _id: id };
+    if (authRole !== "SYSTEM_ADMIN") findFilter.tenantId = tenantId;
+
+    const user = await User.findOne(findFilter);
     if (!user) {
       return NextResponse.json(
         { ok: false, error: "Kullanıcı bulunamadı." },
@@ -179,9 +203,13 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    // Son ADMIN silinemez
-    if (user.role === "ADMIN") {
-      const adminCount = await User.countDocuments({ role: "ADMIN", isActive: true });
+    // Son TENANT_ADMIN silinemez
+    if (user.role === "TENANT_ADMIN" && user.tenantId) {
+      const adminCount = await User.countDocuments({
+        tenantId: user.tenantId,
+        role: "TENANT_ADMIN",
+        isActive: true,
+      });
       if (adminCount <= 1) {
         return NextResponse.json(
           { ok: false, error: "Son yönetici silinemez." },
@@ -190,10 +218,19 @@ export async function DELETE(request, { params }) {
       }
     }
 
+    // SYSTEM_ADMIN silinemez (TENANT_ADMIN tarafından)
+    if (user.role === "SYSTEM_ADMIN" && authRole !== "SYSTEM_ADMIN") {
+      return NextResponse.json(
+        { ok: false, error: "Sistem yöneticisini silme yetkiniz yok." },
+        { status: 403 }
+      );
+    }
+
     await User.findByIdAndDelete(id);
 
     await createAuditLog({
       userId,
+      tenantId,
       action: "USER_DELETE",
       entityType: "USER",
       entityId: user._id,

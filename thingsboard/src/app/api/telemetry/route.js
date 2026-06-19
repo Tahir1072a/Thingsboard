@@ -31,6 +31,7 @@ export async function POST(request) {
     const device = await authenticateDevice(accessToken);
     const deviceId = device._id.toString();
     const userId = device.userId?.toString();
+    const tenantId = device.tenantId?.toString();
 
     const body = await request.json();
 
@@ -41,6 +42,7 @@ export async function POST(request) {
         const doc = await handleTelemetry({
           deviceId,
           userId,
+          tenantId,
           key: metric.key,
           value: metric.value,
           unit: metric.unit,
@@ -56,6 +58,7 @@ export async function POST(request) {
     const doc = await handleTelemetry({
       deviceId,
       userId,
+      tenantId,
       key: body.key,
       value: body.value,
       unit: body.unit,
@@ -84,7 +87,7 @@ export async function POST(request) {
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
 
     const { searchParams } = new URL(request.url);
 
@@ -103,8 +106,8 @@ export async function GET(request) {
 
     await connectDB();
 
-    // Cihazın bu kullanıcıya ait olduğunu doğrula
-    const device = await Device.findOne({ _id: deviceId, userId }).lean();
+    // Cihazın bu tenant'a ait olduğunu doğrula
+    const device = await Device.findOne({ _id: deviceId, tenantId }).lean();
     if (!device) {
       return NextResponse.json(
         { ok: false, message: "Cihaz bulunamadı veya erişim yetkiniz yok." },
@@ -112,14 +115,14 @@ export async function GET(request) {
       );
     }
 
-    const filter = { deviceId, userId };
+    const filter = { deviceId, tenantId };
     if (key) filter.key = key;
 
     // ── latest=true: Her benzersiz key için son değeri döndür ──
     const latest = searchParams.get("latest");
     if (latest === "true") {
       const pipeline = [
-        { $match: { deviceId: device._id, userId: device.userId } },
+        { $match: { deviceId: device._id, tenantId: device.tenantId } },
         { $sort: { timestamp: -1 } },
         {
           $group: {

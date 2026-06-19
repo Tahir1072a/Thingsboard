@@ -13,6 +13,7 @@ import {
   ScrollText,
   Users,
   UserCircle,
+  Building2,
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
@@ -32,11 +33,14 @@ export default function Sidebar() {
       { href: "/devices", label: "Cihazlar", icon: Router },
       { href: "/device-profile", label: "Cihaz Profilleri", icon: UserCheck },
     ];
-    if (userRole === "ADMIN" || userRole === "OPERATOR") {
+    if (userRole === "SYSTEM_ADMIN" || userRole === "TENANT_ADMIN" || userRole === "OPERATOR") {
       links.push({ href: "/audit-logs", label: "Denetim Günlükleri", icon: ScrollText });
     }
-    if (userRole === "ADMIN") {
+    if (userRole === "SYSTEM_ADMIN" || userRole === "TENANT_ADMIN") {
       links.push({ href: "/users", label: "Kullanıcılar", icon: Users });
+    }
+    if (userRole === "SYSTEM_ADMIN") {
+      links.push({ href: "/tenants", label: "Kiracılar", icon: Building2 });
     }
     return links;
   }, [userRole]);

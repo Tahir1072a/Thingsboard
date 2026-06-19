@@ -15,6 +15,13 @@ const AlarmSchema = new Schema(
       index: true,
     },
 
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tenant",
+      required: [true, "tenantId zorunludur."],
+      index: true,
+    },
+
     // Hangi cihaz
     deviceId: {
       type: Schema.Types.ObjectId,

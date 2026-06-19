@@ -12,7 +12,7 @@ import { createAuditLog } from "@/lib/audit-service";
 // GET — Alarmları listele (user-scoped)
 export async function GET(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     await connectDB();
 
     const searchParams = new URL(request.url).searchParams;
@@ -23,7 +23,7 @@ export async function GET(request) {
     const limit = parseInt(searchParams.get("limit") || "10");
     const page = parseInt(searchParams.get("page") || "1");
 
-    const filter = { userId };
+    const filter = { tenantId };
     if (status) filter.status = status;
     if (severity) filter.severity = severity;
     if (deviceId) filter.deviceId = deviceId;
@@ -48,7 +48,7 @@ export async function GET(request) {
     ]);
 
     // Aktif alarm sayısı (header badge için) — user-scoped
-    const activeCount = await Alarm.countDocuments({ userId, status: "ACTIVE" });
+    const activeCount = await Alarm.countDocuments({ tenantId, status: "ACTIVE" });
 
     return NextResponse.json({
       ok: true,
@@ -70,7 +70,7 @@ export async function GET(request) {
 // PUT — Alarm durumunu güncelle (acknowledge / clear)
 export async function PUT(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     await connectDB();
     const body = await request.json();
     const { alarmId, action } = body; // action: "acknowledge" | "clear"
@@ -83,7 +83,7 @@ export async function PUT(request) {
     }
 
     // Alarm'ın bu kullanıcıya ait olduğunu doğrula
-    const alarm = await Alarm.findOne({ _id: alarmId, userId });
+    const alarm = await Alarm.findOne({ _id: alarmId, tenantId });
     if (!alarm) {
       return NextResponse.json({ ok: false, message: "Alarm bulunamadı." }, { status: 404 });
     }
@@ -108,6 +108,7 @@ export async function PUT(request) {
     // Audit log — Alarm entity'si
     createAuditLog({
       userId,
+      tenantId,
       action: action === "acknowledge" ? "ALARM_ACKNOWLEDGE" : "ALARM_CLEAR",
       entityType: "ALARM",
       entityId: alarm._id,
@@ -122,6 +123,7 @@ export async function PUT(request) {
     if (alarm.deviceId) {
       createAuditLog({
         userId,
+        tenantId,
         action: action === "acknowledge" ? "ALARM_ACKNOWLEDGE" : "ALARM_CLEAR",
         entityType: "DEVICE",
         entityId: alarm.deviceId,
@@ -151,7 +153,7 @@ export async function PUT(request) {
 // DELETE — Alarm(lar)ı sil (Hard Delete)
 export async function DELETE(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     await connectDB();
     
     // Extract body. We support both single `alarmId` and multiple `alarmIds`
@@ -165,7 +167,7 @@ export async function DELETE(request) {
     }
 
     // Sadece kullanıcıya ait olanları bul
-    const alarms = await Alarm.find({ _id: { $in: idsToDelete }, userId });
+    const alarms = await Alarm.find({ _id: { $in: idsToDelete }, tenantId });
     
     if (alarms.length === 0) {
       return NextResponse.json({ ok: false, message: "Alarmlar bulunamadı veya yetkiniz yok." }, { status: 404 });
@@ -178,6 +180,7 @@ export async function DELETE(request) {
     for (const alarm of alarms) {
       createAuditLog({
         userId,
+        tenantId,
         action: "ALARM_DELETE",
         entityType: "ALARM",
         entityId: alarm._id,
@@ -191,6 +194,7 @@ export async function DELETE(request) {
       if (alarm.deviceId) {
         createAuditLog({
           userId,
+          tenantId,
           action: "ALARM_DELETE",
           entityType: "DEVICE",
           entityId: alarm.deviceId,

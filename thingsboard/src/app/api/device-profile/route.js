@@ -11,7 +11,7 @@ import { auditProfileAction } from "@/lib/audit-service";
 // GET — Listele (search + pagination)
 export async function GET(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     await connectDB();
 
     const { searchParams } = new URL(request.url);
@@ -20,7 +20,7 @@ export async function GET(request) {
     const search = searchParams.get("search") || "";
     const transportType = searchParams.get("transportType") || "";
 
-    const filter = { userId };
+    const filter = { tenantId };
     if (search) {
       filter.name = { $regex: search, $options: "i" };
     }
@@ -56,7 +56,7 @@ export async function GET(request) {
 // POST — Oluştur
 export async function POST(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     await connectDB();
     const body = await request.json();
 
@@ -69,16 +69,17 @@ export async function POST(request) {
       );
     }
 
-    // Eğer yeni profil "varsayılan" olacaksa diğerlerinin default'unu kaldır (user scope)
+    // Eğer yeni profil "varsayılan" olacaksa diğerlerinin default'unu kaldır (tenant scope)
     if (isDefault) {
       await DeviceProfile.updateMany(
-        { userId, isDefault: true },
+        { tenantId, isDefault: true },
         { $set: { isDefault: false } }
       );
     }
 
     const profile = await DeviceProfile.create({
       userId,
+      tenantId,
       name,
       description: description || "",
       transportType: transportType || "MQTT",
@@ -87,7 +88,7 @@ export async function POST(request) {
     });
 
     // Audit log
-    auditProfileAction(userId, "PROFILE_CREATE", profile);
+    auditProfileAction(userId, "PROFILE_CREATE", profile, {}, tenantId);
 
     return NextResponse.json(
       { ok: true, message: "Profil oluşturuldu.", data: profile.toObject() },

@@ -13,14 +13,14 @@ import { auditProfileAction } from "@/lib/audit-service";
 // GET — Detay
 export async function GET(request, { params }) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
     }
 
     await connectDB();
-    const profile = await DeviceProfile.findOne({ _id: id, userId }).lean();
+    const profile = await DeviceProfile.findOne({ _id: id, tenantId }).lean();
 
     if (!profile) {
       return NextResponse.json({ ok: false, message: "Profil bulunamadı." }, { status: 404 });
@@ -35,7 +35,7 @@ export async function GET(request, { params }) {
 // PUT — Güncelle
 export async function PUT(request, { params }) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
@@ -45,15 +45,15 @@ export async function PUT(request, { params }) {
     const body = await request.json();
     const { name, description, transportType, isDefault, alarms, defaultDashboard, expectedKeys } = body;
 
-    const profile = await DeviceProfile.findOne({ _id: id, userId });
+    const profile = await DeviceProfile.findOne({ _id: id, tenantId });
     if (!profile) {
       return NextResponse.json({ ok: false, message: "Profil bulunamadı." }, { status: 404 });
     }
 
-    // Varsayılan değişikliği (user scope)
+    // Varsayılan değişikliği (tenant scope)
     if (isDefault && !profile.isDefault) {
       await DeviceProfile.updateMany(
-        { userId, isDefault: true, _id: { $ne: id } },
+        { tenantId, isDefault: true, _id: { $ne: id } },
         { $set: { isDefault: false } }
       );
     }
@@ -72,7 +72,7 @@ export async function PUT(request, { params }) {
     await invalidateProfile(id);
 
     // Audit log
-    auditProfileAction(userId, "PROFILE_UPDATE", profile, { changes: body });
+    auditProfileAction(userId, "PROFILE_UPDATE", profile, { changes: body }, tenantId);
 
     return NextResponse.json({
       ok: true,
@@ -87,14 +87,14 @@ export async function PUT(request, { params }) {
 // DELETE — Sil
 export async function DELETE(request, { params }) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
     }
 
     await connectDB();
-    const profile = await DeviceProfile.findOne({ _id: id, userId });
+    const profile = await DeviceProfile.findOne({ _id: id, tenantId });
 
     if (!profile) {
       return NextResponse.json({ ok: false, message: "Profil bulunamadı." }, { status: 404 });
@@ -107,13 +107,13 @@ export async function DELETE(request, { params }) {
       );
     }
 
-    await DeviceProfile.findOneAndDelete({ _id: id, userId });
+    await DeviceProfile.findOneAndDelete({ _id: id, tenantId });
 
     // Redis cache'ini temizle
     await invalidateProfile(id);
 
     // Audit log
-    auditProfileAction(userId, "PROFILE_DELETE", profile);
+    auditProfileAction(userId, "PROFILE_DELETE", profile, {}, tenantId);
 
     return NextResponse.json({ ok: true, message: "Profil silindi." });
   } catch (error) {

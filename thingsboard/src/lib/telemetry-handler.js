@@ -40,7 +40,7 @@ export async function authenticateDevice(accessToken) {
  * userId parametresi artık zorunludur.
  */
 export async function handleTelemetry(payload) {
-  const { deviceId, userId, key, value, unit, protocol = "http", timestamp } = payload;
+  const { deviceId, userId, tenantId, key, value, unit, protocol = "http", timestamp } = payload;
 
   if (!deviceId || !key || value === undefined || value === null) {
     throw new Error(
@@ -75,6 +75,7 @@ export async function handleTelemetry(payload) {
 
   const doc = await Telemetry.create({
     userId,
+    tenantId,
     deviceId,
     key,
     value: parsedValue,
@@ -86,14 +87,14 @@ export async function handleTelemetry(payload) {
 
   const lean = doc.toObject();
 
-  // SSE event'i yayınla (userId dahil)
-  emitter.emit("telemetry", { ...lean, userId: String(userId) });
+  // SSE event'i yayınla (tenantId dahil)
+  emitter.emit("telemetry", { ...lean, userId: String(userId), tenantId: tenantId ? String(tenantId) : null });
 
   // Telemetri context cache güncelle (bileşik koşullar için)
   updateTelemetryContext(deviceId, key, parsedValue);
 
   // Alarm kurallarını kontrol et (merkezi motor)
-  checkAlarms(deviceId, key, parsedValue, userId);
+  checkAlarms(deviceId, key, parsedValue, { userId, tenantId });
 
   return lean;
 }

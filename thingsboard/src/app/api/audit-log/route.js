@@ -5,20 +5,24 @@
  */
 
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/db";
 import AuditLog from "@/models/AuditLog";
+import { getSessionUser } from "@/lib/getSessionUser";
+import { canViewAuditLogs } from "@/lib/rbac";
 
 export async function GET(request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session?.user?.id) {
-      return NextResponse.json({ ok: false, message: "Yetkisiz." }, { status: 401 });
+    const { userId, role, tenantId } = await getSessionUser();
+
+    // Rol kontrolü — sadece SYSTEM_ADMIN, TENANT_ADMIN, OPERATOR görebilir (VIEWER göremez)
+    if (!canViewAuditLogs(role)) {
+      return NextResponse.json(
+        { ok: false, message: "Bu işlem için yetkiniz yok." },
+        { status: 403 }
+      );
     }
 
     await connectDB();
-    const userId = session.user.id;
     const { searchParams } = new URL(request.url);
 
     // Sayfalama
@@ -26,8 +30,8 @@ export async function GET(request) {
     const limit = Math.min(100, Math.max(1, parseInt(searchParams.get("limit") || "20")));
     const skip = (page - 1) * limit;
 
-    // Filtreler
-    const filter = { userId };
+    // Filtreler — SYSTEM_ADMIN tüm tenant'ları görebilir, diğerleri sadece kendi tenant'ını
+    const filter = role === "SYSTEM_ADMIN" ? {} : { tenantId };
 
     // Aksiyon filtresi
     const action = searchParams.get("action");
@@ -104,7 +108,7 @@ export async function GET(request) {
     console.error("[GET /api/audit-log] Hata:", error.message);
     return NextResponse.json(
       { ok: false, message: "Sunucu hatası." },
-      { status: 500 }
+      { status: error.statusCode || 500 }
     );
   }
 }

@@ -21,7 +21,7 @@ export default function Header({ pageTitle = "Anasayfa" }) {
   const { data: session } = useSession();
 
   const userName = session?.user?.name || session?.user?.email || "Kullanıcı";
-  const roleLabels = { ADMIN: "Yönetici", OPERATOR: "Operatör", VIEWER: "İzleyici" };
+  const roleLabels = { SYSTEM_ADMIN: "Sistem Yöneticisi", TENANT_ADMIN: "Yönetici", OPERATOR: "Operatör", VIEWER: "İzleyici" };
   const userRoleLabel = roleLabels[session?.user?.role] || "Kullanıcı";
   const userInitial = userName.charAt(0).toUpperCase();
 

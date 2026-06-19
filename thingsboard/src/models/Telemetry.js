@@ -57,6 +57,13 @@ const TelemetrySchema = new Schema(
       index: true,
     },
 
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tenant",
+      required: [true, "tenantId zorunludur."],
+      index: true,
+    },
+
     // Hangi cihazdan geldiği (time-series "metaField" olarak kullanılır)
     deviceId: {
       type: Schema.Types.ObjectId,
@@ -146,7 +153,7 @@ const TelemetrySchema = new Schema(
 /* ------------------------------------------------------------------ */
 
 // En sık kullanılan sorgu: belirli cihazın belirli metriği, zaman sıralı
-TelemetrySchema.index({ userId: 1, deviceId: 1, key: 1, timestamp: -1 });
+TelemetrySchema.index({ tenantId: 1, deviceId: 1, key: 1, timestamp: -1 });
 
 // Dashboard'da "son N dakika" sorguları için
 TelemetrySchema.index({ timestamp: -1 });

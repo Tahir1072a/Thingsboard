@@ -25,6 +25,7 @@ export async function POST(request, { params }) {
     const device = await authenticateDevice(accessToken);
     const deviceId = device._id.toString();
     const userId = device.userId?.toString();
+    const tenantId = device.tenantId?.toString();
 
     const body = await request.json();
 
@@ -35,6 +36,7 @@ export async function POST(request, { params }) {
         const doc = await handleTelemetry({
           deviceId,
           userId,
+          tenantId,
           key: metric.key,
           value: metric.value,
           unit: metric.unit ?? null,
@@ -51,6 +53,7 @@ export async function POST(request, { params }) {
       const doc = await handleTelemetry({
         deviceId,
         userId,
+        tenantId,
         key: body.key,
         value: body.value,
         unit: body.unit ?? null,
@@ -69,6 +72,7 @@ export async function POST(request, { params }) {
       const doc = await handleTelemetry({
         deviceId,
         userId,
+        tenantId,
         key,
         value,
         protocol: "http",

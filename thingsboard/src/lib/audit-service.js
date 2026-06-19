@@ -20,6 +20,7 @@ import logger from "@/lib/logger";
  */
 export async function createAuditLog({
   userId,
+  tenantId = null,
   action,
   entityType,
   entityId = null,
@@ -32,6 +33,7 @@ export async function createAuditLog({
 
     const doc = await AuditLog.create({
       userId,
+      tenantId,
       action,
       entityType,
       entityId,
@@ -45,6 +47,7 @@ export async function createAuditLog({
     emitter.emit("audit-log", {
       _id: doc._id,
       userId: String(userId),
+      tenantId: tenantId ? String(tenantId) : null,
       action,
       entityType,
       entityId: entityId ? String(entityId) : null,
@@ -69,9 +72,10 @@ export async function createAuditLog({
 /**
  * Cihaz aksiyonu logla.
  */
-export function auditDeviceAction(userId, action, device, details = {}) {
+export function auditDeviceAction(userId, action, device, details = {}, tenantId = null) {
   return createAuditLog({
     userId,
+    tenantId,
     action,
     entityType: "DEVICE",
     entityId: device._id || device.id,
@@ -83,9 +87,10 @@ export function auditDeviceAction(userId, action, device, details = {}) {
 /**
  * Profil aksiyonu logla.
  */
-export function auditProfileAction(userId, action, profile, details = {}) {
+export function auditProfileAction(userId, action, profile, details = {}, tenantId = null) {
   return createAuditLog({
     userId,
+    tenantId,
     action,
     entityType: "DEVICE_PROFILE",
     entityId: profile._id || profile.id,
@@ -97,9 +102,10 @@ export function auditProfileAction(userId, action, profile, details = {}) {
 /**
  * Dashboard aksiyonu logla.
  */
-export function auditDashboardAction(userId, action, dashboard, details = {}) {
+export function auditDashboardAction(userId, action, dashboard, details = {}, tenantId = null) {
   return createAuditLog({
     userId,
+    tenantId,
     action,
     entityType: "DASHBOARD",
     entityId: dashboard._id || dashboard.id,
@@ -111,9 +117,10 @@ export function auditDashboardAction(userId, action, dashboard, details = {}) {
 /**
  * Auth olayı logla.
  */
-export function auditAuthEvent(action, userId, details = {}) {
+export function auditAuthEvent(action, userId, details = {}, tenantId = null) {
   return createAuditLog({
     userId,
+    tenantId,
     action,
     entityType: "USER",
     entityId: userId,

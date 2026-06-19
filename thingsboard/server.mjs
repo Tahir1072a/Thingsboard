@@ -232,6 +232,7 @@ async function ingestTelemetry(items) {
 
       const doc = await Telemetry.create({
         userId: item.userId || null,
+        tenantId: item.tenantId || null,
         deviceId: item.deviceId,
         key: item.key,
         value: parsedValue,
@@ -247,11 +248,12 @@ async function ingestTelemetry(items) {
       emitter.emit("telemetry", {
         ...lean,
         userId: item.userId ? String(item.userId) : null,
+        tenantId: item.tenantId ? String(item.tenantId) : null,
         deviceId: String(doc.deviceId),
       });
 
       // Alarm kontrolü
-      checkAlarms(item.deviceId, item.key, parsedValue, item.userId);
+      checkAlarms(item.deviceId, item.key, parsedValue, { userId: item.userId, tenantId: item.tenantId });
 
       // Transport uyumsuzluk kontrolü
       checkTransportMismatch(item.deviceId, item.protocol, item.userId);
@@ -534,6 +536,7 @@ function attachMessageHandler(ws) {
         }
         deviceId = device._id.toString();
         userId = device.userId ? device.userId.toString() : null;
+        var tenantIdWs = device.tenantId ? device.tenantId.toString() : null;
       }
 
       if (!body.key || body.value === undefined) {
@@ -544,6 +547,7 @@ function attachMessageHandler(ws) {
       await ingestTelemetry([{
         deviceId,
         userId,
+        tenantId: tenantIdWs || ws.tenantId || null,
         key: body.key,
         value: body.value,
         unit: body.unit,
@@ -584,6 +588,7 @@ async function main() {
               client.deviceId = device._id.toString();
               client.deviceName = device.name;
               client.userId = device.userId ? device.userId.toString() : null;
+              client.tenantId = device.tenantId ? device.tenantId.toString() : null;
               logger.info({ device: device.name, clientId: client.id }, "MQTTS sertifika auth başarılı");
               callback(null, true);
             })
@@ -615,6 +620,7 @@ async function main() {
           client.deviceId = device._id.toString();
           client.deviceName = device.name;
           client.userId = device.userId ? device.userId.toString() : null;
+          client.tenantId = device.tenantId ? device.tenantId.toString() : null;
           logger.info({ device: device.name, clientId: client.id }, "MQTT token auth başarılı");
           callback(null, true);
         })
@@ -672,14 +678,14 @@ async function main() {
       const items = [];
 
       if (body.key && body.value !== undefined) {
-        items.push({ deviceId: client.deviceId, userId: client.userId, key: body.key, value: body.value, unit: body.unit, protocol: "mqtt" });
+        items.push({ deviceId: client.deviceId, userId: client.userId, tenantId: client.tenantId, key: body.key, value: body.value, unit: body.unit, protocol: "mqtt" });
       } else if (topicKey && body.value !== undefined) {
-        items.push({ deviceId: client.deviceId, userId: client.userId, key: topicKey, value: body.value, unit: body.unit, protocol: "mqtt" });
+        items.push({ deviceId: client.deviceId, userId: client.userId, tenantId: client.tenantId, key: topicKey, value: body.value, unit: body.unit, protocol: "mqtt" });
       } else {
         Object.entries(body)
           .filter(([k]) => k !== "deviceId" && k !== "accessToken")
           .forEach(([key, value]) => {
-            items.push({ deviceId: client.deviceId, userId: client.userId, key, value, protocol: "mqtt" });
+            items.push({ deviceId: client.deviceId, userId: client.userId, tenantId: client.tenantId, key, value, protocol: "mqtt" });
           });
       }
 

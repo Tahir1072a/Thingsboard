@@ -13,7 +13,7 @@ import { getSessionUser } from "@/lib/getSessionUser";
 
 export async function GET(request) {
   try {
-    const { userId } = await getSessionUser();
+    const { userId, tenantId } = await getSessionUser();
     const { searchParams } = new URL(request.url);
     const deviceId = searchParams.get("deviceId");
 
@@ -26,8 +26,8 @@ export async function GET(request) {
 
     await connectDB();
 
-    // Cihazın bu kullanıcıya ait olduğunu doğrula
-    const device = await Device.findOne({ _id: deviceId, userId }).lean();
+    // Cihazın bu tenant'a ait olduğunu doğrula
+    const device = await Device.findOne({ _id: deviceId, tenantId }).lean();
     if (!device) {
       return NextResponse.json(
         { ok: false, message: "Cihaz bulunamadı veya erişim yetkiniz yok." },
@@ -36,7 +36,7 @@ export async function GET(request) {
     }
 
     // Bu cihaza ait benzersiz key'leri çek
-    const keys = await Telemetry.distinct("key", { deviceId, userId });
+    const keys = await Telemetry.distinct("key", { deviceId, tenantId });
 
     return NextResponse.json({ ok: true, keys });
   } catch (error) {

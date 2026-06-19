@@ -6,10 +6,9 @@
  */
 
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/db";
 import Dashboard from "@/models/Dashboard";
+import { getSessionUser } from "@/lib/getSessionUser";
 import { auditDashboardAction } from "@/lib/audit-service";
 
 // ------------------------------------------------------------------ //
@@ -17,14 +16,11 @@ import { auditDashboardAction } from "@/lib/audit-service";
 // ------------------------------------------------------------------ //
 export async function GET() {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ ok: false, message: "Yetkisiz." }, { status: 401 });
-    }
+    const { userId, tenantId } = await getSessionUser();
 
     await connectDB();
 
-    const dashboards = await Dashboard.find({ ownerId: session.user.id })
+    const dashboards = await Dashboard.find({ tenantId })
       .sort({ updatedAt: -1 })
       .select("name description widgets createdAt updatedAt")
       .lean();
@@ -38,7 +34,7 @@ export async function GET() {
     });
   } catch (error) {
     console.error("[GET /api/dashboard]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }
 
@@ -47,10 +43,7 @@ export async function GET() {
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ ok: false, message: "Yetkisiz." }, { status: 401 });
-    }
+    const { userId, tenantId } = await getSessionUser();
 
     const body = await request.json();
     const { name, description } = body;
@@ -67,12 +60,13 @@ export async function POST(request) {
     const dashboard = await Dashboard.create({
       name,
       description: description || "",
-      ownerId: session.user.id,
+      ownerId: userId,
+      tenantId,
       widgets: [],
     });
 
     // Audit log
-    auditDashboardAction(session.user.id, "DASHBOARD_CREATE", dashboard);
+    auditDashboardAction(userId, "DASHBOARD_CREATE", dashboard, {}, tenantId);
 
     return NextResponse.json(
       { ok: true, message: "Pano oluşturuldu.", data: dashboard.toObject() },

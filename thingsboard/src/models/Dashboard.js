@@ -69,6 +69,13 @@ const DashboardSchema = new Schema(
       index: true,
     },
 
+    tenantId: {
+      type: Schema.Types.ObjectId,
+      ref: "Tenant",
+      required: true,
+      index: true,
+    },
+
     // Widget konfigürasyonları
     widgets: [WidgetSchema],
   },

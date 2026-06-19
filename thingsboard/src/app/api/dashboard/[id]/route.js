@@ -7,28 +7,23 @@
  */
 
 import { NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import connectDB from "@/lib/db";
 import Dashboard from "@/models/Dashboard";
 import mongoose from "mongoose";
+import { getSessionUser } from "@/lib/getSessionUser";
 import { auditDashboardAction } from "@/lib/audit-service";
 
-// Sahiplik kontrolü
-async function verifyOwnership(id, session) {
+// Sahiplik kontrolü (tenant-scoped)
+async function verifyOwnership(id, tenantId) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
     return { error: "Geçersiz ID.", status: 400 };
   }
 
   await connectDB();
-  const dashboard = await Dashboard.findById(id);
+  const dashboard = await Dashboard.findOne({ _id: id, tenantId });
 
   if (!dashboard) {
     return { error: "Pano bulunamadı.", status: 404 };
-  }
-
-  if (dashboard.ownerId.toString() !== session.user.id) {
-    return { error: "Bu panoya erişim yetkiniz yok.", status: 403 };
   }
 
   return { dashboard };
@@ -39,13 +34,10 @@ async function verifyOwnership(id, session) {
 // ------------------------------------------------------------------ //
 export async function GET(request, { params }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ ok: false, message: "Yetkisiz." }, { status: 401 });
-    }
+    const { userId, tenantId } = await getSessionUser();
 
     const { id } = await params;
-    const result = await verifyOwnership(id, session);
+    const result = await verifyOwnership(id, tenantId);
 
     if (result.error) {
       return NextResponse.json(
@@ -57,7 +49,7 @@ export async function GET(request, { params }) {
     return NextResponse.json({ ok: true, data: result.dashboard.toObject() });
   } catch (error) {
     console.error("[GET /api/dashboard/:id]", error);
-    return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }
 
@@ -66,13 +58,10 @@ export async function GET(request, { params }) {
 // ------------------------------------------------------------------ //
 export async function PUT(request, { params }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ ok: false, message: "Yetkisiz." }, { status: 401 });
-    }
+    const { userId, tenantId } = await getSessionUser();
 
     const { id } = await params;
-    const result = await verifyOwnership(id, session);
+    const result = await verifyOwnership(id, tenantId);
 
     if (result.error) {
       return NextResponse.json(
@@ -92,7 +81,7 @@ export async function PUT(request, { params }) {
     await dashboard.save();
 
     // Audit log
-    auditDashboardAction(session.user.id, "DASHBOARD_UPDATE", dashboard, { changes: body });
+    auditDashboardAction(userId, "DASHBOARD_UPDATE", dashboard, { changes: body }, tenantId);
 
     return NextResponse.json({
       ok: true,
@@ -110,13 +99,10 @@ export async function PUT(request, { params }) {
 // ------------------------------------------------------------------ //
 export async function DELETE(request, { params }) {
   try {
-    const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json({ ok: false, message: "Yetkisiz." }, { status: 401 });
-    }
+    const { userId, tenantId } = await getSessionUser();
 
     const { id } = await params;
-    const result = await verifyOwnership(id, session);
+    const result = await verifyOwnership(id, tenantId);
 
     if (result.error) {
       return NextResponse.json(
@@ -128,7 +114,7 @@ export async function DELETE(request, { params }) {
     await Dashboard.findByIdAndDelete(id);
 
     // Audit log
-    auditDashboardAction(session.user.id, "DASHBOARD_DELETE", result.dashboard);
+    auditDashboardAction(userId, "DASHBOARD_DELETE", result.dashboard, {}, tenantId);
 
     return NextResponse.json({ ok: true, message: "Pano silindi." });
   } catch (error) {
