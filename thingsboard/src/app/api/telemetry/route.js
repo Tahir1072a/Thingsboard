@@ -84,6 +84,14 @@ export async function POST(request) {
 
 // ------------------------------------------------------------------ //
 // GET — Geçmiş veri sorgusu (session auth ile user kontrolü)
+//
+// Aggregation desteği:
+//   ?agg=AVG|MIN|MAX|SUM|COUNT  — Toplama fonksiyonu
+//   &interval=3600000           — Gruplama aralığı (ms)
+//   &startTs=1709900000000      — Başlangıç (epoch ms)
+//   &endTs=1709999999999        — Bitiş (epoch ms)
+//
+// Aggregation kullanılmadığında mevcut davranış korunur.
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
@@ -96,6 +104,12 @@ export async function GET(request) {
     const from = searchParams.get("from"); // ISO8601
     const to = searchParams.get("to");     // ISO8601
     const limit = Math.min(parseInt(searchParams.get("limit") ?? "500"), 5000);
+
+    // Aggregation parametreleri
+    const agg = searchParams.get("agg"); // AVG, MIN, MAX, SUM, COUNT, NONE
+    const interval = searchParams.get("interval"); // ms cinsinden gruplama aralığı
+    const startTs = searchParams.get("startTs"); // epoch ms
+    const endTs = searchParams.get("endTs"); // epoch ms
 
     if (!deviceId) {
       return NextResponse.json(
@@ -155,6 +169,86 @@ export async function GET(request) {
       });
     }
 
+    // ── Aggregation modu (agg != null ve NONE değilse) ──
+    const VALID_AGG = ["AVG", "MIN", "MAX", "SUM", "COUNT"];
+    if (agg && VALID_AGG.includes(agg.toUpperCase())) {
+      const aggUpper = agg.toUpperCase();
+      const intervalMs = parseInt(interval) || 3600000; // default: 1 saat
+
+      // Zaman aralığı belirleme
+      const timeFrom = startTs
+        ? new Date(parseInt(startTs))
+        : from
+        ? new Date(from)
+        : new Date(Date.now() - 24 * 60 * 60 * 1000); // default: son 24 saat
+
+      const timeTo = endTs
+        ? new Date(parseInt(endTs))
+        : to
+        ? new Date(to)
+        : new Date();
+
+      // Match filter
+      const matchFilter = {
+        deviceId: device._id,
+        tenantId: device.tenantId,
+        timestamp: { $gte: timeFrom, $lte: timeTo },
+      };
+      if (key) matchFilter.key = key;
+
+      // Aggregation group operatörleri
+      const groupOps = {
+        _id: {
+          interval: {
+            $subtract: [
+              { $toLong: "$timestamp" },
+              { $mod: [{ $toLong: "$timestamp" }, intervalMs] },
+            ],
+          },
+          key: "$key",
+        },
+        key: { $first: "$key" },
+        count: { $sum: 1 },
+        avg: { $avg: { $toDouble: "$value" } },
+        min: { $min: { $toDouble: "$value" } },
+        max: { $max: { $toDouble: "$value" } },
+        sum: { $sum: { $toDouble: "$value" } },
+        unit: { $first: "$unit" },
+      };
+
+      // Sonuç olarak hangi değer dönsün
+      const valueField = `$${aggUpper.toLowerCase()}`;
+
+      const pipeline = [
+        { $match: matchFilter },
+        { $group: groupOps },
+        { $sort: { "_id.interval": 1 } },
+        {
+          $project: {
+            _id: 0,
+            key: 1,
+            value: valueField,
+            count: 1,
+            unit: 1,
+            timestamp: { $toDate: "$_id.interval" },
+          },
+        },
+      ];
+
+      const results = await Telemetry.aggregate(pipeline);
+
+      return NextResponse.json({
+        ok: true,
+        aggregation: aggUpper,
+        interval: intervalMs,
+        from: timeFrom.toISOString(),
+        to: timeTo.toISOString(),
+        count: results.length,
+        data: results,
+      });
+    }
+
+    // ── Normal mod (ham veri) ──
     if (from || to) {
       filter.timestamp = {};
       if (from) filter.timestamp.$gte = new Date(from);
@@ -181,3 +275,4 @@ export async function GET(request) {
     );
   }
 }
+

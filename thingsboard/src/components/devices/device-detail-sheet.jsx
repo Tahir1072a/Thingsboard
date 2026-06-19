@@ -79,7 +79,7 @@ export default function DeviceDetailSheet({ device, open, onOpenChange, onDevice
         id: "attributes",
         label: "Öznitelikler",
         icon: Tag,
-        content: <DeviceAttributeTab deviceId={device?._id} />, // Mock Bileşen
+        content: <DeviceAttributeTab deviceId={device?._id} />,
       },
       {
         id: "telemetry",

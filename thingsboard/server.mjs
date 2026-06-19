@@ -666,8 +666,44 @@ async function main() {
 
   aedesInstance.on("publish", async (packet, client) => {
     if (!client) return;
-    if (!packet.topic.startsWith("devices/")) return;
     if (!client.deviceId) return;
+
+    // ── Attribute topic desteği: v1/devices/me/attributes ──
+    if (packet.topic === "v1/devices/me/attributes") {
+      try {
+        const raw = packet.payload.toString();
+        const body = JSON.parse(raw);
+
+        if (typeof body === "object" && Object.keys(body).length > 0) {
+          const { default: connectDB } = await import("./src/lib/db.js");
+          const { default: Attribute } = await import("./src/models/Attribute.js");
+          const { emit } = await import("./src/lib/event-emitter.js");
+
+          await connectDB();
+          await Attribute.upsertMany(
+            client.tenantId,
+            client.deviceId,
+            "CLIENT_SCOPE",
+            body
+          );
+
+          emit("attribute", {
+            tenantId: client.tenantId,
+            deviceId: client.deviceId,
+            scope: "CLIENT_SCOPE",
+            attributes: body,
+          });
+
+          logger.info({ deviceId: client.deviceId, keys: Object.keys(body) }, "MQTT client attribute kaydedildi");
+        }
+      } catch (err) {
+        logger.error({ err }, "MQTT attribute parse hatası");
+      }
+      return;
+    }
+
+    // ── Telemetri topic'leri: devices/{id}/telemetry/... ──
+    if (!packet.topic.startsWith("devices/")) return;
 
     try {
       const raw = packet.payload.toString();

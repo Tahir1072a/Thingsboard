@@ -2,8 +2,8 @@ import {
   TableContent,
   TableHeaderSheet,
 } from "@/components/common/table/table-header";
-import { Copy, Edit, Plus, RotateCw, Search, Trash2 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { Copy, Edit, Plus, RotateCw, Search, Trash2, Loader2 } from "lucide-react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import Fuse from "fuse.js";
 
 const SCOPE_CONFIG = {
@@ -11,98 +11,23 @@ const SCOPE_CONFIG = {
     canAdd: true,
     canRefresh: true,
     canSearch: true,
+    canEdit: true,
+    canDelete: true,
   },
   CLIENT_SCOPE: {
     canAdd: false, // Client'tan geliyor, ekleyemezsin
     canRefresh: true,
     canSearch: true,
+    canEdit: false,
+    canDelete: false,
   },
   SHARED_SCOPE: {
     canAdd: true,
     canRefresh: true,
     canSearch: true,
+    canEdit: true,
+    canDelete: true,
   },
-};
-
-const MOCK_ATTRIBUTES = {
-  SERVER_SCOPE: [
-    {
-      id: "1",
-      key: "active",
-      value: "false",
-      lastUpdateTs: "2025-11-05 15:41:45",
-    },
-    {
-      id: "2",
-      key: "inactivityAlarmTime",
-      value: "1762346504945",
-      lastUpdateTs: "2025-11-05 15:41:45",
-    },
-    {
-      id: "3",
-      key: "lastActivityTime",
-      value: "1762345866727",
-      lastUpdateTs: "2025-11-05 15:31:08",
-    },
-    {
-      id: "4",
-      key: "lastConnectTime",
-      value: "1762345800000",
-      lastUpdateTs: "2025-11-05 15:30:00",
-    },
-    {
-      id: "5",
-      key: "lastDisconnectTime",
-      value: "1762345866727",
-      lastUpdateTs: "2025-11-05 15:31:08",
-    },
-  ],
-  CLIENT_SCOPE: [
-    {
-      id: "6",
-      key: "firmwareVersion",
-      value: "v2.3.1",
-      lastUpdateTs: "2025-11-04 10:20:30",
-    },
-    {
-      id: "7",
-      key: "hardwareVersion",
-      value: "rev-B",
-      lastUpdateTs: "2025-11-04 10:20:30",
-    },
-    {
-      id: "8",
-      key: "serialNumber",
-      value: "SN-2024-001234",
-      lastUpdateTs: "2025-11-04 10:20:30",
-    },
-    {
-      id: "9",
-      key: "ipAddress",
-      value: "192.168.1.105",
-      lastUpdateTs: "2025-11-05 14:22:10",
-    },
-  ],
-  SHARED_SCOPE: [
-    {
-      id: "10",
-      key: "targetTemperature",
-      value: "24.5",
-      lastUpdateTs: "2025-11-05 12:00:00",
-    },
-    {
-      id: "11",
-      key: "operationMode",
-      value: "auto",
-      lastUpdateTs: "2025-11-05 11:45:00",
-    },
-    {
-      id: "12",
-      key: "alertThreshold",
-      value: "30",
-      lastUpdateTs: "2025-11-05 09:30:00",
-    },
-  ],
 };
 
 // Tablo kolonları
@@ -112,7 +37,11 @@ const columns = [
     title: "Son Güncelleme",
     span: 3,
     cellRender: (row) => (
-      <span className="text-sm text-text-muted">{row.lastUpdateTs}</span>
+      <span className="text-sm text-text-muted">
+        {row.lastUpdateTs
+          ? new Date(row.lastUpdateTs).toLocaleString("tr-TR")
+          : "—"}
+      </span>
     ),
   },
   {
@@ -141,43 +70,121 @@ const columns = [
     span: 3,
     cellRender: (row) => (
       <span className="text-sm text-text-main font-mono bg-white/30 px-2 py-0.5 rounded">
-        {row.value}
+        {typeof row.value === "object"
+          ? JSON.stringify(row.value)
+          : String(row.value)}
       </span>
     ),
   },
 ];
 
-export function DeviceAttributeTab() {
+export function DeviceAttributeTab({ deviceId }) {
   const [scope, setScope] = useState("SERVER_SCOPE");
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+  const [attributes, setAttributes] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [editingAttr, setEditingAttr] = useState(null);
   const itemsPerPage = 10;
   const currentConfig = SCOPE_CONFIG[scope];
 
+  // ── Attribute'ları API'den çek ──
+  const fetchAttributes = useCallback(async () => {
+    if (!deviceId) return;
+    setLoading(true);
+    try {
+      const res = await fetch(
+        `/api/device/${deviceId}/attributes?scope=${scope}`
+      );
+      const json = await res.json();
+      if (json.ok) {
+        setAttributes(json.data || []);
+      }
+    } catch (err) {
+      console.error("Attribute fetch error:", err);
+    } finally {
+      setLoading(false);
+    }
+  }, [deviceId, scope]);
+
+  useEffect(() => {
+    fetchAttributes();
+  }, [fetchAttributes]);
+
   const filteredData = useMemo(() => {
-    const rawData = MOCK_ATTRIBUTES[scope] || [];
-    if (!searchQuery) return rawData;
-    const fuse = new Fuse(rawData, {
+    if (!searchQuery) return attributes;
+    const fuse = new Fuse(attributes, {
       keys: ["key", "value"],
       threshold: 0.3,
     });
     return fuse.search(searchQuery).map((res) => res.item);
-  }, [scope, searchQuery]);
+  }, [attributes, searchQuery]);
 
   const paginatedData = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
     return filteredData.slice(start, start + itemsPerPage);
   }, [filteredData, currentPage]);
 
-  const handleAdd = () => console.log("Add clicked");
-  const handleRefresh = () => console.log("Refresh clicked");
+  // ── Add/Edit attribute ──
+  const handleSave = async (key, value) => {
+    try {
+      const res = await fetch(`/api/device/${deviceId}/attributes`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope, key, value }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        await fetchAttributes();
+        setShowAddModal(false);
+        setEditingAttr(null);
+      }
+    } catch (err) {
+      console.error("Attribute save error:", err);
+    }
+  };
+
+  const handleDelete = async (row) => {
+    if (!confirm(`"${row.key}" özniteliğini silmek istediğinize emin misiniz?`))
+      return;
+    try {
+      const res = await fetch(`/api/device/${deviceId}/attributes`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scope, keys: [row.key] }),
+      });
+      const json = await res.json();
+      if (json.ok) {
+        await fetchAttributes();
+      }
+    } catch (err) {
+      console.error("Attribute delete error:", err);
+    }
+  };
+
+  const handleAdd = () => {
+    setEditingAttr(null);
+    setShowAddModal(true);
+  };
+
+  const handleEdit = (row) => {
+    setEditingAttr(row);
+    setShowAddModal(true);
+  };
+
+  const handleRefresh = () => fetchAttributes();
+
   const handleSearch = (value) => {
     setSearchQuery(value || "");
     setCurrentPage(1);
   };
-  const handleEdit = (row) => console.log("Edit:", row);
-  const handleDelete = (row) => console.log("Delete:", row);
-  const handleRowClick = (row) => console.log("Row clicked:", row);
+
+  const handleRowClick = (row) => {
+    if (currentConfig.canEdit) {
+      handleEdit(row);
+    }
+  };
 
   const rowActions = [
     currentConfig.canEdit && {
@@ -204,7 +211,11 @@ export function DeviceAttributeTab() {
         title="Öznitelikler"
         selectConfig={{
           value: scope,
-          onChange: setScope,
+          onChange: (v) => {
+            setScope(v);
+            setCurrentPage(1);
+            setSearchQuery("");
+          },
           options: [
             { label: "Sunucu Öznitelikleri", value: "SERVER_SCOPE" },
             { label: "İstemci Öznitelikleri", value: "CLIENT_SCOPE" },
@@ -219,7 +230,11 @@ export function DeviceAttributeTab() {
             show: currentConfig.canAdd,
           },
           {
-            icon: <RotateCw className="h-4 w-4" />,
+            icon: loading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <RotateCw className="h-4 w-4" />
+            ),
             onClick: handleRefresh,
             tooltip: "Yenile",
             show: currentConfig.canRefresh,
@@ -231,7 +246,11 @@ export function DeviceAttributeTab() {
       <TableContent
         data={paginatedData}
         columns={columns}
-        title={`${filteredData.length} öznitelik`}
+        title={
+          loading
+            ? "Yükleniyor..."
+            : `${filteredData.length} öznitelik`
+        }
         onRowClick={handleRowClick}
         rowActions={rowActions}
         bulkActions={[]}
@@ -247,8 +266,125 @@ export function DeviceAttributeTab() {
             ? `"${searchQuery}" için sonuç bulunamadı`
             : "Henüz öznitelik yok"
         }
-        getRowId={(row) => row.id}
+        getRowId={(row) => row._id || row.id}
       />
+
+      {/* Add/Edit Modal */}
+      {showAddModal && (
+        <AttributeModal
+          attribute={editingAttr}
+          onSave={handleSave}
+          onClose={() => {
+            setShowAddModal(false);
+            setEditingAttr(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Attribute Add/Edit Modal ──
+function AttributeModal({ attribute, onSave, onClose }) {
+  const [key, setKey] = useState(attribute?.key || "");
+  const [value, setValue] = useState(
+    attribute
+      ? typeof attribute.value === "object"
+        ? JSON.stringify(attribute.value)
+        : String(attribute.value)
+      : ""
+  );
+  const [saving, setSaving] = useState(false);
+  const isEdit = !!attribute;
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!key.trim()) return;
+
+    setSaving(true);
+
+    // Değeri otomatik parse et
+    let parsedValue = value;
+    if (value === "true") parsedValue = true;
+    else if (value === "false") parsedValue = false;
+    else if (!isNaN(value) && value.trim() !== "") parsedValue = Number(value);
+    else {
+      try {
+        parsedValue = JSON.parse(value);
+      } catch {
+        // String olarak bırak
+      }
+    }
+
+    await onSave(key.trim(), parsedValue);
+    setSaving(false);
+  };
+
+  return (
+    <div
+      className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center"
+      onClick={onClose}
+    >
+      <form
+        onClick={(e) => e.stopPropagation()}
+        onSubmit={handleSubmit}
+        className="bg-bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl"
+      >
+        <h3 className="text-lg font-semibold text-text-main mb-4">
+          {isEdit ? "Öznitelik Düzenle" : "Yeni Öznitelik"}
+        </h3>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-sm text-text-muted mb-1">
+              Anahtar (Key)
+            </label>
+            <input
+              type="text"
+              value={key}
+              onChange={(e) => setKey(e.target.value)}
+              disabled={isEdit}
+              placeholder="örn: targetTemperature"
+              className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              autoFocus
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm text-text-muted mb-1">
+              Değer (Value)
+            </label>
+            <input
+              type="text"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              placeholder="örn: 24.5"
+              className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+            />
+            <p className="text-xs text-text-muted mt-1">
+              Sayılar, boolean (true/false) ve JSON otomatik algılanır.
+            </p>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-3 mt-6">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-text-muted hover:text-text-main transition-colors"
+          >
+            İptal
+          </button>
+          <button
+            type="submit"
+            disabled={!key.trim() || saving}
+            className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+          >
+            {saving && <Loader2 className="h-3 w-3 animate-spin" />}
+            {isEdit ? "Güncelle" : "Ekle"}
+          </button>
+        </div>
+      </form>
     </div>
   );
 }

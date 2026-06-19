@@ -21,7 +21,11 @@ import PieChartWidget from "./widgets/PieChartWidget";
 import StatCardWidget from "./widgets/StatCardWidget";
 import AlarmWidget from "./widgets/AlarmWidget";
 import BaseWidgetCard from "./BaseWidgetCard";
-import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell } from "lucide-react";
+import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell, MapPin } from "lucide-react";
+import dynamic from "next/dynamic";
+
+// Leaflet requires browser window — must use dynamic import with ssr: false
+const MapWidget = dynamic(() => import("./widgets/MapWidget"), { ssr: false });
 
 const WIDGET_MAP = {
   line_chart: LineChartWidget,
@@ -33,6 +37,7 @@ const WIDGET_MAP = {
   pie_chart: PieChartWidget,
   stat_card: StatCardWidget,
   alarm_list: AlarmWidget,
+  geo_map: MapWidget,
 };
 
 export const WIDGET_TYPES = [
@@ -98,6 +103,13 @@ export const WIDGET_TYPES = [
     icon: Bell,
     description: "Cihaz alarmlarını canlı göster",
     defaultSize: { w: 6, h: 4 },
+  },
+  {
+    type: "geo_map",
+    label: "Harita",
+    icon: MapPin,
+    description: "Cihaz konumlarını harita üzerinde göster",
+    defaultSize: { w: 6, h: 5 },
   },
 ];
 

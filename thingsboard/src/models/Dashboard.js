@@ -17,7 +17,7 @@ const WidgetSchema = new Schema(
       type: String,
       enum: [
         "line_chart", "gauge", "value_card", "table", "image_map",
-        "bar_chart", "pie_chart", "stat_card", "alarm_list",
+        "bar_chart", "pie_chart", "stat_card", "alarm_list", "geo_map",
       ],
       required: true,
     },

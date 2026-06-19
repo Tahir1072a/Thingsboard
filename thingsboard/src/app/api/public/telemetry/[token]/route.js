@@ -145,6 +145,88 @@ export async function GET(request, { params }) {
       });
     }
 
+    // ── Aggregation modu ──
+    const agg = searchParams.get("agg");
+    const interval = searchParams.get("interval");
+    const startTs = searchParams.get("startTs");
+    const endTs = searchParams.get("endTs");
+
+    const VALID_AGG = ["AVG", "MIN", "MAX", "SUM", "COUNT"];
+    if (agg && VALID_AGG.includes(agg.toUpperCase())) {
+      const aggUpper = agg.toUpperCase();
+      const intervalMs = parseInt(interval) || 3600000;
+
+      let objDeviceId;
+      try {
+        const mongoose = (await import("mongoose")).default;
+        objDeviceId = new mongoose.Types.ObjectId(deviceId);
+      } catch {
+        objDeviceId = deviceId;
+      }
+
+      const timeFrom = startTs
+        ? new Date(parseInt(startTs))
+        : from ? new Date(from) : new Date(Date.now() - 24 * 60 * 60 * 1000);
+      const timeTo = endTs
+        ? new Date(parseInt(endTs))
+        : to ? new Date(to) : new Date();
+
+      const matchFilter = {
+        deviceId: objDeviceId,
+        timestamp: { $gte: timeFrom, $lte: timeTo },
+      };
+      if (key) matchFilter.key = key;
+
+      const groupOps = {
+        _id: {
+          interval: {
+            $subtract: [
+              { $toLong: "$timestamp" },
+              { $mod: [{ $toLong: "$timestamp" }, intervalMs] },
+            ],
+          },
+          key: "$key",
+        },
+        key: { $first: "$key" },
+        count: { $sum: 1 },
+        avg: { $avg: { $toDouble: "$value" } },
+        min: { $min: { $toDouble: "$value" } },
+        max: { $max: { $toDouble: "$value" } },
+        sum: { $sum: { $toDouble: "$value" } },
+        unit: { $first: "$unit" },
+      };
+
+      const valueField = `$${aggUpper.toLowerCase()}`;
+
+      const pipeline = [
+        { $match: matchFilter },
+        { $group: groupOps },
+        { $sort: { "_id.interval": 1 } },
+        {
+          $project: {
+            _id: 0,
+            key: 1,
+            value: valueField,
+            count: 1,
+            unit: 1,
+            timestamp: { $toDate: "$_id.interval" },
+          },
+        },
+      ];
+
+      const results = await Telemetry.aggregate(pipeline);
+
+      return NextResponse.json({
+        ok: true,
+        aggregation: aggUpper,
+        interval: intervalMs,
+        from: timeFrom.toISOString(),
+        to: timeTo.toISOString(),
+        count: results.length,
+        data: results,
+      });
+    }
+
     // Tarih aralığı filtresi
     if (from || to) {
       filter.timestamp = {};
