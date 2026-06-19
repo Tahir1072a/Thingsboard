@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
 import {
   Home,
   Bell,
@@ -10,23 +11,97 @@ import {
   Router,
   UserCheck,
   ScrollText,
+  Users,
+  UserCircle,
   ChevronsLeft,
   ChevronsRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const navLinks = [
-  { href: "/dashboard", label: "Ana Sayfa", icon: Home },
-  { href: "/alarmlar", label: "Alarmlar", icon: Bell },
-  { href: "/panolar", label: "Panolar", icon: LayoutDashboard },
-  { href: "/devices", label: "Cihazlar", icon: Router },
-  { href: "/device-profile", label: "Cihaz Profilleri", icon: UserCheck },
-  { href: "/audit-logs", label: "Denetim Günlükleri", icon: ScrollText },
-];
-
 export default function Sidebar() {
   const pathname = usePathname();
   const [collapsed, setCollapsed] = useState(false);
+  const { data: session } = useSession();
+  const userRole = session?.user?.role;
+
+  const navLinks = useMemo(() => {
+    const links = [
+      { href: "/dashboard", label: "Ana Sayfa", icon: Home },
+      { href: "/alarmlar", label: "Alarmlar", icon: Bell },
+      { href: "/panolar", label: "Panolar", icon: LayoutDashboard },
+      { href: "/devices", label: "Cihazlar", icon: Router },
+      { href: "/device-profile", label: "Cihaz Profilleri", icon: UserCheck },
+    ];
+    if (userRole === "ADMIN" || userRole === "OPERATOR") {
+      links.push({ href: "/audit-logs", label: "Denetim Günlükleri", icon: ScrollText });
+    }
+    if (userRole === "ADMIN") {
+      links.push({ href: "/users", label: "Kullanıcılar", icon: Users });
+    }
+    return links;
+  }, [userRole]);
+
+  const renderNavLink = (link, index) => {
+    const isActive = pathname === link.href;
+    const Icon = link.icon;
+
+    return (
+      <Link
+        key={link.label}
+        href={link.href}
+        title={collapsed ? link.label : undefined}
+        className={cn(
+          "group relative flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 animate-slide-in",
+          isActive
+            ? "bg-gradient-to-r from-halo-600 to-halo-700 text-white shadow-lg scale-[1.02]"
+            : "text-text-muted hover:bg-white/50 hover:text-text-main hover:scale-[1.01]",
+          collapsed ? "justify-center px-2.5" : "gap-3 px-4"
+        )}
+        style={{ animationDelay: `${index * 0.03}s` }}
+      >
+        {/* Icon Container */}
+        <div
+          className={cn(
+            "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
+            isActive
+              ? "bg-white/20 shadow-inner"
+              : "bg-white/30 group-hover:bg-white/50"
+          )}
+        >
+          <Icon
+            className={cn(
+              "h-5 w-5 transition-transform duration-200",
+              isActive
+                ? "text-white"
+                : "text-text-muted group-hover:text-text-main group-hover:scale-110"
+            )}
+          />
+        </div>
+
+        {/* Label */}
+        <span
+          className={cn(
+            "flex-1 whitespace-nowrap transition-all duration-300 overflow-hidden",
+            collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
+          )}
+        >
+          {link.label}
+        </span>
+
+        {/* Aktif İndikatör */}
+        {isActive && !collapsed && (
+          <div className="h-2 w-2 rounded-full bg-white shadow-lg animate-fade-in" />
+        )}
+
+        {/* Collapsed Tooltip */}
+        {collapsed && (
+          <div className="absolute left-full ml-3 rounded-lg bg-black/90 px-3 py-1.5 text-xs text-white shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50 border border-white/10">
+            {link.label}
+          </div>
+        )}
+      </Link>
+    );
+  };
 
   return (
     <aside
@@ -55,68 +130,16 @@ export default function Sidebar() {
 
       {/* Navigasyon Alanı */}
       <nav className="flex-1 space-y-2 overflow-y-auto p-4">
-        {navLinks.map((link, index) => {
-          const isActive = pathname === link.href;
-          const Icon = link.icon;
-
-          return (
-            <Link
-              key={link.label}
-              href={link.href}
-              title={collapsed ? link.label : undefined}
-              className={cn(
-                "group relative flex items-center rounded-xl py-3 text-sm font-medium transition-all duration-200 animate-slide-in",
-                isActive
-                  ? "bg-gradient-to-r from-halo-600 to-halo-700 text-white shadow-lg scale-[1.02]"
-                  : "text-text-muted hover:bg-white/50 hover:text-text-main hover:scale-[1.01]",
-                collapsed ? "justify-center px-2.5" : "gap-3 px-4"
-              )}
-              style={{ animationDelay: `${index * 0.03}s` }}
-            >
-              {/* Icon Container */}
-              <div
-                className={cn(
-                  "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-all duration-200",
-                  isActive
-                    ? "bg-white/20 shadow-inner"
-                    : "bg-white/30 group-hover:bg-white/50"
-                )}
-              >
-                <Icon
-                  className={cn(
-                    "h-5 w-5 transition-transform duration-200",
-                    isActive
-                      ? "text-white"
-                      : "text-text-muted group-hover:text-text-main group-hover:scale-110"
-                  )}
-                />
-              </div>
-
-              {/* Label */}
-              <span
-                className={cn(
-                  "flex-1 whitespace-nowrap transition-all duration-300 overflow-hidden",
-                  collapsed ? "w-0 opacity-0" : "w-auto opacity-100"
-                )}
-              >
-                {link.label}
-              </span>
-
-              {/* Aktif İndikatör */}
-              {isActive && !collapsed && (
-                <div className="h-2 w-2 rounded-full bg-white shadow-lg animate-fade-in" />
-              )}
-
-              {/* Collapsed Tooltip */}
-              {collapsed && (
-                <div className="absolute left-full ml-3 rounded-lg bg-black/90 px-3 py-1.5 text-xs text-white shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap z-50 border border-white/10">
-                  {link.label}
-                </div>
-              )}
-            </Link>
-          );
-        })}
+        {navLinks.map((link, index) => renderNavLink(link, index))}
       </nav>
+
+      {/* Profilim Link */}
+      <div className={cn("border-t border-white/20", collapsed ? "p-2" : "p-4")}>
+        {renderNavLink(
+          { href: "/profile", label: "Profilim", icon: UserCircle },
+          0
+        )}
+      </div>
 
       {/* Toggle Butonu */}
       <div className={cn("border-t border-white/20", collapsed ? "p-2" : "p-4")}>
@@ -138,4 +161,3 @@ export default function Sidebar() {
     </aside>
   );
 }
-

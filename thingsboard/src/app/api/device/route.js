@@ -11,7 +11,7 @@ import { auditDeviceAction } from "@/lib/audit-service";
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
 
     const { searchParams } = new URL(request.url);
 
@@ -63,7 +63,7 @@ export async function GET(request) {
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     const body = await request.json();
 
     const { name, profile, tag, description, isGateway, isPublic, accessToken, authType } = body;

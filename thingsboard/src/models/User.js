@@ -4,6 +4,7 @@ import mongoose, { Schema } from "mongoose";
  * User Modeli
  *
  * NextAuth.js Credentials + Google Provider ile uyumlu kullanıcı şeması.
+ * Roller: ADMIN (Yönetici), OPERATOR (Operatör), VIEWER (İzleyici)
  */
 const UserSchema = new Schema(
   {
@@ -50,8 +51,8 @@ const UserSchema = new Schema(
 
     role: {
       type: String,
-      enum: ["admin", "user"],
-      default: "admin",
+      enum: ["ADMIN", "OPERATOR", "VIEWER"],
+      default: "VIEWER",
     },
 
     isActive: {
@@ -62,7 +63,7 @@ const UserSchema = new Schema(
     // Kullanıcının hangi yöntemle kayıt olduğu
     provider: {
       type: String,
-      enum: ["credentials", "google"],
+      enum: ["credentials", "google", "invite"],
       default: "credentials",
     },
 
@@ -71,11 +72,25 @@ const UserSchema = new Schema(
       type: String,
       default: null,
       sparse: true,
+      index: true,
     },
 
-    // Profil resmi (Google'dan gelebilir)
+    // Profil resmi (Google'dan gelebilir veya upload)
     image: {
       type: String,
+      default: null,
+    },
+
+    // Davet eden kullanıcı
+    invitedBy: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    // Son giriş zamanı
+    lastLoginAt: {
+      type: Date,
       default: null,
     },
 
@@ -88,6 +103,19 @@ const UserSchema = new Schema(
 
     // Parola sıfırlama token'ının geçerlilik süresi
     resetTokenExpiry: {
+      type: Date,
+      default: null,
+      select: false,
+    },
+
+    // Davet token'ı (hesap aktivasyonu için)
+    inviteToken: {
+      type: String,
+      default: null,
+      select: false,
+    },
+
+    inviteTokenExpiry: {
       type: Date,
       default: null,
       select: false,
@@ -106,6 +134,11 @@ const UserSchema = new Schema(
 UserSchema.virtual("fullName").get(function () {
   return [this.firstName, this.lastName].filter(Boolean).join(" ") || this.email;
 });
+
+/* ------------------------------------------------------------------ */
+/* Indexes                                                              */
+/* ------------------------------------------------------------------ */
+UserSchema.index({ role: 1, isActive: 1 });
 
 /* ------------------------------------------------------------------ */
 /* Model                                                                */

@@ -13,7 +13,7 @@ import { getSessionUser } from "@/lib/getSessionUser";
 
 export async function GET(request) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     const { searchParams } = new URL(request.url);
     const deviceId = searchParams.get("deviceId");
 

@@ -84,7 +84,7 @@ export async function POST(request) {
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
 
     const { searchParams } = new URL(request.url);
 

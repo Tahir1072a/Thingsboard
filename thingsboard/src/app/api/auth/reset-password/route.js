@@ -15,7 +15,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/models/User";
-import { hashPassword } from "@/lib/securty";
+import { hashPassword } from "@/lib/security";
 import mongoose from "mongoose";
 
 export async function POST(request) {

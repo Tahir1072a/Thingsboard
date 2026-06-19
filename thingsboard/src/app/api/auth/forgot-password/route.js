@@ -11,7 +11,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/models/User";
-import { genToken } from "@/lib/securty";
+import { genToken } from "@/lib/security";
 import { sendEmail } from "@/lib/email";
 
 // Sıfırlama token'ı geçerlilik süresi: 1 saat (ms)

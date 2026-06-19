@@ -44,6 +44,10 @@ const AuditLogSchema = new Schema(
         "AUTH_FAILED",
         "SECURITY_ALERT",
         "TRANSPORT_MISMATCH",
+        // Kullanıcı yönetimi
+        "USER_CREATE",
+        "USER_UPDATE",
+        "USER_DELETE",
       ],
       index: true,
     },

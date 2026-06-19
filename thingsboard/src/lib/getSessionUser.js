@@ -1,7 +1,7 @@
 /**
  * getSessionUser.js
  *
- * API route'larında oturumdaki kullanıcının ID'sini döndüren yardımcı fonksiyon.
+ * API route'larında oturumdaki kullanıcının ID'sini ve rolünü döndüren yardımcı fonksiyon.
  * Session yoksa veya geçersizse hata fırlatır.
  */
 
@@ -9,8 +9,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 
 /**
- * Oturumdaki kullanıcının ID'sini döndürür.
- * @returns {Promise<string>} userId
+ * Oturumdaki kullanıcının ID'sini ve rolünü döndürür.
+ * @returns {Promise<{userId: string, role: string}>}
  * @throws {Error} Oturum yoksa
  */
 export async function getSessionUser() {
@@ -22,5 +22,8 @@ export async function getSessionUser() {
     throw error;
   }
 
-  return session.user.id;
+  return {
+    userId: session.user.id,
+    role: session.user.role || "VIEWER",
+  };
 }

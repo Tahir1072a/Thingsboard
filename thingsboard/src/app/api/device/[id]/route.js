@@ -20,7 +20,7 @@ import { auditDeviceAction } from "@/lib/audit-service";
 // ------------------------------------------------------------------ //
 export async function GET(request, { params }) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     const { id } = await params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -46,7 +46,7 @@ export async function GET(request, { params }) {
 // ------------------------------------------------------------------ //
 export async function PUT(request, { params }) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     const { id } = await params;
     const body = await request.json();
 
@@ -87,7 +87,7 @@ export async function PUT(request, { params }) {
 // ------------------------------------------------------------------ //
 export async function DELETE(request, { params }) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     const { id } = await params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {

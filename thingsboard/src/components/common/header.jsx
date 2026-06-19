@@ -21,7 +21,8 @@ export default function Header({ pageTitle = "Anasayfa" }) {
   const { data: session } = useSession();
 
   const userName = session?.user?.name || session?.user?.email || "Kullanıcı";
-  const userRole = session?.user?.role || "Kullanıcı";
+  const roleLabels = { ADMIN: "Yönetici", OPERATOR: "Operatör", VIEWER: "İzleyici" };
+  const userRoleLabel = roleLabels[session?.user?.role] || "Kullanıcı";
   const userInitial = userName.charAt(0).toUpperCase();
 
   const [activeCount, setActiveCount] = useState(0);
@@ -231,7 +232,12 @@ export default function Header({ pageTitle = "Anasayfa" }) {
                 </div>
                 <div className="hidden text-left md:block">
                   <div className="text-sm font-semibold text-text-main">{userName}</div>
-                  <div className="text-xs text-text-muted">{userRole}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-text-muted">{userRoleLabel}</span>
+                    <span className="inline-flex items-center rounded-full bg-halo-100 px-1.5 py-0.5 text-[10px] font-semibold text-halo-700">
+                      {userRoleLabel}
+                    </span>
+                  </div>
                 </div>
                 <ChevronDown className="h-4 w-4 text-text-muted" />
               </Button>
@@ -244,7 +250,10 @@ export default function Header({ pageTitle = "Anasayfa" }) {
                 Hesabım
               </DropdownMenuLabel>
               <DropdownMenuSeparator className="bg-gray-200/50" />
-              <DropdownMenuItem className="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-white/60 rounded-lg transition-colors">
+              <DropdownMenuItem
+                onClick={() => router.push("/profile")}
+                className="flex items-center gap-3 py-2.5 cursor-pointer hover:bg-white/60 rounded-lg transition-colors"
+              >
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-halo-100">
                   <User className="h-4 w-4 text-halo-600" />
                 </div>

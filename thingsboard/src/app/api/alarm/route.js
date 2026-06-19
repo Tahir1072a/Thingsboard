@@ -12,7 +12,7 @@ import { createAuditLog } from "@/lib/audit-service";
 // GET — Alarmları listele (user-scoped)
 export async function GET(request) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     await connectDB();
 
     const searchParams = new URL(request.url).searchParams;
@@ -70,7 +70,7 @@ export async function GET(request) {
 // PUT — Alarm durumunu güncelle (acknowledge / clear)
 export async function PUT(request) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     await connectDB();
     const body = await request.json();
     const { alarmId, action } = body; // action: "acknowledge" | "clear"
@@ -144,6 +144,73 @@ export async function PUT(request) {
     });
   } catch (error) {
     console.error("[PUT /api/alarm]", error);
+    return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
+  }
+}
+
+// DELETE — Alarm(lar)ı sil (Hard Delete)
+export async function DELETE(request) {
+  try {
+    const { userId } = await getSessionUser();
+    await connectDB();
+    
+    // Extract body. We support both single `alarmId` and multiple `alarmIds`
+    const body = await request.json();
+    const { alarmId, alarmIds } = body;
+
+    const idsToDelete = alarmIds || (alarmId ? [alarmId] : []);
+
+    if (idsToDelete.length === 0) {
+      return NextResponse.json({ ok: false, message: "Silinecek alarm belirtilmedi." }, { status: 400 });
+    }
+
+    // Sadece kullanıcıya ait olanları bul
+    const alarms = await Alarm.find({ _id: { $in: idsToDelete }, userId });
+    
+    if (alarms.length === 0) {
+      return NextResponse.json({ ok: false, message: "Alarmlar bulunamadı veya yetkiniz yok." }, { status: 404 });
+    }
+
+    // Veritabanından tamamen sil (Hard delete)
+    await Alarm.deleteMany({ _id: { $in: alarms.map(a => a._id) } });
+
+    // Her biri için audit log oluştur
+    for (const alarm of alarms) {
+      createAuditLog({
+        userId,
+        action: "ALARM_DELETE",
+        entityType: "ALARM",
+        entityId: alarm._id,
+        entityName: `${alarm.type} (${alarm.deviceName || ""})`,
+        details: {
+          severity: alarm.severity,
+          reason: "Kullanıcı tarafından sistemden tamamen silindi.",
+        },
+      });
+
+      if (alarm.deviceId) {
+        createAuditLog({
+          userId,
+          action: "ALARM_DELETE",
+          entityType: "DEVICE",
+          entityId: alarm.deviceId,
+          entityName: alarm.deviceName || "",
+          details: {
+            alarmType: alarm.type,
+            severity: alarm.severity,
+            reason: `"${alarm.type}" alarmı sistemden tamamen silindi.`,
+          },
+        });
+      }
+    }
+
+    return NextResponse.json({
+      ok: true,
+      message: `${alarms.length} alarm silindi.`,
+      deletedIds: alarms.map(a => a._id),
+    });
+  } catch (error) {
+    console.error("[DELETE /api/alarm]", error);
     return NextResponse.json({ ok: false, message: error.message }, { status: error.statusCode || 500 });
   }
 }

@@ -13,7 +13,7 @@ import { auditProfileAction } from "@/lib/audit-service";
 // GET — Detay
 export async function GET(request, { params }) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
@@ -35,7 +35,7 @@ export async function GET(request, { params }) {
 // PUT — Güncelle
 export async function PUT(request, { params }) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
@@ -87,7 +87,7 @@ export async function PUT(request, { params }) {
 // DELETE — Sil
 export async function DELETE(request, { params }) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });

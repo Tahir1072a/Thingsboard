@@ -11,7 +11,7 @@ import { auditProfileAction } from "@/lib/audit-service";
 // GET — Listele (search + pagination)
 export async function GET(request) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     await connectDB();
 
     const { searchParams } = new URL(request.url);
@@ -56,7 +56,7 @@ export async function GET(request) {
 // POST — Oluştur
 export async function POST(request) {
   try {
-    const userId = await getSessionUser();
+    const { userId } = await getSessionUser();
     await connectDB();
     const body = await request.json();
 

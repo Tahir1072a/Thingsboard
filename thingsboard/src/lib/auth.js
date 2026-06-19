@@ -9,7 +9,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 import connectDB from "@/lib/db";
 import User from "@/models/User";
-import { verifyPassword } from "@/lib/securty";
+import { verifyPassword } from "@/lib/security";
 
 /** @type {import("next-auth").AuthOptions} */
 export const authOptions = {
@@ -53,6 +53,9 @@ export const authOptions = {
         if (!isValid) {
           throw new Error("Parola hatalı.");
         }
+
+        // Son giriş zamanını güncelle
+        await User.updateOne({ _id: user._id }, { lastLoginAt: new Date() });
 
         // NextAuth'a dönecek kullanıcı nesnesi
         return {
@@ -122,6 +125,11 @@ export const authOptions = {
             // E-posta mevcuttu ama Google ile bağlı değildi → ilişkilendir
             dbUser.googleId = account.providerAccountId;
             dbUser.image = user.image ?? dbUser.image;
+            dbUser.lastLoginAt = new Date();
+            await dbUser.save();
+          } else {
+            // Mevcut Google kullanıcısı — son giriş güncelle
+            dbUser.lastLoginAt = new Date();
             await dbUser.save();
           }
 

@@ -17,9 +17,13 @@ import {
   Bell,
   BellOff,
   ShieldAlert,
+  Copy,
+  Eye,
+  Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { TableContent, TableHeaderSheet } from "@/components/common/table/table-header";
+import { AlarmDetailModal } from "./alarm-detail-modal";
 
 const SEVERITY_CONFIG = {
   CRITICAL: {
@@ -65,6 +69,8 @@ export function DeviceAlarmsTab({ deviceId }) {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [selectedAlarmForDetail, setSelectedAlarmForDetail] = useState(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const itemsPerPage = 10;
 
   const fetchAlarms = useCallback(async () => {
@@ -139,6 +145,32 @@ export function DeviceAlarmsTab({ deviceId }) {
     } catch {
       const toast = await import("react-hot-toast");
       toast.default.error("İşlem başarısız");
+    }
+  };
+
+  const handleDeleteAlarm = async (alarmIds) => {
+    if (!window.confirm(alarmIds.length > 1 ? `${alarmIds.length} alarmı kalıcı olarak silmek istediğinize emin misiniz?` : "Bu alarmı kalıcı olarak silmek istediğinize emin misiniz?")) {
+      return;
+    }
+    
+    try {
+      const res = await fetch("/api/alarm", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alarmIds }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setAlarms((prev) => prev.filter((a) => !data.deletedIds.includes(a._id)));
+        const toast = await import("react-hot-toast");
+        toast.default.success(data.message || "Alarm başarıyla silindi");
+        fetchAlarms();
+      } else {
+        throw new Error(data.message || "Silme başarısız");
+      }
+    } catch (err) {
+      const toast = await import("react-hot-toast");
+      toast.default.error(err.message || "İşlem başarısız");
     }
   };
 
@@ -224,9 +256,26 @@ export function DeviceAlarmsTab({ deviceId }) {
 
   const rowActions = [
     {
+      label: "Detaylar",
+      icon: <Eye />,
+      onClick: (row) => {
+        setSelectedAlarmForDetail(row);
+        setIsDetailModalOpen(true);
+      },
+    },
+    {
       label: "Kopyala",
-      icon: <CheckCircle2 />, // You can use Copy icon here but since we only imported CheckCircle2 earlier we'll import it above...
-      onClick: (row) => navigator.clipboard.writeText(JSON.stringify(row)),
+      icon: <Copy />,
+      onClick: (row) => {
+        navigator.clipboard.writeText(JSON.stringify(row));
+        import("react-hot-toast").then((toast) => toast.default.success("Kopyalandı"));
+      },
+    },
+    {
+      label: "Sil",
+      icon: <Trash2 />,
+      className: "text-red-600 focus:text-red-600 hover:text-red-600",
+      onClick: (row) => handleDeleteAlarm([row._id]),
     }
   ];
 
@@ -236,6 +285,7 @@ export function DeviceAlarmsTab({ deviceId }) {
       icon: <CheckCircle2 className="h-4 w-4" />,
       onClick: async (selected) => {
         for (const id of selected) await handleAction(id, "acknowledge");
+        fetchAlarms();
       }
     },
     {
@@ -243,6 +293,14 @@ export function DeviceAlarmsTab({ deviceId }) {
       icon: <XCircle className="h-4 w-4" />,
       onClick: async (selected) => {
         for (const id of selected) await handleAction(id, "clear");
+        fetchAlarms();
+      }
+    },
+    {
+      label: "Seçilenleri Sil",
+      icon: <Trash2 className="h-4 w-4" />,
+      onClick: async (selected) => {
+        await handleDeleteAlarm(selected);
       }
     }
   ];
@@ -280,6 +338,11 @@ export function DeviceAlarmsTab({ deviceId }) {
         }
         getRowId={(row) => row._id}
         rowClassName={(row) => row.status === "ACTIVE" ? (row.severity === "CRITICAL" ? "bg-red-50/10" : row.severity === "MAJOR" ? "bg-orange-50/10" : "bg-yellow-50/10") : ""}
+      />
+      <AlarmDetailModal 
+        open={isDetailModalOpen} 
+        onOpenChange={setIsDetailModalOpen} 
+        alarm={selectedAlarmForDetail} 
       />
     </div>
   );
