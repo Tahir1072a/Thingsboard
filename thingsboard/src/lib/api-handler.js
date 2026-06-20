@@ -10,7 +10,7 @@
  */
 
 import { NextResponse } from "next/server";
-import logger from "@/lib/logger";
+import logger from "./logger.js";
 
 /**
  * API route handler'ını hata yönetimi ile sarar.

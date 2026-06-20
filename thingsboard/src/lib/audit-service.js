@@ -9,10 +9,10 @@
  * engellemeden fire-and-forget çalışır.
  */
 
-import connectDB from "@/lib/db";
-import AuditLog from "@/models/AuditLog";
-import emitter from "@/lib/event-emitter";
-import logger from "@/lib/logger";
+import connectDB from "./db.js";
+import AuditLog from "../models/AuditLog.js";
+import emitter from "./event-emitter.js";
+import logger from "./logger.js";
 
 /**
  * Denetim günlüğü kaydı oluşturur.

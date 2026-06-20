@@ -9,11 +9,14 @@
  */
 
 import { SessionProvider } from "next-auth/react";
+import { SSEPoolProvider } from "@/lib/sse-pool";
 
 export default function SessionWrapper({ children }) {
   return (
     <SessionProvider refetchInterval={5 * 60} refetchOnWindowFocus={true}>
-      {children}
+      <SSEPoolProvider>
+        {children}
+      </SSEPoolProvider>
     </SessionProvider>
   );
 }

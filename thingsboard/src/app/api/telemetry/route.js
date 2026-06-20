@@ -188,10 +188,11 @@ export async function GET(request) {
         ? new Date(to)
         : new Date();
 
-      // Match filter
+      // Match filter — sadece numeric değerler aggregation'a dahil edilir
       const matchFilter = {
         deviceId: device._id,
         tenantId: device.tenantId,
+        valueType: "number",
         timestamp: { $gte: timeFrom, $lte: timeTo },
       };
       if (key) matchFilter.key = key;

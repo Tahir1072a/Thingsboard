@@ -20,8 +20,11 @@ import BarChartWidget from "./widgets/BarChartWidget";
 import PieChartWidget from "./widgets/PieChartWidget";
 import StatCardWidget from "./widgets/StatCardWidget";
 import AlarmWidget from "./widgets/AlarmWidget";
+import RpcSwitchWidget from "./widgets/RpcSwitchWidget";
+import RpcSliderWidget from "./widgets/RpcSliderWidget";
+import RpcButtonWidget from "./widgets/RpcButtonWidget";
 import BaseWidgetCard from "./BaseWidgetCard";
-import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell, MapPin } from "lucide-react";
+import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell, MapPin, Power, SlidersHorizontal, Zap } from "lucide-react";
 import dynamic from "next/dynamic";
 
 // Leaflet requires browser window — must use dynamic import with ssr: false
@@ -38,6 +41,9 @@ const WIDGET_MAP = {
   stat_card: StatCardWidget,
   alarm_list: AlarmWidget,
   geo_map: MapWidget,
+  rpc_switch: RpcSwitchWidget,
+  rpc_slider: RpcSliderWidget,
+  rpc_button: RpcButtonWidget,
 };
 
 export const WIDGET_TYPES = [
@@ -110,6 +116,27 @@ export const WIDGET_TYPES = [
     icon: MapPin,
     description: "Cihaz konumlarını harita üzerinde göster",
     defaultSize: { w: 6, h: 5 },
+  },
+  {
+    type: "rpc_switch",
+    label: "RPC Anahtar",
+    icon: Power,
+    description: "Cihazı açma/kapama kontrolü",
+    defaultSize: { w: 3, h: 4 },
+  },
+  {
+    type: "rpc_slider",
+    label: "RPC Kaydırıcı",
+    icon: SlidersHorizontal,
+    description: "Sayısal değer gönderme kontrolü",
+    defaultSize: { w: 4, h: 4 },
+  },
+  {
+    type: "rpc_button",
+    label: "RPC Komut",
+    icon: Zap,
+    description: "Tek tıkla özel RPC komutu",
+    defaultSize: { w: 3, h: 3 },
   },
 ];
 

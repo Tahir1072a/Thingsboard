@@ -1,29 +1,41 @@
 "use client";
 
-/**
- * /notifications — Bildirim Kuralları Yönetim Sayfası
- *
- * Alarm tetiklendiğinde e-posta, webhook veya Telegram
- * üzerinden bildirim gönderilmesini yönetir.
- */
-
 import { useState, useEffect, useCallback } from "react";
+import { Badge } from "@/components/ui/badge";
 import {
   Bell,
-  Plus,
-  Edit,
   Trash2,
+  Edit,
   ToggleLeft,
-  ToggleRight,
   Mail,
   Globe,
   Send,
-  X,
-  Loader2,
-  AlertTriangle,
-  CheckCircle,
   BellOff,
+  Save,
 } from "lucide-react";
+import {
+  TableContent,
+  TableHeader,
+} from "@/components/common/table/table-header";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import toast from "react-hot-toast";
+import { cn } from "@/lib/utils";
 
 const TRIGGER_TYPES = [
   { value: "ALARM_CREATED", label: "Alarm Oluşturulduğunda" },
@@ -38,7 +50,7 @@ const CHANNEL_TYPES = [
 ];
 
 const SEVERITY_OPTIONS = [
-  { value: "", label: "Tümü" },
+  { value: "all", label: "Tümü" },
   { value: "CRITICAL", label: "Kritik" },
   { value: "MAJOR", label: "Majör" },
   { value: "MINOR", label: "Minör" },
@@ -46,249 +58,17 @@ const SEVERITY_OPTIONS = [
 ];
 
 const SEVERITY_COLORS = {
-  CRITICAL: "bg-red-500/20 text-red-400 border-red-500/30",
-  MAJOR: "bg-orange-500/20 text-orange-400 border-orange-500/30",
-  MINOR: "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
-  WARNING: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  CRITICAL: "bg-red-500/10 text-red-600 border-transparent",
+  MAJOR: "bg-orange-500/10 text-orange-600 border-transparent",
+  MINOR: "bg-yellow-500/10 text-yellow-600 border-transparent",
+  WARNING: "bg-blue-500/10 text-blue-600 border-transparent",
 };
 
-export default function NotificationsPage() {
-  const [rules, setRules] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingRule, setEditingRule] = useState(null);
-
-  const fetchRules = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/notification-rule");
-      const json = await res.json();
-      if (json.ok) setRules(json.data || []);
-    } catch (err) {
-      console.error("Fetch rules error:", err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchRules();
-  }, [fetchRules]);
-
-  const handleToggle = async (rule) => {
-    try {
-      await fetch(`/api/notification-rule/${rule._id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: !rule.enabled }),
-      });
-      fetchRules();
-    } catch (err) {
-      console.error("Toggle error:", err);
-    }
-  };
-
-  const handleDelete = async (rule) => {
-    if (!confirm(`"${rule.name}" kuralını silmek istediğinize emin misiniz?`)) return;
-    try {
-      await fetch(`/api/notification-rule/${rule._id}`, { method: "DELETE" });
-      fetchRules();
-    } catch (err) {
-      console.error("Delete error:", err);
-    }
-  };
-
-  const handleSave = async (data) => {
-    try {
-      const url = editingRule
-        ? `/api/notification-rule/${editingRule._id}`
-        : "/api/notification-rule";
-      const method = editingRule ? "PUT" : "POST";
-
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-      const json = await res.json();
-      if (json.ok) {
-        setShowModal(false);
-        setEditingRule(null);
-        fetchRules();
-      }
-    } catch (err) {
-      console.error("Save error:", err);
-    }
-  };
-
-  return (
-    <div className="max-w-5xl mx-auto p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 bg-primary/10 rounded-xl">
-            <Bell className="h-6 w-6 text-primary" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-text-main">Bildirim Kuralları</h1>
-            <p className="text-sm text-text-muted">
-              Alarm tetiklendiğinde e-posta, webhook veya Telegram üzerinden bildirim
-            </p>
-          </div>
-        </div>
-        <button
-          onClick={() => {
-            setEditingRule(null);
-            setShowModal(true);
-          }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors text-sm font-medium"
-        >
-          <Plus className="h-4 w-4" />
-          Yeni Kural
-        </button>
-      </div>
-
-      {/* Rules List */}
-      {loading ? (
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="h-6 w-6 text-primary animate-spin" />
-        </div>
-      ) : rules.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-20 text-text-muted">
-          <BellOff className="h-12 w-12 mb-3 opacity-30" />
-          <p className="text-sm">Henüz bildirim kuralı yok</p>
-          <p className="text-xs mt-1">
-            Yeni bir kural ekleyerek alarm tetiklendiğinde bildirim alın
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {rules.map((rule) => (
-            <RuleCard
-              key={rule._id}
-              rule={rule}
-              onToggle={() => handleToggle(rule)}
-              onEdit={() => {
-                setEditingRule(rule);
-                setShowModal(true);
-              }}
-              onDelete={() => handleDelete(rule)}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* Modal */}
-      {showModal && (
-        <RuleModal
-          rule={editingRule}
-          onSave={handleSave}
-          onClose={() => {
-            setShowModal(false);
-            setEditingRule(null);
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── Rule Card ──
-function RuleCard({ rule, onToggle, onEdit, onDelete }) {
-  const triggerLabel = TRIGGER_TYPES.find((t) => t.value === rule.trigger?.type)?.label || rule.trigger?.type;
-  const channelIcons = (rule.channels || [])
-    .filter((c) => c.enabled)
-    .map((c) => CHANNEL_TYPES.find((ct) => ct.value === c.type))
-    .filter(Boolean);
-
-  return (
-    <div
-      className={`bg-bg-card border rounded-xl p-4 transition-all ${
-        rule.enabled
-          ? "border-border hover:border-primary/30"
-          : "border-border/50 opacity-60"
-      }`}
-    >
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3 flex-1 min-w-0">
-          <button
-            onClick={onToggle}
-            className="shrink-0"
-            title={rule.enabled ? "Devre dışı bırak" : "Etkinleştir"}
-          >
-            {rule.enabled ? (
-              <ToggleRight className="h-6 w-6 text-green-400" />
-            ) : (
-              <ToggleLeft className="h-6 w-6 text-text-muted" />
-            )}
-          </button>
-
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span className="font-medium text-text-main truncate">
-                {rule.name}
-              </span>
-              {rule.trigger?.severity && (
-                <span
-                  className={`text-[10px] px-1.5 py-0.5 rounded border ${
-                    SEVERITY_COLORS[rule.trigger.severity] || ""
-                  }`}
-                >
-                  {rule.trigger.severity}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-2 mt-0.5">
-              <span className="text-xs text-text-muted">{triggerLabel}</span>
-              {rule.trigger?.alarmType && (
-                <span className="text-xs text-primary/70">
-                  • {rule.trigger.alarmType}
-                </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Channel badges */}
-          <div className="flex items-center gap-1 mr-2">
-            {channelIcons.map((ch, i) => (
-              <div
-                key={i}
-                className="p-1 bg-white/5 rounded"
-                title={ch.label}
-              >
-                <ch.icon className="h-3.5 w-3.5 text-text-muted" />
-              </div>
-            ))}
-          </div>
-
-          <button
-            onClick={onEdit}
-            className="p-1.5 hover:bg-white/10 rounded-lg transition-colors"
-            title="Düzenle"
-          >
-            <Edit className="h-4 w-4 text-text-muted" />
-          </button>
-          <button
-            onClick={onDelete}
-            className="p-1.5 hover:bg-red-500/10 rounded-lg transition-colors"
-            title="Sil"
-          >
-            <Trash2 className="h-4 w-4 text-red-400" />
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ── Rule Create/Edit Modal ──
-function RuleModal({ rule, onSave, onClose }) {
+function RuleEditModal({ open, onOpenChange, rule, onSuccess }) {
   const [name, setName] = useState(rule?.name || "");
   const [triggerType, setTriggerType] = useState(rule?.trigger?.type || "ALARM_CREATED");
   const [alarmType, setAlarmType] = useState(rule?.trigger?.alarmType || "");
-  const [severity, setSeverity] = useState(rule?.trigger?.severity || "");
+  const [severity, setSeverity] = useState(rule?.trigger?.severity || "all");
   const [channels, setChannels] = useState(
     rule?.channels || [{ type: "EMAIL", enabled: true, config: { to: "" } }]
   );
@@ -300,6 +80,18 @@ function RuleModal({ rule, onSave, onClose }) {
       "Cihaz: ${deviceName}\nAlarm: ${alarmType}\nSeviye: ${severity}\nDurum: ${status}\nZaman: ${timestamp}"
   );
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setName(rule?.name || "");
+      setTriggerType(rule?.trigger?.type || "ALARM_CREATED");
+      setAlarmType(rule?.trigger?.alarmType || "");
+      setSeverity(rule?.trigger?.severity || "all");
+      setChannels(rule?.channels?.length ? rule.channels : [{ type: "EMAIL", enabled: true, config: { to: "" } }]);
+      setSubject(rule?.template?.subject || "${deviceName} — ${alarmType} Alarmı");
+      setBody(rule?.template?.body || "Cihaz: ${deviceName}\nAlarm: ${alarmType}\nSeviye: ${severity}\nDurum: ${status}\nZaman: ${timestamp}");
+    }
+  }, [open, rule]);
 
   const addChannel = (type) => {
     const defaultConfig =
@@ -325,240 +117,484 @@ function RuleModal({ rule, onSave, onClose }) {
     setChannels(channels.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setSaving(true);
-    await onSave({
-      name,
-      trigger: { type: triggerType, alarmType, severity },
-      channels,
-      template: { subject, body },
-    });
-    setSaving(false);
+  const handleSave = async () => {
+    if (!name.trim() || channels.length === 0) {
+      toast.error("Lütfen kural adı ve en az bir kanal ekleyin.");
+      return;
+    }
+    try {
+      setSaving(true);
+      const url = rule
+        ? `/api/notification-rule/${rule._id}`
+        : "/api/notification-rule";
+      const method = rule ? "PUT" : "POST";
+
+      const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name,
+          trigger: { type: triggerType, alarmType, severity: severity === "all" ? "" : severity },
+          channels,
+          template: { subject, body },
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        toast.success(rule ? "Kural güncellendi." : "Kural oluşturuldu.");
+        onSuccess?.();
+        onOpenChange(false);
+      } else {
+        toast.error(data.message || "Kayıt başarısız.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Bir hata oluştu.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-start justify-center pt-10 overflow-y-auto">
-      <form
-        onClick={(e) => e.stopPropagation()}
-        onSubmit={handleSubmit}
-        className="bg-bg-card border border-border rounded-xl p-6 w-full max-w-xl shadow-2xl my-4"
-      >
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-text-main">
-            {rule ? "Kural Düzenle" : "Yeni Bildirim Kuralı"}
-          </h3>
-          <button type="button" onClick={onClose}>
-            <X className="h-5 w-5 text-text-muted hover:text-text-main" />
-          </button>
-        </div>
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="glass-strong sm:max-w-2xl p-0 overflow-hidden border-white/20 max-h-[90vh] flex flex-col">
+        <DialogHeader className="bg-halo-50/50 px-6 py-5 animate-fade-in shrink-0">
+          <DialogTitle className="flex items-center gap-3 text-xl font-bold text-text-main">
+            <div className="p-2 bg-halo-100 rounded-lg">
+              {rule ? <Edit className="h-6 w-6 text-halo-600" /> : <Bell className="h-6 w-6 text-halo-600" />}
+            </div>
+            {rule ? "Kuralı Düzenle" : "Yeni Bildirim Kuralı"}
+          </DialogTitle>
+        </DialogHeader>
 
-        <div className="space-y-5">
-          {/* Kural adı */}
-          <div>
-            <label className="block text-sm text-text-muted mb-1">Kural Adı</label>
-            <input
-              type="text"
+        <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+          <div className="space-y-2">
+            <Label className="text-base font-bold text-text-main">Kural Adı</Label>
+            <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="örn: Kritik Alarm Bildirimi"
-              className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-              required
+              className="h-12 px-4 text-base bg-white/90 border-gray-200 focus:ring-halo-600"
             />
           </div>
 
-          {/* Tetikleme */}
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <label className="block text-sm text-text-muted mb-1">Tetikleme</label>
-              <select
-                value={triggerType}
-                onChange={(e) => setTriggerType(e.target.value)}
-                className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main text-sm"
-              >
-                {TRIGGER_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>
-                    {t.label}
-                  </option>
-                ))}
-              </select>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label className="text-base font-bold text-text-main">Tetikleme</Label>
+              <Select value={triggerType} onValueChange={setTriggerType}>
+                <SelectTrigger className="h-12 w-full px-4 text-base bg-white/90 border-gray-200 focus:ring-halo-600">
+                  <SelectValue placeholder="Tetikleme Tipi" />
+                </SelectTrigger>
+                <SelectContent className="bg-white/95 backdrop-blur-xl border-gray-200">
+                  {TRIGGER_TYPES.map((t) => (
+                    <SelectItem key={t.value} value={t.value} className="py-2 cursor-pointer focus:bg-halo-50">{t.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div>
-              <label className="block text-sm text-text-muted mb-1">Alarm Tipi</label>
-              <input
-                type="text"
+            <div className="space-y-2">
+              <Label className="text-base font-bold text-text-main">Alarm Tipi</Label>
+              <Input
                 value={alarmType}
                 onChange={(e) => setAlarmType(e.target.value)}
                 placeholder="Boş = tümü"
-                className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main text-sm"
+                className="h-12 px-4 text-base bg-white/90 border-gray-200 focus:ring-halo-600"
               />
             </div>
-            <div>
-              <label className="block text-sm text-text-muted mb-1">Seviye</label>
-              <select
-                value={severity}
-                onChange={(e) => setSeverity(e.target.value)}
-                className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main text-sm"
-              >
-                {SEVERITY_OPTIONS.map((s) => (
-                  <option key={s.value} value={s.value}>
-                    {s.label}
-                  </option>
-                ))}
-              </select>
+            <div className="space-y-2">
+              <Label className="text-base font-bold text-text-main">Seviye</Label>
+              <Select value={severity} onValueChange={setSeverity}>
+                <SelectTrigger className="h-12 w-full px-4 text-base bg-white/90 border-gray-200 focus:ring-halo-600">
+                  <SelectValue placeholder="Seviye" />
+                </SelectTrigger>
+                <SelectContent className="bg-white/95 backdrop-blur-xl border-gray-200">
+                  {SEVERITY_OPTIONS.map((s) => (
+                    <SelectItem key={s.value} value={s.value} className="py-2 cursor-pointer focus:bg-halo-50">{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
-          {/* Kanallar */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="text-sm text-text-muted">Bildirim Kanalları</label>
-              <div className="flex gap-1">
-                {CHANNEL_TYPES.map((ct) => (
-                  <button
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <Label className="text-base font-bold text-text-main">Bildirim Kanalları</Label>
+              <div className="flex gap-2">
+                {CHANNEL_TYPES.map((ct) => {
+                  const Icon = ct.icon;
+                  return (
+                  <Button
                     key={ct.value}
                     type="button"
+                    variant="outline"
+                    size="sm"
                     onClick={() => addChannel(ct.value)}
-                    className="flex items-center gap-1 px-2 py-1 text-xs bg-white/5 hover:bg-white/10 border border-border rounded-lg transition-colors text-text-muted"
+                    className="h-8 text-xs border-gray-200 hover:bg-halo-50"
                   >
-                    <ct.icon className="h-3 w-3" />
-                    {ct.label}
-                  </button>
-                ))}
+                    <Icon className="h-3.5 w-3.5 mr-1.5" />
+                    {ct.label} Ekle
+                  </Button>
+                )})}
               </div>
             </div>
 
-            <div className="space-y-2">
-              {channels.map((ch, i) => (
-                <ChannelConfigRow
-                  key={i}
-                  channel={ch}
-                  onUpdate={(field, val) => updateChannel(i, field, val)}
-                  onRemove={() => removeChannel(i)}
-                />
-              ))}
+            <div className="space-y-3">
+              {channels.map((ch, i) => {
+                const chType = CHANNEL_TYPES.find((ct) => ct.value === ch.type);
+                const Icon = chType?.icon || Mail;
+                return (
+                  <div key={i} className="flex items-start gap-3 p-4 bg-white/60 border border-gray-200 rounded-xl">
+                    <div className="flex items-center gap-2 shrink-0 pt-1">
+                      <Icon className="h-5 w-5 text-halo-600" />
+                      <span className="text-sm font-semibold text-text-main w-20">
+                        {chType?.label}
+                      </span>
+                    </div>
+
+                    <div className="flex-1 space-y-2">
+                      {ch.type === "EMAIL" && (
+                        <Input
+                          type="email"
+                          value={ch.config?.to || ""}
+                          onChange={(e) => updateChannel(i, "to", e.target.value)}
+                          placeholder="alici@ornek.com"
+                          className="h-10 text-sm bg-white border-gray-200 focus:ring-halo-600"
+                        />
+                      )}
+
+                      {ch.type === "WEBHOOK" && (
+                        <div className="flex gap-2">
+                          <Select
+                            value={ch.config?.method || "POST"}
+                            onValueChange={(val) => updateChannel(i, "method", val)}
+                          >
+                            <SelectTrigger className="w-[100px] h-10 text-sm bg-white border-gray-200 focus:ring-halo-600">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent className="bg-white border-gray-200">
+                              <SelectItem value="POST">POST</SelectItem>
+                              <SelectItem value="PUT">PUT</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="url"
+                            value={ch.config?.url || ""}
+                            onChange={(e) => updateChannel(i, "url", e.target.value)}
+                            placeholder="https://api.ornek.com/webhook"
+                            className="flex-1 h-10 text-sm bg-white border-gray-200 focus:ring-halo-600"
+                          />
+                        </div>
+                      )}
+
+                      {ch.type === "TELEGRAM" && (
+                        <div className="grid grid-cols-2 gap-2">
+                          <Input
+                            type="text"
+                            value={ch.config?.botToken || ""}
+                            onChange={(e) => updateChannel(i, "botToken", e.target.value)}
+                            placeholder="Bot Token"
+                            className="h-10 text-sm bg-white border-gray-200 focus:ring-halo-600"
+                          />
+                          <Input
+                            type="text"
+                            value={ch.config?.chatId || ""}
+                            onChange={(e) => updateChannel(i, "chatId", e.target.value)}
+                            placeholder="Chat ID"
+                            className="h-10 text-sm bg-white border-gray-200 focus:ring-halo-600"
+                          />
+                        </div>
+                      )}
+                    </div>
+
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeChannel(i)}
+                      className="h-8 w-8 hover:bg-red-50 text-red-500 hover:text-red-600 -mt-1 -mr-1"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                );
+              })}
             </div>
           </div>
 
-          {/* Şablon */}
-          <div>
-            <label className="block text-sm text-text-muted mb-1">Konu Şablonu</label>
-            <input
-              type="text"
-              value={subject}
-              onChange={(e) => setSubject(e.target.value)}
-              className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main text-sm font-mono"
-            />
-          </div>
-          <div>
-            <label className="block text-sm text-text-muted mb-1">İçerik Şablonu</label>
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              rows={4}
-              className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main text-sm font-mono resize-none"
-            />
-            <p className="text-[11px] text-text-muted mt-1">
-              Değişkenler: {"${deviceName}"}, {"${alarmType}"}, {"${severity}"}, {"${status}"}, {"${timestamp}"}, {"${details}"}
-            </p>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-base font-bold text-text-main">Konu Şablonu</Label>
+              <Input
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="h-12 px-4 text-sm bg-white/90 border-gray-200 focus:ring-halo-600 font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-base font-bold text-text-main">İçerik Şablonu</Label>
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                rows={4}
+                className="w-full px-4 py-3 bg-white/90 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-halo-600 font-mono resize-none"
+              />
+              <p className="text-xs text-text-muted mt-1">
+                Değişkenler: {"${deviceName}"}, {"${alarmType}"}, {"${severity}"}, {"${status}"}, {"${timestamp}"}, {"${details}"}
+              </p>
+            </div>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-border">
-          <button
+        <DialogFooter className="bg-halo-50/30 px-6 py-4 border-t border-white/10 shrink-0 flex flex-row justify-end gap-3 backdrop-blur-sm">
+          <Button
             type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-text-muted hover:text-text-main transition-colors"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="h-12 px-6 text-base border-gray-300 text-gray-600 bg-white hover:bg-gray-100"
           >
             İptal
-          </button>
-          <button
-            type="submit"
-            disabled={!name.trim() || channels.length === 0 || saving}
-            className="px-5 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+          </Button>
+          <Button
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+            className="h-12 px-8 text-base bg-halo-600 hover:bg-halo-700 text-white shadow-md hover:shadow-halo-600/30 transition-all flex items-center"
           >
-            {saving && <Loader2 className="h-3 w-3 animate-spin" />}
-            {rule ? "Güncelle" : "Oluştur"}
-          </button>
-        </div>
-      </form>
-    </div>
+            {saving ? "Kaydediliyor..." : "Kaydet"}
+            {!saving && <Save className="ml-2 h-5 w-5" />}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
-// ── Channel Config Row ──
-function ChannelConfigRow({ channel, onUpdate, onRemove }) {
-  const chType = CHANNEL_TYPES.find((ct) => ct.value === channel.type);
-  const Icon = chType?.icon || Mail;
+export default function NotificationsPage() {
+  const [openModal, setOpenModal] = useState(false);
+  const [editRule, setEditRule] = useState(null);
+  const [rules, setRules] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  const fetchRules = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await fetch("/api/notification-rule");
+      const json = await res.json();
+      if (json.ok) setRules(json.data || []);
+    } catch (err) {
+      console.error("Fetch rules error:", err);
+      toast.error("Kurallar alınamadı");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchRules();
+  }, [fetchRules]);
+
+  const handleToggleActive = async (rule) => {
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/notification-rule/${rule._id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ enabled: !rule.enabled }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        toast.success(`Kural ${!rule.enabled ? "aktif" : "deaktif"} edildi.`);
+        await fetchRules();
+      } else {
+        toast.error(data.message || "İşlem başarısız.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Bir hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteRule = async (rule) => {
+    const confirmed = confirm(
+      `"${rule.name}" kuralını silmek istediğinizden emin misiniz?`
+    );
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/notification-rule/${rule._id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        toast.success(`"${rule.name}" başarıyla silindi.`);
+        await fetchRules();
+      } else {
+        toast.error(data.message || "Silme işlemi başarısız.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Bir hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const columns = [
+    {
+      id: "name",
+      title: "Kural",
+      span: 3,
+      cellRender: (rule) => (
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-halo-400 to-halo-600 shadow-sm text-white">
+            <Bell className="h-4 w-4" />
+          </div>
+          <div className="overflow-hidden">
+            <p className="text-sm font-semibold text-text-main truncate">
+              {rule.name}
+            </p>
+            <p className="text-xs text-text-muted truncate">
+              {TRIGGER_TYPES.find((t) => t.value === rule.trigger?.type)?.label || rule.trigger?.type}
+              {rule.trigger?.alarmType && ` • ${rule.trigger.alarmType}`}
+            </p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      id: "severity",
+      title: "Seviye",
+      span: 2,
+      cellRender: (rule) => {
+        if (!rule.trigger?.severity) return <span className="text-sm text-text-muted">—</span>;
+        return (
+          <Badge
+            variant="outline"
+            className={cn(
+              "border-transparent font-medium",
+              SEVERITY_COLORS[rule.trigger.severity] || "bg-gray-500/10 text-gray-600"
+            )}
+          >
+            {SEVERITY_OPTIONS.find((s) => s.value === rule.trigger.severity)?.label || rule.trigger.severity}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: "status",
+      title: "Durum",
+      span: 2,
+      cellRender: (rule) => (
+        <div className="flex items-center">
+          <div
+            className={`h-2.5 w-2.5 rounded-full ${
+              rule.enabled ? "bg-green-500 animate-pulse" : "bg-red-500"
+            }`}
+          />
+          <span className="ml-2 text-sm text-text-main hidden xl:block">
+            {rule.enabled ? "Aktif" : "Deaktif"}
+          </span>
+        </div>
+      ),
+    },
+    {
+      id: "channels",
+      title: "Kanallar",
+      span: 3,
+      cellRender: (rule) => {
+        const channelIcons = (rule.channels || [])
+          .filter((c) => c.enabled)
+          .map((c) => CHANNEL_TYPES.find((ct) => ct.value === c.type))
+          .filter(Boolean);
+
+        return (
+          <div className="flex items-center gap-2 text-sm text-text-muted">
+            {channelIcons.map((ch, i) => {
+              const Icon = ch.icon;
+              return (
+              <div key={i} className="flex items-center gap-1.5 px-2 py-1 bg-gray-100 rounded-md">
+                <Icon className="h-3.5 w-3.5 text-halo-600" />
+                <span className="text-xs font-medium">{ch.label}</span>
+              </div>
+            )})}
+          </div>
+        );
+      },
+    },
+  ];
+
+  const rowActions = [
+    {
+      label: "Düzenle",
+      onClick: (rule) => {
+        setEditRule(rule);
+        setOpenModal(true);
+      },
+      icon: <Edit className="h-4 w-4" />,
+    },
+    {
+      label: (rule) => (rule.enabled ? "Deaktif Et" : "Aktif Et"),
+      onClick: (rule) => handleToggleActive(rule),
+      icon: <ToggleLeft className="h-4 w-4" />,
+    },
+    {
+      label: "Sil",
+      onClick: async (rule) => handleDeleteRule(rule),
+      icon: <Trash2 className="h-4 w-4" />,
+      className: "text-red-600",
+    },
+  ];
 
   return (
-    <div className="flex items-start gap-2 p-3 bg-bg-surface border border-border rounded-lg">
-      <div className="flex items-center gap-2 shrink-0 pt-0.5">
-        <Icon className="h-4 w-4 text-text-muted" />
-        <span className="text-xs font-medium text-text-muted w-16">
-          {chType?.label}
-        </span>
-      </div>
+    <>
+      <TableHeader
+        title="Bildirim Kuralları"
+        advert="Alarm tetiklendiğinde e-posta, webhook veya Telegram üzerinden bildirim gönderilmesini yönetir"
+        addButtonName="Yeni Kural Ekle"
+        onAdd={() => {
+          setEditRule(null);
+          setOpenModal(true);
+        }}
+        onRefresh={fetchRules}
+      />
 
-      <div className="flex-1 space-y-1.5">
-        {channel.type === "EMAIL" && (
-          <input
-            type="email"
-            value={channel.config?.to || ""}
-            onChange={(e) => onUpdate("to", e.target.value)}
-            placeholder="alici@ornek.com"
-            className="w-full px-2 py-1.5 bg-bg-card border border-border rounded text-text-main text-xs"
-          />
-        )}
-
-        {channel.type === "WEBHOOK" && (
-          <>
-            <input
-              type="url"
-              value={channel.config?.url || ""}
-              onChange={(e) => onUpdate("url", e.target.value)}
-              placeholder="https://api.ornek.com/webhook"
-              className="w-full px-2 py-1.5 bg-bg-card border border-border rounded text-text-main text-xs"
-            />
-            <select
-              value={channel.config?.method || "POST"}
-              onChange={(e) => onUpdate("method", e.target.value)}
-              className="px-2 py-1 bg-bg-card border border-border rounded text-text-main text-xs"
-            >
-              <option value="POST">POST</option>
-              <option value="PUT">PUT</option>
-            </select>
-          </>
-        )}
-
-        {channel.type === "TELEGRAM" && (
-          <div className="grid grid-cols-2 gap-1.5">
-            <input
-              type="text"
-              value={channel.config?.botToken || ""}
-              onChange={(e) => onUpdate("botToken", e.target.value)}
-              placeholder="Bot Token"
-              className="w-full px-2 py-1.5 bg-bg-card border border-border rounded text-text-main text-xs"
-            />
-            <input
-              type="text"
-              value={channel.config?.chatId || ""}
-              onChange={(e) => onUpdate("chatId", e.target.value)}
-              placeholder="Chat ID"
-              className="w-full px-2 py-1.5 bg-bg-card border border-border rounded text-text-main text-xs"
-            />
+      <TableContent
+        data={rules}
+        columns={columns}
+        gridClassName="grid-cols-12"
+        title="Bildirim Kuralları Listesi"
+        rowActions={rowActions}
+        getRowId={(rule) => rule._id}
+        rowClassName={(rule) => {
+          if (!rule.enabled) return "opacity-60";
+          return "";
+        }}
+        emptyState={
+          <div className="text-center py-12">
+            <BellOff className="h-16 w-16 mx-auto text-gray-300" />
+            <h3 className="mt-4 text-lg font-semibold">
+              Kural Bulunamadı
+            </h3>
+            <p className="text-gray-500 mt-2">
+              Henüz hiç bildirim kuralı eklenmemiş
+            </p>
           </div>
-        )}
-      </div>
+        }
+      />
 
-      <button
-        type="button"
-        onClick={onRemove}
-        className="p-1 hover:bg-red-500/10 rounded transition-colors shrink-0"
-      >
-        <X className="h-3.5 w-3.5 text-red-400" />
-      </button>
-    </div>
+      <RuleEditModal
+        open={openModal}
+        onOpenChange={(open) => {
+          setOpenModal(open);
+          if (!open) setEditRule(null);
+        }}
+        rule={editRule}
+        onSuccess={fetchRules}
+      />
+    </>
   );
 }

@@ -12,7 +12,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Device from "@/models/Device";
 import Attribute from "@/models/Attribute";
-import { emit } from "@/lib/event-emitter";
+import emitter from "@/lib/event-emitter";
 
 // ------------------------------------------------------------------ //
 // POST — Cihaz client-side attribute gönderir
@@ -61,7 +61,7 @@ export async function POST(request, { params }) {
     );
 
     // SSE üzerinden bildir
-    emit("attribute", {
+    emitter.emit("attribute", {
       tenantId,
       deviceId,
       scope: "CLIENT_SCOPE",

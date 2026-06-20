@@ -8,10 +8,10 @@
  * Cihaz veya profil güncellendiğinde ilgili anahtar invalidate edilir.
  */
 
-import redis from "@/lib/redis";
-import connectDB from "@/lib/db";
-import Device from "@/models/Device";
-import DeviceProfile from "@/models/DeviceProfile";
+import redis from "./redis.js";
+import connectDB from "./db.js";
+import Device from "../models/Device.js";
+import DeviceProfile from "../models/DeviceProfile.js";
 
 const CACHE_TTL = 600;
 

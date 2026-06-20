@@ -94,16 +94,14 @@ export async function GET(request, { params }) {
 
     // ── Telemetri sorgulama (ana /api/telemetry GET mantığı ile aynı) ──
     const filter = { deviceId };
+    if (dashboard.tenantId) filter.tenantId = dashboard.tenantId;
     if (key) filter.key = key;
 
     // latest=true: Her benzersiz key için son değer
     if (latest === "true") {
-      const pipeline = [
-        { $match: { deviceId: dashboard.widgets[0]?.devices?.[0]?.id ? { $in: Array.from(allowedDeviceIds).map(id => { try { const mongoose = require("mongoose"); return new mongoose.Types.ObjectId(id); } catch { return id; } }) } : deviceId } },
-      ];
-
-      // Basit latest sorgusu — deviceId'ye göre
+      // Basit latest sorgusu — deviceId'ye göre (tenantId dahil)
       const matchFilter = { deviceId };
+      if (dashboard.tenantId) matchFilter.tenantId = dashboard.tenantId;
       try {
         const mongoose = (await import("mongoose")).default;
         matchFilter.deviceId = new mongoose.Types.ObjectId(deviceId);
@@ -173,8 +171,10 @@ export async function GET(request, { params }) {
 
       const matchFilter = {
         deviceId: objDeviceId,
+        valueType: "number",
         timestamp: { $gte: timeFrom, $lte: timeTo },
       };
+      if (dashboard.tenantId) matchFilter.tenantId = dashboard.tenantId;
       if (key) matchFilter.key = key;
 
       const groupOps = {

@@ -11,11 +11,11 @@
  * Redis key: "inactive-attempt:{deviceId}" → TTL: 1 saat
  */
 
-import redis from "@/lib/redis";
-import Alarm from "@/models/Alarm";
-import { createAuditLog } from "@/lib/audit-service";
-import emitter from "@/lib/event-emitter";
-import logger from "@/lib/logger";
+import redis from "./redis.js";
+import Alarm from "../models/Alarm.js";
+import { createAuditLog } from "./audit-service.js";
+import emitter from "./event-emitter.js";
+import logger from "./logger.js";
 
 const WINDOW_SECONDS = 3600; // 1 saat
 const NOTIFY_THRESHOLD = 3; // SSE bildirimi eşiği

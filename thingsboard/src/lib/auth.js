@@ -7,9 +7,9 @@
 
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
-import connectDB from "@/lib/db";
-import User from "@/models/User";
-import { verifyPassword } from "@/lib/security";
+import connectDB from "./db.js";
+import User from "../models/User.js";
+import { verifyPassword } from "./security.js";
 
 /** @type {import("next-auth").AuthOptions} */
 export const authOptions = {

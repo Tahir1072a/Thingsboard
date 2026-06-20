@@ -11,12 +11,12 @@
  *   "temperature > 50 OR pressure < 900"  — bileşik OR
  */
 
-import redis from "@/lib/redis";
-import connectDB from "@/lib/db";
-import Alarm from "@/models/Alarm";
-import emitter from "@/lib/event-emitter";
-import { getCachedDevice, getCachedProfile } from "@/lib/cache";
-import { processNotifications } from "@/lib/notification-service";
+import redis from "./redis.js";
+import connectDB from "./db.js";
+import Alarm from "../models/Alarm.js";
+import emitter from "./event-emitter.js";
+import { getCachedDevice, getCachedProfile } from "./cache.js";
+import { processNotifications } from "./notification-service.js";
 
 // ────────────────────────────────────────────────────────────────────
 // 1. Koşul Değerlendirici

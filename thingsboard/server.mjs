@@ -39,6 +39,7 @@ import AuditLog from "./src/models/AuditLog.js";
 import DeviceProfile from "./src/models/DeviceProfile.js";
 import emitter from "./src/lib/event-emitter.js";
 import logger from "./src/lib/logger.js";
+import { checkAlarms, updateTelemetryContext } from "./src/lib/alarm-engine.js";
 import Redis from "ioredis";
 
 // Redis bağlantısı (server.js kendi instance'ını kullanır)
@@ -252,6 +253,9 @@ async function ingestTelemetry(items) {
         deviceId: String(doc.deviceId),
       });
 
+      // Telemetri context cache güncelle (compound alarm koşulları için)
+      updateTelemetryContext(item.deviceId, item.key, parsedValue);
+
       // Alarm kontrolü
       checkAlarms(item.deviceId, item.key, parsedValue, { userId: item.userId, tenantId: item.tenantId });
 
@@ -333,183 +337,12 @@ async function checkTransportMismatch(deviceId, protocol, userId) {
 }
 
 // ------------------------------------------------------------------ //
-// Alarm kontrolü — Seviye 2: AND/OR, string, timeWindow, cihaz kuralları
+// Alarm kontrolü — Merkezi alarm-engine.js kullanılır (duplike kod kaldırıldı)
 // ------------------------------------------------------------------ //
-
-/**
- * Tekli koşul değerlendir: "key operator threshold"
- */
-function evaluateSingle(expr, key, value, context) {
-  if (!expr) return false;
-  const match = expr.match(/^\s*(\w+)\s*(>=|<=|>|<|==|!=)\s*(.+?)\s*$/);
-  if (!match) return false;
-  const [, conditionKey, operator, thresholdRaw] = match;
-
-  let actualValue;
-  if (conditionKey === key) {
-    actualValue = value;
-  } else if (context[conditionKey] !== undefined) {
-    actualValue = context[conditionKey];
-  } else {
-    return false;
-  }
-
-  const thresholdNum = parseFloat(thresholdRaw);
-  const isNumeric = !isNaN(thresholdNum) && typeof actualValue === "number";
-
-  if (isNumeric) {
-    switch (operator) {
-      case ">":  return actualValue > thresholdNum;
-      case ">=": return actualValue >= thresholdNum;
-      case "<":  return actualValue < thresholdNum;
-      case "<=": return actualValue <= thresholdNum;
-      case "==": return actualValue === thresholdNum;
-      case "!=": return actualValue !== thresholdNum;
-      default:   return false;
-    }
-  } else {
-    const strValue = String(actualValue);
-    const strThreshold = thresholdRaw.replace(/^["']|["']$/g, "");
-    switch (operator) {
-      case "==": return strValue === strThreshold;
-      case "!=": return strValue !== strThreshold;
-      default:   return false;
-    }
-  }
-}
-
-/**
- * Bileşik koşul değerlendirici (AND/OR destekli)
- */
-function evaluateCondition(condition, key, value, context = {}) {
-  if (!condition) return false;
-  if (condition.includes(" AND ")) {
-    return condition.split(" AND ").every((p) => evaluateCondition(p.trim(), key, value, context));
-  }
-  if (condition.includes(" OR ")) {
-    return condition.split(" OR ").some((p) => evaluateCondition(p.trim(), key, value, context));
-  }
-  return evaluateSingle(condition, key, value, context);
-}
-
-/**
- * Redis sorted set ile sliding window kontrolü
- */
-async function checkTimeWindow(deviceId, alarmType, windowConfig) {
-  const { durationSeconds, triggerCount } = windowConfig;
-  const redisKey = `alarm-window:${deviceId}:${alarmType}`;
-  const now = Date.now();
-  try {
-    await redis.zremrangebyscore(redisKey, 0, now - durationSeconds * 1000);
-    await redis.zadd(redisKey, now, `${now}`);
-    await redis.expire(redisKey, durationSeconds + 60);
-    const count = await redis.zcard(redisKey);
-    return count >= triggerCount;
-  } catch {
-    return true;
-  }
-}
-
-/**
- * Telemetri context cache güncelle
- */
-async function updateTelemetryCtx(deviceId, key, value) {
-  try {
-    await redis.hset(`telemetry-ctx:${deviceId}`, key, JSON.stringify(value));
-    await redis.expire(`telemetry-ctx:${deviceId}`, 3600);
-  } catch {}
-}
-
-/**
- * Telemetri context cache oku
- */
-async function getTelemetryCtx(deviceId) {
-  try {
-    const raw = await redis.hgetall(`telemetry-ctx:${deviceId}`);
-    const ctx = {};
-    for (const [k, v] of Object.entries(raw || {})) {
-      try { ctx[k] = JSON.parse(v); } catch { ctx[k] = v; }
-    }
-    return ctx;
-  } catch {
-    return {};
-  }
-}
-
-async function checkAlarms(deviceId, key, value, userId) {
-  try {
-    const device = await getCachedDevice(deviceId);
-    if (!device) return;
-
-    // Context cache güncelle
-    await updateTelemetryCtx(deviceId, key, value);
-    const context = await getTelemetryCtx(deviceId);
-
-    // Profil alarm kuralları
-    let profileRules = [];
-    if (device.profile && device.profile !== "default") {
-      const profile = await getCachedProfile(device.profile);
-      if (profile?.alarms?.length) {
-        profileRules = profile.alarms.map((r) => ({ ...r, _source: "PROFILE", _profileId: profile._id }));
-      }
-    }
-
-    // Cihaz bazlı alarm kuralları
-    const deviceRules = (device.alarms || []).map((r) => ({ ...r, _source: "DEVICE" }));
-
-    const allRules = [...profileRules, ...deviceRules];
-    if (allRules.length === 0) return;
-
-    for (const rule of allRules) {
-      const triggered = evaluateCondition(rule.createCondition, key, value, context);
-
-      if (triggered) {
-        if (rule.timeWindow?.enabled) {
-          const windowMet = await checkTimeWindow(deviceId, rule.alarmType, rule.timeWindow);
-          if (!windowMet) continue;
-        }
-
-        const existing = await Alarm.findOne({
-          deviceId, type: rule.alarmType, status: { $in: ["ACTIVE", "ACKNOWLEDGED"] },
-        });
-
-        if (!existing) {
-          const alarm = await Alarm.create({
-            userId: userId || device.userId,
-            deviceId,
-            deviceName: device.name,
-            profileId: rule._source === "PROFILE" ? rule._profileId : undefined,
-            type: rule.alarmType,
-            severity: rule.severity,
-            status: "ACTIVE",
-            source: rule._source,
-            details: { key, triggerValue: value, threshold: rule.createCondition },
-          });
-          logger.info({ device: device.name, type: rule.alarmType, severity: rule.severity, source: rule._source }, "ALARM tetiklendi");
-          emitter.emit("alarm", alarm.toObject());
-        }
-      }
-
-      if (rule.clearCondition) {
-        const shouldClear = evaluateCondition(rule.clearCondition, key, value, context);
-        if (shouldClear) {
-          const activeAlarm = await Alarm.findOne({
-            deviceId, type: rule.alarmType, status: { $in: ["ACTIVE", "ACKNOWLEDGED"] },
-          });
-          if (activeAlarm) {
-            activeAlarm.status = "CLEARED";
-            activeAlarm.clearedAt = new Date();
-            await activeAlarm.save();
-            logger.info({ device: device.name, type: rule.alarmType }, "ALARM temizlendi");
-            emitter.emit("alarm", activeAlarm.toObject());
-          }
-        }
-      }
-    }
-  } catch (err) {
-    logger.error({ err }, "Alarm kontrolü sırasında hata");
-  }
-}
+// NOT: Daha önce burada ~170 satır duplike alarm kodu vardı.
+// Artık alarm-engine.js'deki checkAlarms() fonksiyonu hem telemetry-handler
+// hem de server.mjs ingestTelemetry() tarafından kullanılır.
+// ------------------------------------------------------------------ //
 
 // ------------------------------------------------------------------ //
 // WS ve WSS Mesaj işleyicisi
@@ -660,8 +493,118 @@ async function main() {
     logger.info({ clientId: client.id, device: client.deviceName || "?" }, "MQTT bağlantı");
   });
 
+  // ── Persistent RPC: Cihaz bağlandığında kuyruktaki komutları gönder ──
+  aedesInstance.on("client", async (client) => {
+    if (!client.deviceId) return;
+    try {
+      const { default: connectDB } = await import("./src/lib/db.js");
+      const { default: RpcRequest } = await import("./src/models/RpcRequest.js");
+      await connectDB();
+
+      const queuedRpcs = await RpcRequest.find({
+        deviceId: client.deviceId,
+        status: "QUEUED",
+        $or: [
+          { expirationTime: null },
+          { expirationTime: { $gt: new Date() } },
+        ],
+      }).sort({ createdAt: 1 });
+
+      for (const rpc of queuedRpcs) {
+        rpc.status = "PENDING";
+        await rpc.save();
+        emitter.emit("rpc:request", {
+          requestId: rpc.requestId,
+          deviceId: rpc.deviceId.toString(),
+          method: rpc.method,
+          params: rpc.params,
+          timeout: rpc.timeout,
+          oneWay: rpc.oneWay || false,
+        });
+        logger.info({ requestId: rpc.requestId }, "Persistent RPC kuyruğundan gönderildi");
+      }
+    } catch (err) {
+      logger.error({ err }, "Persistent RPC kuyruk hatası");
+    }
+  });
+
   aedesInstance.on("clientDisconnect", (client) => {
     logger.info({ clientId: client.id }, "MQTT kopma");
+  });
+
+  // ── RPC: Platform → Cihaz komutu (MQTT publish) ──
+  emitter.on("rpc:request", (rpcData) => {
+    // Bağlı MQTT client'ları arasında cihazı bul
+    const clients = aedesInstance.connectedClients || aedesInstance.clients || {};
+    for (const [, mqttClient] of Object.entries(clients)) {
+      if (mqttClient.deviceId && String(mqttClient.deviceId) === String(rpcData.deviceId)) {
+        const topic = `v1/devices/me/rpc/request/${rpcData.requestId}`;
+        const payload = JSON.stringify({
+          id: rpcData.requestId,
+          method: rpcData.method,
+          params: rpcData.params,
+        });
+
+        mqttClient.publish({
+          topic,
+          payload: Buffer.from(payload),
+          qos: 1,
+          retain: false,
+        }, async (err) => {
+          if (err) {
+            logger.error({ err, requestId: rpcData.requestId }, "MQTT RPC publish hatası");
+          } else {
+            logger.info({ requestId: rpcData.requestId, device: rpcData.deviceId }, "MQTT RPC komutu gönderildi");
+            // Status'u DELIVERED olarak güncelle
+            try {
+              const { default: connectDB } = await import("./src/lib/db.js");
+              const { default: RpcRequest } = await import("./src/models/RpcRequest.js");
+              await connectDB();
+
+              // One-Way RPC: teslim edilince tamamlandı say
+              if (rpcData.oneWay) {
+                await RpcRequest.updateOne(
+                  { requestId: rpcData.requestId, status: "PENDING" },
+                  { status: "DELIVERED", completedAt: new Date() }
+                );
+              } else {
+                await RpcRequest.updateOne(
+                  { requestId: rpcData.requestId, status: "PENDING" },
+                  { status: "DELIVERED" }
+                );
+              }
+            } catch (dbErr) {
+              logger.error({ err: dbErr }, "RPC DELIVERED status güncellenemedi");
+            }
+          }
+        });
+        return;
+      }
+    }
+    logger.warn({ requestId: rpcData.requestId, deviceId: rpcData.deviceId }, "MQTT RPC: Cihaz bağlı değil");
+  });
+
+  // ── RPC Reply: Client-side RPC'ye yanıt gönder (Rule Engine'den) ──
+  emitter.on("rpc:reply", (replyData) => {
+    const clients = aedesInstance.connectedClients || aedesInstance.clients || {};
+    for (const [, mqttClient] of Object.entries(clients)) {
+      if (mqttClient.deviceId && String(mqttClient.deviceId) === String(replyData.deviceId)) {
+        const topic = `v1/devices/me/rpc/response/${replyData.requestId.replace('csrpc_', '')}`;
+        const payload = JSON.stringify(replyData.response || {});
+
+        mqttClient.publish({
+          topic,
+          payload: Buffer.from(payload),
+          qos: 1,
+          retain: false,
+        }, (err) => {
+          if (err) logger.error({ err }, "RPC reply publish hatası");
+          else logger.info({ requestId: replyData.requestId }, "Client-Side RPC yanıtı gönderildi");
+        });
+        return;
+      }
+    }
+    logger.warn({ requestId: replyData.requestId }, "RPC reply: Cihaz bağlı değil");
   });
 
   aedesInstance.on("publish", async (packet, client) => {
@@ -698,6 +641,83 @@ async function main() {
         }
       } catch (err) {
         logger.error({ err }, "MQTT attribute parse hatası");
+      }
+      return;
+    }
+
+    // ── RPC yanıt topic'i: v1/devices/me/rpc/response/{requestId} ──
+    if (packet.topic.startsWith("v1/devices/me/rpc/response/")) {
+      try {
+        const requestId = packet.topic.split("/").pop();
+        const raw = packet.payload.toString();
+        const body = JSON.parse(raw);
+
+        const { default: connectDB } = await import("./src/lib/db.js");
+        const { default: RpcRequest } = await import("./src/models/RpcRequest.js");
+
+        await connectDB();
+        const rpc = await RpcRequest.findOne({ requestId, deviceId: client.deviceId });
+        if (rpc && (rpc.status === "PENDING" || rpc.status === "DELIVERED")) {
+          rpc.status = body.error ? "ERROR" : "SUCCESS";
+          rpc.response = body.response || body.result || null;
+          rpc.errorMessage = body.error || "";
+          rpc.completedAt = new Date();
+          await rpc.save();
+          logger.info({ requestId, deviceId: client.deviceId }, "MQTT RPC yanıtı alındı");
+        }
+      } catch (err) {
+        logger.error({ err }, "MQTT RPC yanıt parse hatası");
+      }
+      return;
+    }
+
+    // ── Client-Side RPC: Cihazdan gelen RPC isteği ──
+    if (packet.topic.startsWith("v1/devices/me/rpc/request/") && !packet.topic.includes("response")) {
+      try {
+        const requestId = packet.topic.split("/").pop();
+        const raw = packet.payload.toString();
+        const body = JSON.parse(raw);
+
+        const { default: connectDB } = await import("./src/lib/db.js");
+        const { default: RpcRequest } = await import("./src/models/RpcRequest.js");
+        const { processRuleChain } = await import("./src/lib/rule-engine/processor.js");
+        const { createRuleMessage } = await import("./src/lib/rule-engine/rule-message.js");
+
+        await connectDB();
+
+        // Client-side RPC kaydını oluştur
+        const rpc = await RpcRequest.create({
+          tenantId: client.tenantId,
+          deviceId: client.deviceId,
+          requestId: `csrpc_${requestId}`,
+          direction: "DEVICE_TO_SERVER",
+          method: body.method || "unknown",
+          params: body.params || {},
+          status: "PENDING",
+        });
+
+        // Rule Engine'e gönder
+        const ruleMsg = createRuleMessage({
+          msgType: "RPC_REQUEST_FROM_DEVICE",
+          originatorId: client.deviceId,
+          msg: body.params || {},
+          metadata: {
+            tenantId: client.tenantId,
+            deviceId: client.deviceId,
+            deviceName: client.deviceName || "",
+            rpcRequestId: rpc.requestId,
+            rpcMethod: body.method,
+            protocol: "mqtt",
+          },
+        });
+
+        processRuleChain(client.tenantId, ruleMsg).catch((err) => {
+          logger.error({ err }, "Client-Side RPC rule chain hatası");
+        });
+
+        logger.info({ requestId, method: body.method, deviceId: client.deviceId }, "Client-Side RPC alındı");
+      } catch (err) {
+        logger.error({ err }, "Client-Side RPC parse hatası");
       }
       return;
     }

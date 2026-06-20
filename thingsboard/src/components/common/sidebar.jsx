@@ -17,6 +17,8 @@ import {
   Building2,
   ChevronsLeft,
   ChevronsRight,
+  Workflow,
+  Zap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -35,6 +37,8 @@ export default function Sidebar() {
       { href: "/device-profile", label: "Cihaz Profilleri", icon: UserCheck },
     ];
     if (userRole === "SYSTEM_ADMIN" || userRole === "TENANT_ADMIN" || userRole === "OPERATOR") {
+      links.push({ href: "/rule-chains", label: "Kural Zincirleri", icon: Workflow });
+      links.push({ href: "/rpc", label: "RPC Komutları", icon: Zap });
       links.push({ href: "/notifications", label: "Bildirimler", icon: BellRing });
       links.push({ href: "/audit-logs", label: "Denetim Günlükleri", icon: ScrollText });
     }

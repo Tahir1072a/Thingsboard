@@ -59,6 +59,12 @@ export default function DashboardEditorPage() {
     title: "",
     min: 0,
     max: 100,
+    rpcMethod: "",
+    rpcParamKey: "value",
+    rpcStep: 1,
+    rpcUnit: "%",
+    rpcButtonLabel: "",
+    rpcButtonColor: "purple",
   });
 
   // ------------------------------------------------------------------ //
@@ -259,8 +265,9 @@ export default function DashboardEditorPage() {
 
     // image_map için cihaz/key zorunlu değil — sonradan marker ile eklenir
     const isImageMap = addForm.type === "image_map";
+    const isRpcWidget = addForm.type?.startsWith("rpc_");
 
-    if (!isImageMap) {
+    if (!isImageMap && !isRpcWidget) {
       if (addForm.deviceIds.length === 0) {
         toast.error("En az bir cihaz seçmelisiniz.");
         return;
@@ -304,13 +311,37 @@ export default function DashboardEditorPage() {
       widgetConfig = { min: addForm.min, max: addForm.max };
     } else if (isImageMap) {
       widgetConfig = { imageSrc: "", markers: [] };
+    } else if (addForm.type === "rpc_switch") {
+      widgetConfig = { 
+        method: addForm.rpcMethod || "setValue", 
+        paramKey: addForm.rpcParamKey || "value", 
+        onValue: true, 
+        offValue: false 
+      };
+    } else if (addForm.type === "rpc_slider") {
+      widgetConfig = { 
+        method: addForm.rpcMethod || "setValue", 
+        paramKey: addForm.rpcParamKey || "value", 
+        min: addForm.min, 
+        max: addForm.max, 
+        step: addForm.rpcStep || 1, 
+        unit: addForm.rpcUnit || "%" 
+      };
+    } else if (addForm.type === "rpc_button") {
+      widgetConfig = { 
+        method: addForm.rpcMethod || "execute", 
+        params: {}, 
+        buttonLabel: addForm.rpcButtonLabel || addForm.title, 
+        buttonColor: addForm.rpcButtonColor || "purple", 
+        timeout: 10000 
+      };
     }
 
     const newWidget = {
       i: `w-${Date.now()}`,
       type: addForm.type,
-      devices: isImageMap ? [] : selectedDevices,
-      keys: isImageMap ? [] : addForm.keys,
+      devices: (isImageMap) ? [] : selectedDevices,
+      keys: (isImageMap || isRpcWidget) ? [] : addForm.keys,
       title: addForm.title,
       config: widgetConfig,
       x: 0,
@@ -324,7 +355,7 @@ export default function DashboardEditorPage() {
       widgets: [...prev.widgets, newWidget],
     }));
 
-    setAddForm({ type: "", deviceIds: [], keys: [], title: "", min: 0, max: 100 });
+    setAddForm({ type: "", deviceIds: [], keys: [], title: "", min: 0, max: 100, rpcMethod: "", rpcParamKey: "value", rpcStep: 1, rpcUnit: "%", rpcButtonLabel: "", rpcButtonColor: "purple" });
     setAddDrawerOpen(false);
     toast.success("Widget eklendi! Kaydetmeyi unutmayın.");
   };
@@ -663,6 +694,98 @@ export default function DashboardEditorPage() {
                       className="h-12 bg-white border-gray-200 text-black"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* 5b. RPC Widget Ayarları */}
+              {addForm.type?.startsWith("rpc_") && (
+                <div className="space-y-4 p-4 rounded-xl bg-halo-50/30 border border-halo-200/50">
+                  <Label className="font-bold text-sm text-halo-700">⚡ RPC Ayarları</Label>
+                  
+                  <div className="space-y-2">
+                    <Label className="font-bold text-sm">RPC Method</Label>
+                    <Input
+                      value={addForm.rpcMethod || ""}
+                      onChange={(e) => setAddForm((p) => ({ ...p, rpcMethod: e.target.value }))}
+                      placeholder="Örn: setValue, getStatus, reboot"
+                      className="h-12 bg-white border-gray-200 text-black"
+                    />
+                  </div>
+
+                  {addForm.type === "rpc_switch" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="font-bold text-sm">Parametre Anahtarı</Label>
+                        <Input
+                          value={addForm.rpcParamKey || "value"}
+                          onChange={(e) => setAddForm((p) => ({ ...p, rpcParamKey: e.target.value }))}
+                          placeholder="value"
+                          className="h-12 bg-white border-gray-200 text-black"
+                        />
+                      </div>
+                      <div /> {/* spacer */}
+                    </div>
+                  )}
+
+                  {addForm.type === "rpc_slider" && (
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label className="font-bold text-sm">Parametre Anahtarı</Label>
+                        <Input
+                          value={addForm.rpcParamKey || "value"}
+                          onChange={(e) => setAddForm((p) => ({ ...p, rpcParamKey: e.target.value }))}
+                          placeholder="value"
+                          className="h-12 bg-white border-gray-200 text-black"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="font-bold text-sm">Adım</Label>
+                        <Input
+                          type="number"
+                          value={addForm.rpcStep || 1}
+                          onChange={(e) => setAddForm((p) => ({ ...p, rpcStep: Number(e.target.value) }))}
+                          className="h-12 bg-white border-gray-200 text-black"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="font-bold text-sm">Birim</Label>
+                        <Input
+                          value={addForm.rpcUnit || "%"}
+                          onChange={(e) => setAddForm((p) => ({ ...p, rpcUnit: e.target.value }))}
+                          placeholder="%"
+                          className="h-12 bg-white border-gray-200 text-black"
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {addForm.type === "rpc_button" && (
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label className="font-bold text-sm">Buton Etiketi</Label>
+                        <Input
+                          value={addForm.rpcButtonLabel || ""}
+                          onChange={(e) => setAddForm((p) => ({ ...p, rpcButtonLabel: e.target.value }))}
+                          placeholder="Yeniden Başlat"
+                          className="h-12 bg-white border-gray-200 text-black"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label className="font-bold text-sm">Buton Rengi</Label>
+                        <select
+                          value={addForm.rpcButtonColor || "purple"}
+                          onChange={(e) => setAddForm((p) => ({ ...p, rpcButtonColor: e.target.value }))}
+                          className="h-12 w-full px-3 bg-white border border-gray-200 rounded-md text-black text-sm"
+                        >
+                          <option value="purple">Mor</option>
+                          <option value="red">Kırmızı</option>
+                          <option value="green">Yeşil</option>
+                          <option value="blue">Mavi</option>
+                          <option value="orange">Turuncu</option>
+                        </select>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

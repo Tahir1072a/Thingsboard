@@ -5,7 +5,7 @@
  * Redis kullanarak distributed ortamlarda tutarlı çalışır.
  *
  * Kullanım:
- *   import { rateLimit } from "@/lib/rate-limit";
+ *   import { rateLimit } from "./rate-limit.js";
  *
  *   export async function POST(request) {
  *     const limited = await rateLimit(request, { max: 10, windowSec: 900, keyPrefix: "auth" });
@@ -15,8 +15,8 @@
  */
 
 import { NextResponse } from "next/server";
-import redis from "@/lib/redis";
-import logger from "@/lib/logger";
+import redis from "./redis.js";
+import logger from "./logger.js";
 
 /**
  * @param {Request} request - Next.js Request nesnesi

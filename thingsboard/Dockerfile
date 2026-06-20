@@ -7,7 +7,7 @@ WORKDIR /app
 
 # Önce sadece package dosyalarını kopyala (cache layer optimization)
 COPY package.json package-lock.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 # Kaynak kodları kopyala ve build et
 COPY . .
@@ -38,7 +38,7 @@ RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 
 # Production bağımlılıkları
 COPY --from=builder /app/package.json /app/package-lock.json ./
-RUN npm ci --omit=dev && npm cache clean --force
+RUN npm install --omit=dev --legacy-peer-deps && npm cache clean --force
 
 # Next.js build çıktısı
 COPY --from=builder /app/.next ./.next

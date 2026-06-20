@@ -13,21 +13,17 @@
  */
 
 import emitter from "@/lib/event-emitter";
-import { getSessionUser } from "@/lib/getSessionUser";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 // Next.js SSE için dynamic zorunlu
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request) {
-  // Session'dan tenantId al — SSE bağlantısı sadece auth kullanıcılara açık
-  let tenantId = null;
-  try {
-    const session = await getSessionUser();
-    tenantId = session.tenantId ?? null;
-  } catch {
-    // Session yoksa tenantId null kalır
-  }
+  // Session'dan userId al — SSE bağlantısı sadece auth kullanıcılara açık
+  const session = await getServerSession(authOptions);
+  const userId = session?.user?.id ?? null;
 
   const { searchParams } = new URL(request.url);
   const deviceIdFilter = searchParams.get("deviceId") ?? null;
@@ -43,8 +39,8 @@ export async function GET(request) {
       const onTelemetry = (doc) => {
         if (closed) return;
 
-        // Tenant filtresi — sadece kendi tenant'ının cihaz verisini gör
-        if (tenantId && doc.tenantId && String(doc.tenantId) !== tenantId) return;
+        // User filtresi — sadece kendi cihazlarının verisini gör
+        if (userId && doc.userId && String(doc.userId) !== userId) return;
 
         // Belirli cihaz filtresi varsa diğerlerini atla
         if (deviceIdFilter && String(doc.deviceId) !== deviceIdFilter) return;
@@ -69,12 +65,11 @@ export async function GET(request) {
       // ── Audit log event listener ──
       const onAuditLog = (log) => {
         if (closed) return;
-        // Tenant filtresi — sadece kendi tenant'ının loglarını gör
-        if (tenantId && log.tenantId && String(log.tenantId) !== tenantId) return;
+        // User filtresi — sadece kendi loglarını gör
+        if (userId && log.userId && String(log.userId) !== userId) return;
 
         try {
           const payload = JSON.stringify(log);
-          // Named SSE event: frontend'de addEventListener('audit-log', ...) ile dinlenir
           controller.enqueue(encoder.encode(`event: audit-log\ndata: ${payload}\n\n`));
         } catch {
           // stream kapalıysa sessizce geç

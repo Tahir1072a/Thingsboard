@@ -107,16 +107,13 @@ export default function AlarmWidget({
 
       es.onopen = () => { if (isMounted) setConnected(true); };
       es.onerror = () => { if (isMounted) setConnected(false); };
-      es.onmessage = (e) => {
+      es.addEventListener("alarm", (e) => {
         if (!isMounted) return;
         try {
           const data = JSON.parse(e.data);
-          // Alarm event'leri type: 'alarm' ile gelir
-          if (data.type === "alarm" || data.alarmType || data.severity) {
-            handleAlarmEvent(data);
-          }
-        } catch {}
-      };
+          handleAlarmEvent(data);
+        } catch { }
+      });
     };
 
     init();

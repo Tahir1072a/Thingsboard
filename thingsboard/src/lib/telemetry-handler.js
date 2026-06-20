@@ -6,11 +6,13 @@
  * ve alarm kurallarını kontrol eden ortak işleyici.
  */
 
-import connectDB from "@/lib/db";
-import Device from "@/models/Device";
-import Telemetry from "@/models/Telemetry";
-import emitter from "@/lib/event-emitter";
-import { checkAlarms, updateTelemetryContext } from "@/lib/alarm-engine";
+import connectDB from "./db.js";
+import Device from "../models/Device.js";
+import Telemetry from "../models/Telemetry.js";
+import emitter from "./event-emitter.js";
+import { checkAlarms, updateTelemetryContext } from "./alarm-engine.js";
+import { createRuleMessage, MSG_TYPES } from "./rule-engine/rule-message.js";
+import { processRuleChain } from "./rule-engine/processor.js";
 
 /**
  * Access token ile cihazı doğrula.
@@ -95,6 +97,25 @@ export async function handleTelemetry(payload) {
 
   // Alarm kurallarını kontrol et (merkezi motor)
   checkAlarms(deviceId, key, parsedValue, { userId, tenantId });
+
+  // Rule Engine — root chain üzerinden mesajı işle (non-blocking)
+  if (tenantId) {
+    const ruleMsg = createRuleMessage({
+      msgType: MSG_TYPES.POST_TELEMETRY,
+      originatorId: deviceId,
+      originatorType: "DEVICE",
+      msg: { [key]: parsedValue },
+      metadata: {
+        tenantId: String(tenantId),
+        userId: userId ? String(userId) : null,
+        deviceName: "", // telemetry-handler'da device name yok
+        protocol: protocol,
+      },
+    });
+    processRuleChain(String(tenantId), ruleMsg).catch((err) =>
+      console.error("[rule-engine] Telemetri işleme hatası:", err.message)
+    );
+  }
 
   return lean;
 }

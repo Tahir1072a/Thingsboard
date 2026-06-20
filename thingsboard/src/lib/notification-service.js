@@ -9,9 +9,9 @@
  *   ${details}, ${timestamp}, ${tenantId}, ${deviceId}
  */
 
-import connectDB from "@/lib/db";
-import NotificationRule from "@/models/NotificationRule";
-import { sendEmail } from "@/lib/email";
+import connectDB from "./db.js";
+import NotificationRule from "../models/NotificationRule.js";
+import { sendEmail } from "./email.js";
 
 /**
  * Alarm olayını işle — eşleşen kuralları bul ve bildirimleri gönder.
@@ -164,7 +164,7 @@ async function sendTelegramNotification(config, subject, body) {
       body: JSON.stringify({
         chat_id: config.chatId,
         text,
-        parse_mode: "Markdown",
+        parse_mode: "MarkdownV2",
       }),
     }
   );
