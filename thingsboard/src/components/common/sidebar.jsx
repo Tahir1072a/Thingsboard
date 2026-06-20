@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import {
   Home,
   Bell,
+  BellRing,
   LayoutDashboard,
   Router,
   UserCheck,
@@ -34,6 +35,7 @@ export default function Sidebar() {
       { href: "/device-profile", label: "Cihaz Profilleri", icon: UserCheck },
     ];
     if (userRole === "SYSTEM_ADMIN" || userRole === "TENANT_ADMIN" || userRole === "OPERATOR") {
+      links.push({ href: "/notifications", label: "Bildirimler", icon: BellRing });
       links.push({ href: "/audit-logs", label: "Denetim Günlükleri", icon: ScrollText });
     }
     if (userRole === "SYSTEM_ADMIN" || userRole === "TENANT_ADMIN") {

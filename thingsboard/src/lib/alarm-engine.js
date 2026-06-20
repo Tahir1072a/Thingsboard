@@ -16,6 +16,7 @@ import connectDB from "@/lib/db";
 import Alarm from "@/models/Alarm";
 import emitter from "@/lib/event-emitter";
 import { getCachedDevice, getCachedProfile } from "@/lib/cache";
+import { processNotifications } from "@/lib/notification-service";
 
 // ────────────────────────────────────────────────────────────────────
 // 1. Koşul Değerlendirici
@@ -270,6 +271,18 @@ export async function checkAlarms(deviceId, key, value, ownerInfo = {}) {
             `🚨 ALARM: ${device.name} → ${rule.alarmType} (${rule.severity}) [${rule._source}]`
           );
           emitter.emit("alarm", alarm.toObject());
+
+          // ── Bildirim gönder (non-blocking) ──
+          processNotifications("ALARM_CREATED", {
+            tenantId: (tenantId || device.tenantId)?.toString(),
+            deviceId: deviceId.toString(),
+            deviceName: device.name,
+            alarmType: rule.alarmType,
+            severity: rule.severity,
+            status: "ACTIVE",
+            details: alarm.details,
+            timestamp: new Date().toISOString(),
+          }).catch((err) => console.error("[alarm-engine] Bildirim hatası:", err.message));
         }
       }
 
@@ -297,6 +310,18 @@ export async function checkAlarms(deviceId, key, value, ownerInfo = {}) {
               `✅ ALARM TEMİZLENDİ: ${device.name} → ${rule.alarmType}`
             );
             emitter.emit("alarm", activeAlarm.toObject());
+
+            // ── Bildirim gönder (non-blocking) ──
+            processNotifications("ALARM_CLEARED", {
+              tenantId: (tenantId || device.tenantId)?.toString(),
+              deviceId: deviceId.toString(),
+              deviceName: device.name,
+              alarmType: rule.alarmType,
+              severity: rule.severity,
+              status: "CLEARED",
+              details: { clearedAt: activeAlarm.clearedAt },
+              timestamp: new Date().toISOString(),
+            }).catch((err) => console.error("[alarm-engine] Bildirim hatası:", err.message));
           }
         }
       }
