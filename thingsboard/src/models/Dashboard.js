@@ -18,6 +18,7 @@ const WidgetSchema = new Schema(
       enum: [
         "line_chart", "gauge", "value_card", "table", "image_map",
         "bar_chart", "pie_chart", "stat_card", "alarm_list", "geo_map",
+        "rpc_switch", "rpc_slider", "rpc_button",
       ],
       required: true,
     },

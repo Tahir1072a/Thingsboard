@@ -144,6 +144,7 @@ export default function WidgetRenderer({
   widget,
   isEditMode = false,
   onDelete,
+  onEdit,
   onWidgetConfigChange,
   publicToken,
 }) {
@@ -165,6 +166,7 @@ export default function WidgetRenderer({
       title={widget.title}
       isEditMode={isEditMode}
       onDelete={onDelete}
+      onEdit={onEdit ? () => onEdit(widget) : undefined}
     >
       <Component
         devices={widget.devices || []}

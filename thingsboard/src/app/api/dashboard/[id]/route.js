@@ -76,7 +76,16 @@ export async function PUT(request, { params }) {
     const dashboard = result.dashboard;
     if (name !== undefined) dashboard.name = name;
     if (description !== undefined) dashboard.description = description;
-    if (widgets !== undefined) dashboard.widgets = widgets;
+    if (widgets !== undefined) {
+      // Widget pozisyon değerlerini sanitize et
+      dashboard.widgets = widgets.map((w) => ({
+        ...w,
+        x: Number.isFinite(w.x) ? w.x : 0,
+        y: Number.isFinite(w.y) ? w.y : 0,
+        w: Number.isFinite(w.w) ? w.w : 4,
+        h: Number.isFinite(w.h) ? w.h : 3,
+      }));
+    }
 
     await dashboard.save();
 

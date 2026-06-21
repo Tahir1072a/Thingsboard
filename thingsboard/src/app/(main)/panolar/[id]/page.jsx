@@ -11,13 +11,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ResponsiveGridLayout, useContainerWidth } from "react-grid-layout";
 import WidgetRenderer, { WIDGET_TYPES } from "@/components/panels/WidgetRenderer";
-import ReactSelect from "react-select";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
 import {
   Save, ArrowLeft, Plus, X,
   LayoutDashboard, Pencil, Check,
@@ -25,6 +20,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Breadcrumbs from "@/components/common/breadcrumbs";
+import WidgetConfigModal from "@/components/panels/widgets/config/WidgetConfigModal";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -49,25 +45,9 @@ export default function DashboardEditorPage() {
   // Container width ölçümü (react-grid-layout v2 hook)
   const { width: containerWidth, containerRef } = useContainerWidth({ initialWidth: 1200 });
 
-  // Widget ekleme drawer
-  const [addDrawerOpen, setAddDrawerOpen] = useState(false);
+  // Widget ekleme/düzenleme modalı
+  const [widgetModal, setWidgetModal] = useState({ open: false, mode: "add", widget: null });
   const [devices, setDevices] = useState([]);
-  const [availableKeys, setAvailableKeys] = useState([]);
-  const [addForm, setAddForm] = useState({
-    type: "",
-    deviceIds: [],
-    keys: [],
-    title: "",
-    min: 0,
-    max: 100,
-    rpcMethod: "",
-    rpcParamKey: "value",
-    rpcStep: 1,
-    rpcUnit: "%",
-    rpcButtonLabel: "",
-    rpcButtonColor: "purple",
-    warningThreshold: null,
-  });
 
   // ------------------------------------------------------------------ //
   // Veri çekme
@@ -78,8 +58,19 @@ export default function DashboardEditorPage() {
       const res = await fetch(`/api/dashboard/${id}`);
       const data = await res.json();
       if (data.ok) {
-        setDashboard(data.data);
-        setTempName(data.data.name);
+        // Widget pozisyonlarını sanitize et (mevcut veritabanı verisinde null/undefined olabilir)
+        const sanitized = {
+          ...data.data,
+          widgets: (data.data.widgets || []).map((w) => ({
+            ...w,
+            x: Number.isFinite(w.x) ? w.x : 0,
+            y: Number.isFinite(w.y) ? w.y : 0,
+            w: Number.isFinite(w.w) ? w.w : 4,
+            h: Number.isFinite(w.h) ? w.h : 3,
+          })),
+        };
+        setDashboard(sanitized);
+        setTempName(sanitized.name);
         // Paylaşım durumunu yükle
         if (data.data.isPublic && data.data.publicToken) {
           setShareData({
@@ -113,62 +104,27 @@ export default function DashboardEditorPage() {
     fetchDevices();
   }, [fetchDashboard, fetchDevices]);
 
-  // Seçilen cihazlara göre telemetri key'lerini dinamik getir
-  useEffect(() => {
-    if (addForm.deviceIds.length === 0) {
-      setAvailableKeys([]);
-      setAddForm((p) => ({ ...p, keys: [] }));
-      return;
+  // ------------------------------------------------------------------ //
+  // Widget ekleme / düzenleme (modal)
+  // ------------------------------------------------------------------ //
+  const handleWidgetSave = (widgetObj) => {
+    if (widgetModal.mode === "edit" && widgetModal.widget) {
+      setDashboard((prev) => ({
+        ...prev,
+        widgets: prev.widgets.map((w) =>
+          w.i === widgetObj.i ? { ...w, ...widgetObj } : w
+        ),
+      }));
+      toast.success("Widget güncellendi! Kaydetmeyi unutmayın.");
+    } else {
+      setDashboard((prev) => ({
+        ...prev,
+        widgets: [...prev.widgets, widgetObj],
+      }));
+      toast.success("Widget eklendi! Kaydetmeyi unutmayın.");
     }
-
-    const fetchKeys = async () => {
-      try {
-        const promises = addForm.deviceIds.map(id => fetch(`/api/telemetry/keys?deviceId=${id}`).then(r => r.json()));
-        const results = await Promise.all(promises);
-
-        let allKeys = new Set();
-        results.forEach(data => {
-          if (data.ok && data.keys) {
-            data.keys.forEach(k => allKeys.add(k));
-          }
-        });
-
-        const keysArr = Array.from(allKeys);
-        setAvailableKeys(keysArr);
-        // Eğer seçili type 'table' veya yeni ekleniyorsa, keys'i varsayılan olarak güncelle.
-        // Tekli seçim gerektiren durumlarda sadece 1 key kalsın.
-        setAddForm((p) => {
-          const isSingleKey = p.type === "value_card" || p.type === "gauge" || p.type === "line_chart";
-          let newKeys = keysArr;
-          if (isSingleKey && keysArr.length > 0) newKeys = [keysArr[0]];
-          return { ...p, keys: newKeys };
-        });
-      } catch {
-        setAvailableKeys([]);
-      }
-    };
-
-    fetchKeys();
-  }, [addForm.deviceIds, addForm.type]);
-
-  // Cihaz seçildiğinde attribute'ları çekip autofill
-  const fetchDeviceAttributes = useCallback(async (deviceId) => {
-    try {
-      const res = await fetch(`/api/device/${deviceId}/attributes?scope=SERVER_SCOPE`);
-      const data = await res.json();
-      if (data.ok && data.data) {
-        const attrs = {};
-        data.data.forEach(a => { attrs[a.key] = a.value; });
-        setAddForm(p => {
-          const updates = {};
-          if (attrs.max_limit != null) updates.max = Number(attrs.max_limit);
-          if (attrs.min_limit != null) updates.min = Number(attrs.min_limit);
-          if (attrs.warning_threshold != null) updates.warningThreshold = Number(attrs.warning_threshold);
-          return { ...p, ...updates };
-        });
-      }
-    } catch { }
-  }, []);
+    setWidgetModal({ open: false, mode: "add", widget: null });
+  };
 
   // ------------------------------------------------------------------ //
   // Layout değişikliği
@@ -195,13 +151,24 @@ export default function DashboardEditorPage() {
     if (!dashboard) return;
     try {
       setSaving(true);
+
+      // Widget verilerini sanitize et — Infinity, NaN, null gibi
+      // JSON.stringify'ın null'a dönüştürdüğü değerleri temizle
+      const sanitizedWidgets = dashboard.widgets.map((w) => ({
+        ...w,
+        x: Number.isFinite(w.x) ? w.x : 0,
+        y: Number.isFinite(w.y) ? w.y : 0,
+        w: Number.isFinite(w.w) ? w.w : 4,
+        h: Number.isFinite(w.h) ? w.h : 3,
+      }));
+
       const res = await fetch(`/api/dashboard/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: dashboard.name,
           description: dashboard.description,
-          widgets: dashboard.widgets,
+          widgets: sanitizedWidgets,
         }),
       });
       const data = await res.json();
@@ -209,9 +176,10 @@ export default function DashboardEditorPage() {
         toast.success("Pano kaydedildi!");
         setEditMode(false);
       } else {
-        toast.error(data.message);
+        toast.error(data.message || "Kaydetme başarısız.");
       }
-    } catch {
+    } catch (err) {
+      console.error("[handleSave]", err);
       toast.error("Kaydetme hatası.");
     } finally {
       setSaving(false);
@@ -228,6 +196,17 @@ export default function DashboardEditorPage() {
     }
     setDashboard((prev) => ({ ...prev, name: tempName }));
     setEditingName(false);
+  };
+
+  // ------------------------------------------------------------------ //
+  // Widget silme
+  // ------------------------------------------------------------------ //
+  const handleRemoveWidget = (widgetId) => {
+    setDashboard((prev) => ({
+      ...prev,
+      widgets: prev.widgets.filter((w) => w.i !== widgetId),
+    }));
+    toast.success("Widget kaldırıldı.");
   };
 
   // ------------------------------------------------------------------ //
@@ -275,126 +254,6 @@ export default function DashboardEditorPage() {
     setTimeout(() => setCopied(null), 2000);
   };
 
-  // ------------------------------------------------------------------ //
-  // Widget ekleme
-  // ------------------------------------------------------------------ //
-  const handleAddWidget = () => {
-    if (!addForm.type || !addForm.title) {
-      toast.error("Tip ve başlık zorunludur.");
-      return;
-    }
-
-    // image_map için cihaz/key zorunlu değil — sonradan marker ile eklenir
-    const isImageMap = addForm.type === "image_map";
-    const isRpcWidget = addForm.type?.startsWith("rpc_");
-
-    if (!isImageMap && !isRpcWidget) {
-      if (addForm.deviceIds.length === 0) {
-        toast.error("En az bir cihaz seçmelisiniz.");
-        return;
-      }
-      if (addForm.keys.length === 0) {
-        toast.error("En az bir telemetri verisi seçmelisiniz.");
-        return;
-      }
-    }
-
-    // Doğrulamalar
-    if (addForm.type === "value_card" || addForm.type === "gauge") {
-      if (addForm.deviceIds.length > 1) {
-        toast.error("Değer Kartı ve Gösterge için sadece 1 cihaz seçebilirsiniz.");
-        return;
-      }
-      if (addForm.keys.length > 1) {
-        toast.error("Değer Kartı ve Gösterge için sadece 1 veri (key) seçebilirsiniz.");
-        return;
-      }
-    }
-
-    if (addForm.type === "line_chart") {
-      if (addForm.keys.length > 1) {
-        toast.error("Çizgi Grafikte birden fazla sensör karşılaştırmak için sadece 1 veri (key) seçmelisiniz.");
-        return;
-      }
-    }
-
-    const typeConfig = WIDGET_TYPES.find((t) => t.type === addForm.type);
-
-    // deviceIds dizisindeki ID'lerden obje oluştur {id, name}
-    const selectedDevices = addForm.deviceIds.map(id => {
-      const d = devices.find(x => x._id === id);
-      return { id: d?._id, name: d?.name };
-    }).filter(d => d.id);
-
-    // Widget config — tip bazlı
-    let widgetConfig = {};
-    if (addForm.type === "gauge") {
-      widgetConfig = { min: addForm.min, max: addForm.max };
-    } else if (isImageMap) {
-      widgetConfig = { imageSrc: "", markers: [] };
-    } else if (addForm.type === "line_chart" && addForm.warningThreshold != null) {
-      widgetConfig = { warningThreshold: addForm.warningThreshold };
-    } else if (addForm.type === "rpc_switch") {
-      widgetConfig = {
-        method: addForm.rpcMethod || "setValue",
-        paramKey: addForm.rpcParamKey || "value",
-        onValue: true,
-        offValue: false
-      };
-    } else if (addForm.type === "rpc_slider") {
-      widgetConfig = {
-        method: addForm.rpcMethod || "setValue",
-        paramKey: addForm.rpcParamKey || "value",
-        min: addForm.min,
-        max: addForm.max,
-        step: addForm.rpcStep || 1,
-        unit: addForm.rpcUnit || "%"
-      };
-    } else if (addForm.type === "rpc_button") {
-      widgetConfig = {
-        method: addForm.rpcMethod || "execute",
-        params: {},
-        buttonLabel: addForm.rpcButtonLabel || addForm.title,
-        buttonColor: addForm.rpcButtonColor || "purple",
-        timeout: 10000
-      };
-    }
-
-    const newWidget = {
-      i: `w-${Date.now()}`,
-      type: addForm.type,
-      devices: (isImageMap) ? [] : selectedDevices,
-      keys: (isImageMap || isRpcWidget) ? [] : addForm.keys,
-      title: addForm.title,
-      config: widgetConfig,
-      x: 0,
-      y: Infinity, // en alta ekle
-      w: typeConfig?.defaultSize?.w || 4,
-      h: typeConfig?.defaultSize?.h || 3,
-    };
-
-    setDashboard((prev) => ({
-      ...prev,
-      widgets: [...prev.widgets, newWidget],
-    }));
-
-    setAddForm({ type: "", deviceIds: [], keys: [], title: "", min: 0, max: 100, rpcMethod: "", rpcParamKey: "value", rpcStep: 1, rpcUnit: "%", rpcButtonLabel: "", rpcButtonColor: "purple", warningThreshold: null });
-    setAddDrawerOpen(false);
-    toast.success("Widget eklendi! Kaydetmeyi unutmayın.");
-  };
-
-  // ------------------------------------------------------------------ //
-  // Widget silme
-  // ------------------------------------------------------------------ //
-  const handleRemoveWidget = (widgetId) => {
-    setDashboard((prev) => ({
-      ...prev,
-      widgets: prev.widgets.filter((w) => w.i !== widgetId),
-    }));
-    toast.success("Widget kaldırıldı.");
-  };
-
-  // ------------------------------------------------------------------ //
   // Render
   // ------------------------------------------------------------------ //
   if (loading) {
@@ -474,7 +333,7 @@ export default function DashboardEditorPage() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setAddDrawerOpen(true)}
+                onClick={() => setWidgetModal({ open: true, mode: "add", widget: null })}
                 className="border-halo-300 text-halo-700 bg-halo-50 hover:bg-halo-100"
               >
                 <Plus className="mr-1.5 h-4 w-4" />
@@ -550,6 +409,7 @@ export default function DashboardEditorPage() {
                   widget={widget}
                   isEditMode={editMode}
                   onDelete={() => handleRemoveWidget(widget.i)}
+                  onEdit={(w) => setWidgetModal({ open: true, mode: "edit", widget: w })}
                   onWidgetConfigChange={(newConfig) => {
                     setDashboard((prev) => ({
                       ...prev,
@@ -565,291 +425,16 @@ export default function DashboardEditorPage() {
         </div>
       )}
 
-      {/* ── Widget Ekleme Drawer/Overlay ── */}
-      {addDrawerOpen && (
-        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex justify-end">
-          <div
-            className="w-full max-w-md bg-white shadow-2xl h-full overflow-y-auto animate-in slide-in-from-right"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Drawer Header */}
-            <div className="flex items-center justify-between p-5 border-b bg-gray-50">
-              <h2 className="text-lg font-bold text-text-main flex items-center gap-2">
-                <Plus className="h-5 w-5 text-halo-600" />
-                Widget Ekle
-              </h2>
-              <button
-                onClick={() => setAddDrawerOpen(false)}
-                className="p-1.5 rounded-lg hover:bg-gray-200 transition-colors"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
+      {/* ── Widget Ekleme/Düzenleme Modalı ── */}
+      <WidgetConfigModal
+        open={widgetModal.open}
+        mode={widgetModal.mode}
+        widget={widgetModal.widget}
+        devices={devices}
+        onSave={handleWidgetSave}
+        onClose={() => setWidgetModal({ open: false, mode: "add", widget: null })}
+      />
 
-            {/* Drawer Body */}
-            <div className="p-5 space-y-6">
-              {/* 1. Widget Tipi Seçimi */}
-              <div className="space-y-3">
-                <Label className="font-bold text-sm">1. Widget Tipi</Label>
-                <div className="grid grid-cols-2 gap-2">
-                  {WIDGET_TYPES.map((wt) => {
-                    const Icon = wt.icon;
-                    const isSelected = addForm.type === wt.type;
-                    return (
-                      <button
-                        key={wt.type}
-                        type="button"
-                        onClick={() => setAddForm((p) => ({ ...p, type: wt.type }))}
-                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border-2 transition-all ${isSelected
-                          ? "border-halo-500 bg-halo-50 shadow-sm"
-                          : "border-gray-200 hover:border-gray-300 bg-white"
-                          }`}
-                      >
-                        <Icon className={`h-6 w-6 ${isSelected ? "text-halo-600" : "text-gray-500"}`} />
-                        <span className={`text-xs font-semibold ${isSelected ? "text-halo-700" : "text-gray-700"}`}>
-                          {wt.label}
-                        </span>
-                        <span className="text-[10px] text-gray-400">{wt.description}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* 2. Cihaz Seçimi (image_map hariç) */}
-              {addForm.type !== "image_map" && (
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">2. Cihaz(lar)</Label>
-                  <ReactSelect
-                    isMulti
-                    options={devices.map(d => ({ label: d.name, value: d._id }))}
-                    value={devices.filter(d => addForm.deviceIds.includes(d._id)).map(d => ({ label: d.name, value: d._id }))}
-                    onChange={(selectedOptions) => {
-                      const selectedValues = selectedOptions ? selectedOptions.map(opt => opt.value) : [];
-                      const isSingleDevice = addForm.type === "value_card" || addForm.type === "gauge";
-                      if (isSingleDevice && selectedValues.length > 1) {
-                        setTimeout(() => toast.error("Bu widget tipi için sadece 1 cihaz seçebilirsiniz."), 0);
-                        return;
-                      }
-                      setAddForm(p => ({ ...p, deviceIds: selectedValues }));
-                      // Autofill: ilk cihazın attribute'larını çek
-                      if (selectedValues.length > 0) {
-                        fetchDeviceAttributes(selectedValues[0]);
-                      }
-                    }}
-                    placeholder="Cihaz seçin..."
-                    noOptionsMessage={() => "Sistemde cihaz bulunamadı."}
-                    className="text-sm"
-                    styles={{
-                      control: (baseStyles) => ({
-                        ...baseStyles,
-                        minHeight: '48px',
-                        borderRadius: '0.375rem',
-                        borderColor: '#e5e7eb',
-                      }),
-                    }}
-                  />
-                  <p className="text-[11px] text-gray-400">
-                    Birden fazla sensörden gelen veriyi kıyaslamak için birden fazla cihaz seçebilirsiniz (Grafik ve Tablo).
-                  </p>
-                </div>
-              )}
-
-              {/* 3. Telemetri Key'leri (image_map hariç) */}
-              {addForm.type !== "image_map" && (
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">3. Telemetri Key&apos;leri</Label>
-                  {addForm.deviceIds.length === 0 ? (
-                    <div className="h-[48px] bg-gray-50 border border-gray-200 rounded-md flex items-center px-3 text-sm text-gray-400">
-                      Önce cihaz seçmelisiniz...
-                    </div>
-                  ) : (
-                    <ReactSelect
-                      isMulti
-                      options={availableKeys.map(k => ({ label: k, value: k }))}
-                      value={addForm.keys.map(k => ({ label: k, value: k }))}
-                      onChange={(selectedOptions) => {
-                        const selectedValues = selectedOptions ? selectedOptions.map(opt => opt.value) : [];
-                        const isSingleKey = addForm.type === "value_card" || addForm.type === "gauge" || addForm.type === "line_chart";
-                        if (isSingleKey && selectedValues.length > 1) {
-                          setTimeout(() => toast.error("Bu widget tipi için sadece 1 veri (key) seçebilirsiniz."), 0);
-                          return;
-                        }
-                        setAddForm(p => ({ ...p, keys: selectedValues }));
-                      }}
-                      placeholder="Gösterilecek verileri seçin..."
-                      noOptionsMessage={() => "Cihaz(lar)da henüz veri yok."}
-                      className="text-sm"
-                      styles={{
-                        control: (baseStyles) => ({
-                          ...baseStyles,
-                          minHeight: '48px',
-                          borderRadius: '0.375rem',
-                          borderColor: '#e5e7eb',
-                        }),
-                      }}
-                    />
-                  )}
-                  <p className="text-[11px] text-gray-400">
-                    Grafik, Değer Kartı ve Gösterge için 1 veri (key) seçilmelidir. Tablo için birden fazla seçilebilir.
-                  </p>
-                </div>
-              )}
-
-              {/* 4. Widget Başlığı — image_map için step 2 */}
-              <div className="space-y-2">
-                <Label className="font-bold text-sm">4. Widget Başlığı</Label>
-                <Input
-                  value={addForm.title}
-                  onChange={(e) => setAddForm((p) => ({ ...p, title: e.target.value }))}
-                  placeholder="Örn: Sıcaklık Karşılaştırması"
-                  className="h-12 bg-white border-gray-200 text-black"
-                />
-              </div>
-
-              {/* 5. Gauge Ayarları (Sadece Gauge Seçiliyse) */}
-              {addForm.type === "gauge" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Min Değer</Label>
-                    <Input
-                      type="number"
-                      value={addForm.min}
-                      onChange={(e) => setAddForm((p) => ({ ...p, min: Number(e.target.value) }))}
-                      className="h-12 bg-white border-gray-200 text-black"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">Max Değer</Label>
-                    <Input
-                      type="number"
-                      value={addForm.max}
-                      onChange={(e) => setAddForm((p) => ({ ...p, max: Number(e.target.value) }))}
-                      className="h-12 bg-white border-gray-200 text-black"
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* 5a. Çizgi Grafik Uyarı Eşiği */}
-              {addForm.type === "line_chart" && (
-                <div className="space-y-2">
-                  <Label className="font-bold text-sm">Uyarı Eşiği (Opsiyonel)</Label>
-                  <Input
-                    type="number"
-                    value={addForm.warningThreshold ?? ""}
-                    onChange={(e) => setAddForm(p => ({ ...p, warningThreshold: e.target.value ? Number(e.target.value) : null }))}
-                    placeholder="Örn: 80"
-                    className="h-12 bg-white border-gray-200 text-black"
-                  />
-                  <p className="text-[11px] text-gray-400">Bu değerin üzerinde grafikte kırmızı uyarı çizgisi gösterilir. Cihaz attribute&apos;larından otomatik doldurulabilir.</p>
-                </div>
-              )}
-
-              {/* 5b. RPC Widget Ayarları */}
-              {addForm.type?.startsWith("rpc_") && (
-                <div className="space-y-4 p-4 rounded-xl bg-halo-50/30 border border-halo-200/50">
-                  <Label className="font-bold text-sm text-halo-700">⚡ RPC Ayarları</Label>
-
-                  <div className="space-y-2">
-                    <Label className="font-bold text-sm">RPC Method</Label>
-                    <Input
-                      value={addForm.rpcMethod || ""}
-                      onChange={(e) => setAddForm((p) => ({ ...p, rpcMethod: e.target.value }))}
-                      placeholder="Örn: setValue, getStatus, reboot"
-                      className="h-12 bg-white border-gray-200 text-black"
-                    />
-                  </div>
-
-                  {addForm.type === "rpc_switch" && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="font-bold text-sm">Parametre Anahtarı</Label>
-                        <Input
-                          value={addForm.rpcParamKey || "value"}
-                          onChange={(e) => setAddForm((p) => ({ ...p, rpcParamKey: e.target.value }))}
-                          placeholder="value"
-                          className="h-12 bg-white border-gray-200 text-black"
-                        />
-                      </div>
-                      <div /> {/* spacer */}
-                    </div>
-                  )}
-
-                  {addForm.type === "rpc_slider" && (
-                    <div className="grid grid-cols-3 gap-4">
-                      <div className="space-y-2">
-                        <Label className="font-bold text-sm">Parametre Anahtarı</Label>
-                        <Input
-                          value={addForm.rpcParamKey || "value"}
-                          onChange={(e) => setAddForm((p) => ({ ...p, rpcParamKey: e.target.value }))}
-                          placeholder="value"
-                          className="h-12 bg-white border-gray-200 text-black"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="font-bold text-sm">Adım</Label>
-                        <Input
-                          type="number"
-                          value={addForm.rpcStep || 1}
-                          onChange={(e) => setAddForm((p) => ({ ...p, rpcStep: Number(e.target.value) }))}
-                          className="h-12 bg-white border-gray-200 text-black"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="font-bold text-sm">Birim</Label>
-                        <Input
-                          value={addForm.rpcUnit || "%"}
-                          onChange={(e) => setAddForm((p) => ({ ...p, rpcUnit: e.target.value }))}
-                          placeholder="%"
-                          className="h-12 bg-white border-gray-200 text-black"
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {addForm.type === "rpc_button" && (
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label className="font-bold text-sm">Buton Etiketi</Label>
-                        <Input
-                          value={addForm.rpcButtonLabel || ""}
-                          onChange={(e) => setAddForm((p) => ({ ...p, rpcButtonLabel: e.target.value }))}
-                          placeholder="Yeniden Başlat"
-                          className="h-12 bg-white border-gray-200 text-black"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label className="font-bold text-sm">Buton Rengi</Label>
-                        <select
-                          value={addForm.rpcButtonColor || "purple"}
-                          onChange={(e) => setAddForm((p) => ({ ...p, rpcButtonColor: e.target.value }))}
-                          className="h-12 w-full px-3 bg-white border border-gray-200 rounded-md text-black text-sm"
-                        >
-                          <option value="purple">Mor</option>
-                          <option value="red">Kırmızı</option>
-                          <option value="green">Yeşil</option>
-                          <option value="blue">Mavi</option>
-                          <option value="orange">Turuncu</option>
-                        </select>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* Ekle Butonu */}
-              <Button
-                onClick={handleAddWidget}
-                className="w-full h-12 bg-halo-600 hover:bg-halo-700 text-white text-base"
-              >
-                <Plus className="mr-2 h-5 w-5" />
-                Widget Ekle
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── Paylaşım Modal ── */}
       {shareOpen && (

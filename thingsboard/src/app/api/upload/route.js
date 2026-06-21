@@ -1,17 +1,9 @@
-/**
- * /api/upload — Dosya Yükleme Endpoint'i
- *
- * Cloudflare R2'ye görsel yükler ve public URL döndürür.
- * Desteklenen formatlar: image/png, image/jpeg, image/svg+xml, image/webp
- * Maksimum dosya boyutu: 5MB
- */
-
 import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import r2, { R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 import crypto from "crypto";
+import path from "path";
+import { writeFile, mkdir } from "fs/promises";
 
 const MAX_SIZE = 5 * 1024 * 1024; // 5MB
 const ALLOWED_TYPES = [
@@ -30,14 +22,6 @@ export async function POST(request) {
       return NextResponse.json(
         { ok: false, message: "Yetkisiz." },
         { status: 401 }
-      );
-    }
-
-    // R2 yapılandırma kontrolü
-    if (!process.env.R2_ENDPOINT || !process.env.R2_ACCESS_KEY_ID) {
-      return NextResponse.json(
-        { ok: false, message: "Dosya yükleme servisi yapılandırılmamış." },
-        { status: 503 }
       );
     }
 
@@ -70,37 +54,62 @@ export async function POST(request) {
       );
     }
 
-    // Benzersiz dosya adı oluştur
+    // Dosya adı oluştur
     const ext = file.name.split(".").pop() || "png";
-    const uniqueName = `floor-plans/${crypto.randomUUID()}.${ext}`;
+    const uniqueName = `${crypto.randomUUID()}.${ext}`;
 
     // Dosyayı buffer'a oku
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // R2'ye yükle
-    await r2.send(
-      new PutObjectCommand({
-        Bucket: R2_BUCKET,
-        Key: uniqueName,
-        Body: buffer,
-        ContentType: file.type,
-        CacheControl: "public, max-age=31536000, immutable",
-      })
-    );
+    // R2 yapılandırılmış mı kontrol et
+    const useR2 = process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID;
 
-    // Public URL oluştur
-    const url = R2_PUBLIC_URL
-      ? `${R2_PUBLIC_URL}/${uniqueName}`
-      : `${process.env.R2_ENDPOINT}/${R2_BUCKET}/${uniqueName}`;
+    if (useR2) {
+      // ── Cloudflare R2 ──
+      const { PutObjectCommand } = await import("@aws-sdk/client-s3");
+      const { default: r2, R2_BUCKET, R2_PUBLIC_URL } = await import("@/lib/r2");
 
-    return NextResponse.json({
-      ok: true,
-      url,
-      fileName: uniqueName,
-      size: file.size,
-      type: file.type,
-    });
+      const r2Key = `floor-plans/${uniqueName}`;
+      await r2.send(
+        new PutObjectCommand({
+          Bucket: R2_BUCKET,
+          Key: r2Key,
+          Body: buffer,
+          ContentType: file.type,
+          CacheControl: "public, max-age=31536000, immutable",
+        })
+      );
+
+      const url = R2_PUBLIC_URL
+        ? `${R2_PUBLIC_URL}/${r2Key}`
+        : `${process.env.R2_ENDPOINT}/${R2_BUCKET}/${r2Key}`;
+
+      return NextResponse.json({
+        ok: true,
+        url,
+        fileName: r2Key,
+        size: file.size,
+        type: file.type,
+      });
+    } else {
+      // ── Lokal dosya sistemi fallback ──
+      const uploadDir = path.join(process.cwd(), "public", "uploads", "floor-plans");
+      await mkdir(uploadDir, { recursive: true });
+
+      const filePath = path.join(uploadDir, uniqueName);
+      await writeFile(filePath, buffer);
+
+      const url = `/uploads/floor-plans/${uniqueName}`;
+
+      return NextResponse.json({
+        ok: true,
+        url,
+        fileName: uniqueName,
+        size: file.size,
+        type: file.type,
+      });
+    }
   } catch (error) {
     console.error("[POST /api/upload]", error);
     return NextResponse.json(

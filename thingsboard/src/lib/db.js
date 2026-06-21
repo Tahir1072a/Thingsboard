@@ -37,6 +37,8 @@ async function connectDB() {
     cached.conn = await cached.promise;
   } catch (error) {
     cached.promise = null;
+    console.error("[connectDB] MongoDB bağlantı hatası:", error.message);
+    throw error;
   }
 
   return cached.conn;
