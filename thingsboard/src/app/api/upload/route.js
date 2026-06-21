@@ -62,8 +62,8 @@ export async function POST(request) {
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // R2 yapılandırılmış mı kontrol et
-    const useR2 = process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID;
+    // R2 yapılandırılmış mı kontrol et (Geliştirme aşamasında UPLOAD_PROVIDER=local ile devre dışı bırakılabilir)
+    const useR2 = process.env.R2_ENDPOINT && process.env.R2_ACCESS_KEY_ID && process.env.UPLOAD_PROVIDER !== "local";
 
     if (useR2) {
       // ── Cloudflare R2 ──

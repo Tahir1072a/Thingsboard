@@ -191,16 +191,14 @@ export default function ImageMapWidget({
           {/* Canlı bağlantı göstergesi */}
           {uniqueDeviceIds.length > 0 && (
             <span
-              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${
-                connected ? "text-green-500" : "text-gray-400"
-              }`}
+              className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider ${connected ? "text-green-500" : "text-gray-400"
+                }`}
             >
               <span
-                className={`h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.2)] ${
-                  connected
+                className={`h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.2)] ${connected
                     ? "bg-green-400 shadow-green-400/50 animate-pulse"
                     : "bg-red-400 shadow-red-400/50"
-                }`}
+                  }`}
               />
               {connected ? "LIVE" : "WAIT"}
             </span>
@@ -266,10 +264,9 @@ export default function ImageMapWidget({
         ref={containerRef}
         className={`
           flex-1 min-h-0 relative overflow-hidden rounded-xl
-          ${
-            imageSrc
-              ? "bg-gray-50/50"
-              : "bg-gray-50/30 border-2 border-dashed border-gray-300"
+          ${imageSrc
+            ? "bg-gray-50/50"
+            : "bg-gray-50/30 border-2 border-dashed border-gray-300"
           }
         `}
       >
