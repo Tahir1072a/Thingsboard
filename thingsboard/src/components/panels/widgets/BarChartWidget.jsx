@@ -9,6 +9,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useMultiTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
+import { getUnitSymbol } from "@/lib/units";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, Cell, ResponsiveContainer,
@@ -25,6 +26,14 @@ export default function BarChartWidget({
 }) {
   const orientation = config.orientation || "vertical";
   const maxBars = config.maxBars || 10;
+  const barColor = config.barColor || "#6366f1";
+  const showGrid = config.showGrid !== undefined ? config.showGrid : true;
+  const barRadius = config.barRadius ?? 6;
+  const showLegend = config.showLegend !== undefined ? config.showLegend : true;
+  const showTooltip = config.showTooltip !== undefined ? config.showTooltip : true;
+  const animation = config.animation !== undefined ? config.animation : true;
+  const decimals = config.decimals ?? 1;
+  const unitSymbol = config.unit ? getUnitSymbol(config.unit) : "";
   const targetKey = keys[0] || "value";
 
   const [latestValues, setLatestValues] = useState({});
@@ -126,7 +135,7 @@ export default function BarChartWidget({
     .map((device, i) => ({
       name: device.name,
       value: latestValues[device.id],
-      color: COLORS[i % COLORS.length],
+      color: devices.length === 1 ? barColor : COLORS[i % COLORS.length],
     }));
 
   const isHorizontal = orientation === "horizontal";
@@ -152,15 +161,18 @@ export default function BarChartWidget({
           <ResponsiveContainer width="100%" height="100%">
             {isHorizontal ? (
               <BarChart data={chartData} layout="vertical" margin={{ top: 5, right: 15, left: 5, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.2)" />
+                {showGrid && <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="rgba(255,255,255,0.2)" />}
                 <XAxis type="number" tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
                 <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} width={80} />
-                <Tooltip
-                  contentStyle={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                  itemStyle={{ fontWeight: "bold" }}
-                  formatter={(val) => [typeof val === "number" ? val.toFixed(2) : val, targetKey]}
-                />
-                <Bar dataKey="value" radius={[0, 6, 6, 0]} isAnimationActive={true} animationDuration={500}>
+                {showTooltip && (
+                  <Tooltip
+                    contentStyle={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                    itemStyle={{ fontWeight: "bold" }}
+                    formatter={(val) => [`${typeof val === "number" ? val.toFixed(decimals) : val}${unitSymbol ? ` ${unitSymbol}` : ""}`, targetKey]}
+                  />
+                )}
+                {showLegend && <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
+                <Bar dataKey="value" radius={[0, barRadius, barRadius, 0]} isAnimationActive={animation} animationDuration={500}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
@@ -168,15 +180,18 @@ export default function BarChartWidget({
               </BarChart>
             ) : (
               <BarChart data={chartData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.2)" />
+                {showGrid && <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.2)" />}
                 <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#64748b" }} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
-                  itemStyle={{ fontWeight: "bold" }}
-                  formatter={(val) => [typeof val === "number" ? val.toFixed(2) : val, targetKey]}
-                />
-                <Bar dataKey="value" radius={[6, 6, 0, 0]} isAnimationActive={true} animationDuration={500}>
+                {showTooltip && (
+                  <Tooltip
+                    contentStyle={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
+                    itemStyle={{ fontWeight: "bold" }}
+                    formatter={(val) => [`${typeof val === "number" ? val.toFixed(decimals) : val}${unitSymbol ? ` ${unitSymbol}` : ""}`, targetKey]}
+                  />
+                )}
+                {showLegend && <Legend iconType="square" iconSize={8} wrapperStyle={{ fontSize: "10px" }} />}
+                <Bar dataKey="value" radius={[barRadius, barRadius, 0, 0]} isAnimationActive={animation} animationDuration={500}>
                   {chartData.map((entry, index) => (
                     <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}

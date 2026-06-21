@@ -21,14 +21,19 @@ export const WIDGET_SCHEMAS = {
   // ─── Grafikler ───
   line_chart: {
     category: "charts",
-    // Datasource kısıtları
     datasource: {
-      maxDevices: null, // null = sınırsız
+      maxDevices: null,
       maxKeys: 1,
       requireDevice: true,
       requireKey: true,
     },
     basicFields: [
+      {
+        key: "unit",
+        label: "Birim",
+        type: "unit_select",
+        defaultValue: "",
+      },
       {
         key: "strokeWidth",
         label: "Çizgi Kalınlığı",
@@ -55,6 +60,18 @@ export const WIDGET_SCHEMAS = {
         type: "number",
         defaultValue: null,
         placeholder: "Boş bırakılırsa gösterilmez",
+      },
+      {
+        key: "fillArea",
+        label: "Alan Doldurma",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "lineColor",
+        label: "Çizgi Rengi",
+        type: "color",
+        defaultValue: "#6366f1",
       },
     ],
     advancedFields: [
@@ -85,6 +102,32 @@ export const WIDGET_SCHEMAS = {
         type: "toggle",
         defaultValue: true,
       },
+      {
+        key: "showLegend",
+        label: "Legend Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "showTooltip",
+        label: "Tooltip Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "animation",
+        label: "Animasyon",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "decimals",
+        label: "Ondalık Basamak",
+        type: "number",
+        defaultValue: 1,
+        min: 0,
+        max: 5,
+      },
     ],
   },
 
@@ -97,6 +140,12 @@ export const WIDGET_SCHEMAS = {
       requireKey: true,
     },
     basicFields: [
+      {
+        key: "unit",
+        label: "Birim",
+        type: "unit_select",
+        defaultValue: "",
+      },
       {
         key: "orientation",
         label: "Yön",
@@ -115,19 +164,53 @@ export const WIDGET_SCHEMAS = {
         min: 2,
         max: 50,
       },
-    ],
-    advancedFields: [
-      {
-        key: "showValues",
-        label: "Değerleri Göster",
-        type: "toggle",
-        defaultValue: true,
-      },
       {
         key: "barColor",
         label: "Çubuk Rengi",
         type: "color",
         defaultValue: "#6366f1",
+      },
+    ],
+    advancedFields: [
+      {
+        key: "showGrid",
+        label: "Izgara Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "barRadius",
+        label: "Çubuk Köşe Yuvarlaklığı",
+        type: "number",
+        defaultValue: 6,
+        min: 0,
+        max: 20,
+      },
+      {
+        key: "showLegend",
+        label: "Legend Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "showTooltip",
+        label: "Tooltip Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "animation",
+        label: "Animasyon",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "decimals",
+        label: "Ondalık Basamak",
+        type: "number",
+        defaultValue: 1,
+        min: 0,
+        max: 5,
       },
     ],
   },
@@ -141,6 +224,12 @@ export const WIDGET_SCHEMAS = {
       requireKey: true,
     },
     basicFields: [
+      {
+        key: "unit",
+        label: "Birim",
+        type: "unit_select",
+        defaultValue: "",
+      },
       {
         key: "variant",
         label: "Tür",
@@ -164,7 +253,44 @@ export const WIDGET_SCHEMAS = {
         defaultValue: true,
       },
     ],
-    advancedFields: [],
+    advancedFields: [
+      {
+        key: "innerRadius",
+        label: "İç Yarıçap (%)",
+        type: "number",
+        defaultValue: 55,
+        min: 0,
+        max: 90,
+      },
+      {
+        key: "outerRadius",
+        label: "Dış Yarıçap (%)",
+        type: "number",
+        defaultValue: 85,
+        min: 30,
+        max: 100,
+      },
+      {
+        key: "showLegend",
+        label: "Legend Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "animation",
+        label: "Animasyon",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "decimals",
+        label: "Ondalık Basamak",
+        type: "number",
+        defaultValue: 1,
+        min: 0,
+        max: 5,
+      },
+    ],
   },
 
   // ─── Göstergeler ───
@@ -192,20 +318,9 @@ export const WIDGET_SCHEMAS = {
       {
         key: "unit",
         label: "Birim",
-        type: "text",
+        type: "unit_select",
         defaultValue: "",
-        placeholder: "°C, %, RPM...",
       },
-      {
-        key: "decimals",
-        label: "Ondalık Hane",
-        type: "number",
-        defaultValue: 0,
-        min: 0,
-        max: 5,
-      },
-    ],
-    advancedFields: [
       {
         key: "colorRanges",
         label: "Renk Aralıkları",
@@ -215,6 +330,52 @@ export const WIDGET_SCHEMAS = {
           { from: 50, to: 80, color: "#f59e0b" },
           { from: 80, to: 100, color: "#ef4444" },
         ],
+      },
+    ],
+    advancedFields: [
+      {
+        key: "decimals",
+        label: "Ondalık Hane",
+        type: "number",
+        defaultValue: 1,
+        min: 0,
+        max: 5,
+      },
+      {
+        key: "barSize",
+        label: "Çubuk Kalınlığı (px)",
+        type: "number",
+        defaultValue: 14,
+        min: 6,
+        max: 30,
+      },
+      {
+        key: "startAngle",
+        label: "Başlangıç Açısı",
+        type: "number",
+        defaultValue: 210,
+        min: 0,
+        max: 360,
+      },
+      {
+        key: "endAngle",
+        label: "Bitiş Açısı",
+        type: "number",
+        defaultValue: -30,
+        min: -360,
+        max: 360,
+      },
+      {
+        key: "showPercentage",
+        label: "Yüzde Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "animation",
+        label: "Animasyon",
+        type: "toggle",
+        defaultValue: true,
       },
       {
         key: "showTitle",
@@ -244,18 +405,41 @@ export const WIDGET_SCHEMAS = {
       {
         key: "unit",
         label: "Birim",
-        type: "text",
+        type: "unit_select",
         defaultValue: "",
-        placeholder: "°C, %, RPM...",
       },
       {
-        key: "decimals",
-        label: "Ondalık Hane",
-        type: "number",
-        defaultValue: 1,
-        min: 0,
-        max: 5,
+        key: "showTrend",
+        label: "Trend Göster",
+        type: "toggle",
+        defaultValue: true,
       },
+      {
+        key: "icon",
+        label: "İkon",
+        type: "select",
+        defaultValue: "Thermometer",
+        options: [
+          { label: "🌡️ Termometre", value: "Thermometer" },
+          { label: "💧 Damla", value: "Droplets" },
+          { label: "⚡ Enerji", value: "Zap" },
+          { label: "🔋 Batarya", value: "Battery" },
+          { label: "☀️ Güneş", value: "Sun" },
+          { label: "🌬️ Rüzgar", value: "Wind" },
+          { label: "📊 Grafik", value: "BarChart3" },
+          { label: "⚙️ Dişli", value: "Settings" },
+          { label: "📍 Konum", value: "MapPin" },
+          { label: "🔔 Bildirim", value: "Bell" },
+        ],
+      },
+      {
+        key: "accentColor",
+        label: "Vurgu Rengi",
+        type: "color",
+        defaultValue: "#6366f1",
+      },
+    ],
+    advancedFields: [
       {
         key: "fontSize",
         label: "Değer Font Boyutu",
@@ -268,18 +452,23 @@ export const WIDGET_SCHEMAS = {
           { label: "Çok Büyük", value: "text-6xl" },
         ],
       },
-    ],
-    advancedFields: [
       {
-        key: "subLabel",
-        label: "Alt Etiket",
-        type: "text",
-        defaultValue: "",
-        placeholder: "Opsiyonel açıklama",
+        key: "decimals",
+        label: "Ondalık Hane",
+        type: "number",
+        defaultValue: 1,
+        min: 0,
+        max: 5,
       },
       {
-        key: "showTrend",
-        label: "Trend Göster",
+        key: "showLastUpdate",
+        label: "Son Güncelleme Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "animation",
+        label: "Animasyon",
         type: "toggle",
         defaultValue: true,
       },
@@ -290,11 +479,27 @@ export const WIDGET_SCHEMAS = {
     category: "cards",
     datasource: {
       maxDevices: 1,
-      maxKeys: null, // multi-key
+      maxKeys: null,
       requireDevice: true,
       requireKey: true,
     },
     basicFields: [
+      {
+        key: "unit",
+        label: "Birim",
+        type: "unit_select",
+        defaultValue: "",
+      },
+      {
+        key: "layout",
+        label: "Düzen",
+        type: "select",
+        defaultValue: "grid",
+        options: [
+          { label: "Izgara (Grid)", value: "grid" },
+          { label: "Liste", value: "list" },
+        ],
+      },
       {
         key: "columns",
         label: "Sütun Sayısı",
@@ -311,6 +516,20 @@ export const WIDGET_SCHEMAS = {
         type: "toggle",
         defaultValue: true,
       },
+      {
+        key: "showSparkline",
+        label: "Mini Grafik Göster",
+        type: "toggle",
+        defaultValue: false,
+      },
+      {
+        key: "decimals",
+        label: "Ondalık Basamak",
+        type: "number",
+        defaultValue: 1,
+        min: 0,
+        max: 5,
+      },
     ],
   },
 
@@ -325,15 +544,59 @@ export const WIDGET_SCHEMAS = {
     },
     basicFields: [
       {
-        key: "maxRows",
-        label: "Maks. Satır",
+        key: "rowLimit",
+        label: "Satır Limiti",
         type: "number",
-        defaultValue: 20,
+        defaultValue: 50,
         min: 5,
-        max: 100,
+        max: 200,
+      },
+      {
+        key: "sortOrder",
+        label: "Sıralama",
+        type: "select",
+        defaultValue: "desc",
+        options: [
+          { label: "Yeniden Eskiye", value: "desc" },
+          { label: "Eskiden Yeniye", value: "asc" },
+        ],
       },
     ],
     advancedFields: [
+      {
+        key: "striped",
+        label: "Zebra Çizgili",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "pagination",
+        label: "Sayfalama",
+        type: "toggle",
+        defaultValue: false,
+      },
+      {
+        key: "pageSize",
+        label: "Sayfa Boyutu",
+        type: "number",
+        defaultValue: 10,
+        min: 5,
+        max: 50,
+      },
+      {
+        key: "decimals",
+        label: "Ondalık Basamak",
+        type: "number",
+        defaultValue: 2,
+        min: 0,
+        max: 5,
+      },
+      {
+        key: "showDeviceName",
+        label: "Cihaz Adı Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
       {
         key: "showTimestamp",
         label: "Zaman Damgası Göster",
@@ -387,6 +650,23 @@ export const WIDGET_SCHEMAS = {
         type: "toggle",
         defaultValue: true,
       },
+      {
+        key: "tileLayer",
+        label: "Harita Tipi",
+        type: "select",
+        defaultValue: "osm",
+        options: [
+          { label: "OpenStreetMap", value: "osm" },
+          { label: "Uydu", value: "satellite" },
+          { label: "Karanlık", value: "dark" },
+        ],
+      },
+      {
+        key: "clustering",
+        label: "Kümeleme",
+        type: "toggle",
+        defaultValue: false,
+      },
     ],
   },
 
@@ -398,8 +678,36 @@ export const WIDGET_SCHEMAS = {
       requireDevice: false,
       requireKey: false,
     },
-    basicFields: [],
-    advancedFields: [],
+    basicFields: [
+      {
+        key: "markerSize",
+        label: "Marker Boyutu (px)",
+        type: "number",
+        defaultValue: 24,
+        min: 12,
+        max: 48,
+      },
+    ],
+    advancedFields: [
+      {
+        key: "markerColor",
+        label: "Varsayılan Marker Rengi",
+        type: "color",
+        defaultValue: "#6366f1",
+      },
+      {
+        key: "showTooltips",
+        label: "Tooltip Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "showValueLabel",
+        label: "Değer Etiketi Göster",
+        type: "toggle",
+        defaultValue: false,
+      },
+    ],
   },
 
   // ─── Kontrol (RPC) ───
@@ -429,10 +737,25 @@ export const WIDGET_SCHEMAS = {
     ],
     advancedFields: [
       {
-        key: "showConfirmation",
+        key: "confirmAction",
         label: "Onay Diyaloğu Göster",
         type: "toggle",
         defaultValue: false,
+      },
+      {
+        key: "timeout",
+        label: "Zaman Aşımı (ms)",
+        type: "number",
+        defaultValue: 10000,
+        min: 1000,
+        max: 60000,
+        step: 1000,
+      },
+      {
+        key: "activeColor",
+        label: "Aktif Renk",
+        type: "color",
+        defaultValue: "#22c55e",
       },
     ],
   },
@@ -481,17 +804,31 @@ export const WIDGET_SCHEMAS = {
       {
         key: "unit",
         label: "Birim",
-        type: "text",
-        defaultValue: "%",
-        placeholder: "%, °C...",
+        type: "unit_select",
+        defaultValue: "percent",
       },
     ],
     advancedFields: [
       {
-        key: "showConfirmation",
+        key: "confirmAction",
         label: "Onay Diyaloğu Göster",
         type: "toggle",
         defaultValue: false,
+      },
+      {
+        key: "timeout",
+        label: "Zaman Aşımı (ms)",
+        type: "number",
+        defaultValue: 10000,
+        min: 1000,
+        max: 60000,
+        step: 1000,
+      },
+      {
+        key: "sliderColor",
+        label: "Slider Rengi",
+        type: "color",
+        defaultValue: "#6366f1",
       },
     ],
   },
@@ -532,8 +869,35 @@ export const WIDGET_SCHEMAS = {
           { label: "Turuncu", value: "orange" },
         ],
       },
+      {
+        key: "icon",
+        label: "İkon",
+        type: "select",
+        defaultValue: "Zap",
+        options: [
+          { label: "⚡ Yıldırım", value: "Zap" },
+          { label: "▶️ Oynat", value: "Play" },
+          { label: "🔄 Yenile", value: "RefreshCw" },
+          { label: "⚙️ Dişli", value: "Settings" },
+          { label: "🔌 Güç", value: "Power" },
+          { label: "📤 Gönder", value: "Send" },
+        ],
+      },
     ],
     advancedFields: [
+      {
+        key: "confirmAction",
+        label: "Onay Diyaloğu Göster",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "confirmMessage",
+        label: "Onay Mesajı",
+        type: "text",
+        defaultValue: "",
+        placeholder: "Bu işlemi gerçekleştirmek istediğinize emin misiniz?",
+      },
       {
         key: "timeout",
         label: "Zaman Aşımı (ms)",
@@ -542,12 +906,6 @@ export const WIDGET_SCHEMAS = {
         min: 1000,
         max: 60000,
         step: 1000,
-      },
-      {
-        key: "showConfirmation",
-        label: "Onay Diyaloğu Göster",
-        type: "toggle",
-        defaultValue: false,
       },
     ],
   },
@@ -563,12 +921,12 @@ export const WIDGET_SCHEMAS = {
     },
     basicFields: [
       {
-        key: "maxRows",
-        label: "Maks. Satır",
+        key: "maxAlarms",
+        label: "Maks. Alarm Sayısı",
         type: "number",
-        defaultValue: 10,
+        defaultValue: 20,
         min: 5,
-        max: 50,
+        max: 100,
       },
       {
         key: "showCleared",
@@ -576,8 +934,42 @@ export const WIDGET_SCHEMAS = {
         type: "toggle",
         defaultValue: false,
       },
+      {
+        key: "severityFilter",
+        label: "Önem Seviyesi Filtresi",
+        type: "select",
+        defaultValue: "all",
+        options: [
+          { label: "Tümü", value: "all" },
+          { label: "Kritik", value: "CRITICAL" },
+          { label: "Büyük", value: "MAJOR" },
+          { label: "Küçük", value: "MINOR" },
+          { label: "Uyarı", value: "WARNING" },
+        ],
+      },
     ],
-    advancedFields: [],
+    advancedFields: [
+      {
+        key: "autoRefresh",
+        label: "Otomatik Yenile",
+        type: "toggle",
+        defaultValue: true,
+      },
+      {
+        key: "refreshInterval",
+        label: "Yenileme Sıklığı (sn)",
+        type: "number",
+        defaultValue: 30,
+        min: 5,
+        max: 300,
+      },
+      {
+        key: "soundEnabled",
+        label: "Ses Bildirimi",
+        type: "toggle",
+        defaultValue: false,
+      },
+    ],
   },
 };
 

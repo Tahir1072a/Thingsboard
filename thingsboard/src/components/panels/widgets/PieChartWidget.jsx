@@ -9,6 +9,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useMultiTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
+import { getUnitSymbol } from "@/lib/units";
 import {
   PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer,
 } from "recharts";
@@ -25,6 +26,12 @@ export default function PieChartWidget({
   const variant = config.variant || "donut";
   const showLabels = config.showLabels !== undefined ? config.showLabels : true;
   const showPercentage = config.showPercentage !== undefined ? config.showPercentage : true;
+  const configInnerRadius = config.innerRadius ?? 55;
+  const configOuterRadius = config.outerRadius ?? 85;
+  const showLegend = config.showLegend !== undefined ? config.showLegend : true;
+  const animation = config.animation !== undefined ? config.animation : true;
+  const decimals = config.decimals ?? 1;
+  const unitSymbol = config.unit ? getUnitSymbol(config.unit) : "";
   const targetKey = keys[0] || "value";
 
   const [latestValues, setLatestValues] = useState({});
@@ -147,13 +154,13 @@ export default function PieChartWidget({
         fontSize={10}
         fontWeight={600}
       >
-        {showPercentage ? `${(percent * 100).toFixed(1)}%` : name}
+        {showPercentage ? `${(percent * 100).toFixed(decimals)}%` : name}
       </text>
     );
   };
 
-  const innerRadius = variant === "donut" ? "60%" : 0;
-  const outerRadius = "80%";
+  const innerRadius = variant === "donut" ? `${configInnerRadius}%` : 0;
+  const outerRadius = `${configOuterRadius}%`;
 
   return (
     <div className="h-full flex flex-col">
@@ -185,7 +192,7 @@ export default function PieChartWidget({
                 dataKey="value"
                 label={showLabels ? renderCustomLabel : false}
                 labelLine={showLabels}
-                isAnimationActive={true}
+                isAnimationActive={animation}
                 animationDuration={500}
                 stroke="rgba(255,255,255,0.6)"
                 strokeWidth={2}
@@ -198,15 +205,17 @@ export default function PieChartWidget({
                 contentStyle={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}
                 itemStyle={{ fontWeight: "bold" }}
                 formatter={(val, name) => [
-                  `${typeof val === "number" ? val.toFixed(2) : val} (${total > 0 ? ((val / total) * 100).toFixed(1) : 0}%)`,
+                  `${typeof val === "number" ? val.toFixed(decimals) : val}${unitSymbol ? ` ${unitSymbol}` : ""} (${total > 0 ? ((val / total) * 100).toFixed(decimals) : 0}%)`,
                   name,
                 ]}
               />
-              <Legend
-                iconType="circle"
-                iconSize={8}
-                wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }}
-              />
+              {showLegend && (
+                <Legend
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: "10px", paddingTop: "8px" }}
+                />
+              )}
             </PieChart>
           </ResponsiveContainer>
 
@@ -215,7 +224,7 @@ export default function PieChartWidget({
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
               <div className="text-center">
                 <div className="text-xl font-extrabold text-slate-700 tabular-nums">
-                  {total % 1 === 0 ? total : total.toFixed(1)}
+                  {total % 1 === 0 ? total : total.toFixed(decimals)}{unitSymbol ? ` ${unitSymbol}` : ""}
                 </div>
                 <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">
                   {targetKey}

@@ -7,8 +7,13 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { TrendingUp, TrendingDown, Minus, Thermometer, Droplets, Gauge, Zap, Wind, Sun, CloudRain, Activity, Flame, Waves } from "lucide-react";
 import { useTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
+import { getUnitSymbol } from "@/lib/units";
+
+const ICON_MAP = {
+  Thermometer, Droplets, Gauge, Zap, Wind, Sun, CloudRain, Activity, Flame, Waves,
+};
 
 export default function ValueCardWidget({
   devices = [], keys = [], title = "Değer",
@@ -18,7 +23,14 @@ export default function ValueCardWidget({
   const deviceId = device?.id;
   const deviceName = device?.name || "Bilinmeyen Cihaz";
   const key = keys[0] || "value";
-  const unit = config.unit || "";
+  const unitSymbol = config.unit ? getUnitSymbol(config.unit) : "";
+  const showTrend = config.showTrend !== undefined ? config.showTrend : true;
+  const IconComponent = ICON_MAP[config.icon] || Thermometer;
+  const accentColor = config.accentColor || "#6366f1";
+  const fontSize = config.fontSize || "text-4xl";
+  const decimals = config.decimals ?? 1;
+  const showLastUpdate = config.showLastUpdate !== undefined ? config.showLastUpdate : true;
+  const animationEnabled = config.animation !== undefined ? config.animation : true;
 
   const [value, setValue] = useState(null);
   const [trend, setTrend] = useState("stable"); // up | down | stable
@@ -117,30 +129,35 @@ export default function ValueCardWidget({
         {deviceName}
       </div>
 
-      <div className="flex items-center justify-end shrink-0 mt-3">
-        <div className={`px-2 py-1 rounded-full flex items-center gap-1 ${trendBg} ${trendColor} bg-opacity-50 backdrop-blur-sm border border-white/20`}>
-          <TrendIcon className="h-3 w-3" />
-          <span className="text-[10px] font-bold uppercase tracking-wider">{trend}</span>
-        </div>
+      <div className="flex items-center justify-between shrink-0 mt-3">
+        <IconComponent className="h-5 w-5" style={{ color: accentColor }} />
+        {showTrend && (
+          <div className={`px-2 py-1 rounded-full flex items-center gap-1 ${trendBg} ${trendColor} bg-opacity-50 backdrop-blur-sm border border-white/20`}>
+            <TrendIcon className="h-3 w-3" />
+            <span className="text-[10px] font-bold uppercase tracking-wider">{trend}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 flex flex-col items-start justify-center pt-2">
         <div className="flex items-baseline gap-1">
-          <span className="text-4xl md:text-5xl font-extrabold tracking-tight text-slate-800 drop-shadow-sm">
-            {value !== null ? value.toFixed(1) : "—"}
+          <span className={`${fontSize} md:text-5xl font-extrabold tracking-tight text-slate-800 drop-shadow-sm${animationEnabled ? " transition-all duration-300" : ""}`}>
+            {value !== null ? value.toFixed(decimals) : "—"}
           </span>
           <span className="text-base font-medium text-slate-500 uppercase">
-            {unit || key}
+            {unitSymbol || key}
           </span>
         </div>
       </div>
 
       <div className="flex items-center justify-between text-[10px] text-slate-400 shrink-0 font-medium tracking-wide">
-        <span className="uppercase">{key}</span>
-        <span className="flex items-center gap-1.5">
-          <span className={`h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.2)] ${connected ? "bg-green-400 shadow-green-400/50" : "bg-red-400 shadow-red-400/50"}`} />
-          {lastUpdate ? lastUpdate.toLocaleTimeString("tr-TR") : "Bekleniyor..."}
-        </span>
+        <span className="uppercase" style={{ color: accentColor }}>{key}</span>
+        {showLastUpdate && (
+          <span className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full shadow-[0_0_8px_rgba(0,0,0,0.2)] ${connected ? "bg-green-400 shadow-green-400/50" : "bg-red-400 shadow-red-400/50"}`} />
+            {lastUpdate ? lastUpdate.toLocaleTimeString("tr-TR") : "Bekleniyor..."}
+          </span>
+        )}
       </div>
     </div>
   );

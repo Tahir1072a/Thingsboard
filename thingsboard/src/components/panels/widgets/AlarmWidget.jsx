@@ -6,9 +6,9 @@
  * SSE Pool üzerinden alarm olaylarını dinler.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useAlarmSSE, useSSEConnected } from "@/lib/sse-pool";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Volume2, VolumeX } from "lucide-react";
 
 const SEVERITY_STYLES = {
   CRITICAL: { bg: "bg-red-100", text: "text-red-700", border: "border-red-200", label: "Kritik" },
@@ -27,12 +27,18 @@ export default function AlarmWidget({
   devices = [], keys = [], title = "Alarm Listesi",
   config = {},
 }) {
+  // Config değerleri
   const showCleared = config.showCleared || false;
-  const maxRows = config.maxRows || 10;
+  const maxAlarms = config.maxAlarms !== undefined ? config.maxAlarms : 20;
+  const severityFilter = config.severityFilter || "all";
+  const autoRefresh = config.autoRefresh !== undefined ? config.autoRefresh : true;
+  const refreshInterval = config.refreshInterval !== undefined ? config.refreshInterval : 30;
+  const soundEnabled = config.soundEnabled || false;
 
   const [alarms, setAlarms] = useState([]);
   // connected state artık useSSEConnected() hook'undan geliyor (aşağıda)
   const [loading, setLoading] = useState(true);
+  const refreshTimerRef = useRef(null);
 
   // Cihaz ismi hızlı lookup
   const deviceNameMap = {};
@@ -86,21 +92,31 @@ export default function AlarmWidget({
     });
   }, [devices]);
 
-  // İlk yükleme — alarmları çek
+  // İlk yükleme + autoRefresh — alarmları çek
   useEffect(() => {
     if (devices.length === 0) return;
     fetchAlarms();
-  }, [devices, fetchAlarms]);
+
+    // autoRefresh: periyodik yeniden çekme
+    if (autoRefresh && refreshInterval > 0) {
+      refreshTimerRef.current = setInterval(fetchAlarms, refreshInterval * 1000);
+    }
+
+    return () => {
+      if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
+    };
+  }, [devices, fetchAlarms, autoRefresh, refreshInterval]);
 
   // SSE Pool üzerinden alarm dinle (tek bağlantı)
   const connected = useSSEConnected();
   const deviceId = devices.length === 1 ? devices[0].id : undefined;
   useAlarmSSE(handleAlarmEvent, deviceId);
 
-  // Filtreleme
+  // Filtreleme: showCleared + severityFilter + maxAlarms
   const filteredAlarms = alarms
     .filter(a => showCleared || a.status !== "CLEARED")
-    .slice(0, maxRows);
+    .filter(a => severityFilter === "all" || a.severity === severityFilter)
+    .slice(0, maxAlarms);
 
   const formatTime = (ts) => {
     if (!ts) return "—";
@@ -183,8 +199,12 @@ export default function AlarmWidget({
         </div>
       )}
 
-      <div className="shrink-0 mt-2 text-center text-[10px] text-slate-400 font-medium">
-        {filteredAlarms.length} Alarm • {devices.length} Cihaz
+      <div className="shrink-0 mt-2 flex items-center justify-center gap-3 text-[10px] text-slate-400 font-medium">
+        <span>{filteredAlarms.length} Alarm • {devices.length} Cihaz</span>
+        {/* Sound enabled placeholder */}
+        <span className="flex items-center gap-1" title={soundEnabled ? "Ses bildirimleri açık" : "Ses bildirimleri kapalı"}>
+          {soundEnabled ? <Volume2 className="h-3 w-3 text-indigo-400" /> : <VolumeX className="h-3 w-3 text-slate-300" />}
+        </span>
       </div>
     </div>
   );

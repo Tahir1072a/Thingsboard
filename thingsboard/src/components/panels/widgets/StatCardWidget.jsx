@@ -8,7 +8,8 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import { Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Activity, TrendingUp, TrendingDown, Minus, BarChart3 } from "lucide-react";
+import { getUnitSymbol } from "@/lib/units";
 import { useTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 
 const ACCENT_COLORS = [
@@ -30,8 +31,13 @@ export default function StatCardWidget({
   const deviceId = device?.id;
   const deviceName = device?.name || "Bilinmeyen Cihaz";
 
-  // Sütun sayısı: config'ten veya key sayısına göre otomatik
-  const columns = config.columns || Math.min(keys.length, 4) || 2;
+  // Config değerleri
+  const layout = config.layout || "grid";
+  const columns = config.columns || Math.min(keys.length, 4) || 3;
+  const showTrend = config.showTrend !== undefined ? config.showTrend : true;
+  const showSparkline = config.showSparkline || false;
+  const decimals = config.decimals !== undefined ? config.decimals : 1;
+  const unitSymbol = config.unit ? getUnitSymbol(config.unit) : "";
 
   // { [key]: { value, prevValue, trend } }
   const [metrics, setMetrics] = useState({});
@@ -159,10 +165,12 @@ export default function StatCardWidget({
         </span>
       </div>
 
-      {/* Metrik Grid */}
+      {/* Metrik Grid / List */}
       <div
-        className="flex-1 min-h-0 grid gap-3"
-        style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}
+        className={`flex-1 min-h-0 gap-3 ${
+          layout === "list" ? "flex flex-col" : "grid"
+        }`}
+        style={layout === "grid" ? { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } : undefined}
       >
         {keys.map((key, i) => {
           const metric = metrics[key];
@@ -173,7 +181,11 @@ export default function StatCardWidget({
           return (
             <div
               key={key}
-              className={`flex flex-col justify-between p-3 rounded-xl border ${accent.border} bg-white/60 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow duration-200`}
+              className={`${
+                layout === "list"
+                  ? "flex items-center justify-between p-3 rounded-xl border bg-white/60 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow duration-200"
+                  : "flex flex-col justify-between p-3 rounded-xl border bg-white/60 backdrop-blur-sm shadow-sm hover:shadow-md transition-shadow duration-200"
+              } ${accent.border}`}
             >
               {/* İkon + Key İsmi */}
               <div className="flex items-center gap-2 mb-2">
@@ -185,20 +197,32 @@ export default function StatCardWidget({
                 </span>
               </div>
 
-              {/* Değer */}
+              {/* Değer + Birim */}
               <div className="flex items-baseline gap-1 mb-1">
                 <span className="text-2xl font-extrabold text-slate-800 tabular-nums tracking-tight">
                   {metric?.value !== undefined
-                    ? (typeof metric.value === "number" ? metric.value.toFixed(1) : metric.value)
+                    ? (typeof metric.value === "number" ? metric.value.toFixed(decimals) : metric.value)
                     : "—"}
                 </span>
+                {unitSymbol && (
+                  <span className="text-sm font-medium text-slate-400">{unitSymbol}</span>
+                )}
               </div>
 
+              {/* Sparkline placeholder */}
+              {showSparkline && (
+                <div className="flex items-center gap-1 mb-1 text-slate-300">
+                  <BarChart3 className="h-4 w-10" />
+                </div>
+              )}
+
               {/* Trend */}
-              <div className={`flex items-center gap-1 ${trendLabel[trend]}`}>
-                <Icon className="h-3 w-3" />
-                <span className="text-[9px] font-bold uppercase tracking-wider">{trend}</span>
-              </div>
+              {showTrend && (
+                <div className={`flex items-center gap-1 ${trendLabel[trend]}`}>
+                  <Icon className="h-3 w-3" />
+                  <span className="text-[9px] font-bold uppercase tracking-wider">{trend}</span>
+                </div>
+              )}
             </div>
           );
         })}

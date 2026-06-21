@@ -8,8 +8,9 @@
 
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { useMultiTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
+import { getUnitSymbol } from "@/lib/units";
 import {
-  AreaChart, Area, XAxis, YAxis, CartesianGrid,
+  AreaChart, Area, LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Brush, Legend, ReferenceLine
 } from "recharts";
 
@@ -23,6 +24,18 @@ export default function LineChartWidget({
   config = {}, publicToken,
 }) {
   const maxPoints = config.maxPoints || 60;
+  const strokeWidth = config.strokeWidth ?? 2;
+  const curveType = config.curveType || "monotone";
+  const fillArea = config.fillArea !== undefined ? config.fillArea : true;
+  const lineColor = config.lineColor || "#6366f1";
+  const showGrid = config.showGrid !== undefined ? config.showGrid : true;
+  const yAxisLabel = config.yAxisLabel || "";
+  const showBrush = config.showBrush !== undefined ? config.showBrush : true;
+  const showLegend = config.showLegend !== undefined ? config.showLegend : true;
+  const showTooltip = config.showTooltip !== undefined ? config.showTooltip : true;
+  const animation = config.animation !== undefined ? config.animation : true;
+  const decimals = config.decimals ?? 1;
+  const unitSymbol = config.unit ? getUnitSymbol(config.unit) : "";
   const targetKey = keys[0] || "value"; // LineChart artık tek key alıyor
   
   const [data, setData] = useState([]);
@@ -171,7 +184,7 @@ export default function LineChartWidget({
               <span className="h-1.5 w-1.5 rounded-full" style={{ background: COLORS[i % COLORS.length] }} />
               <span className="text-[10px] text-text-muted capitalize">{device.name}</span>
               <span className="text-xs font-bold tabular-nums" style={{ color: COLORS[i % COLORS.length] }}>
-                {lastValues[device.name] !== undefined ? lastValues[device.name].toFixed(1) : "—"}
+                {lastValues[device.name] !== undefined ? `${lastValues[device.name].toFixed(decimals)}${unitSymbol ? ` ${unitSymbol}` : ""}` : "—"}
               </span>
               {config.warningThreshold != null && lastValues[device.name] > config.warningThreshold && (
                 <span className="ml-1 text-[9px] text-red-500 animate-pulse font-bold">⚠ KRİTİK</span>
@@ -183,33 +196,38 @@ export default function LineChartWidget({
 
       <div className="flex-1 min-h-0 relative mt-2">
         <ResponsiveContainer width="100%" height="100%">
+          {fillArea ? (
           <AreaChart data={data} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
             <defs>
               {devices.map((device, i) => (
                 <linearGradient key={`color${device.id}`} id={`color${device.id}`} x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0.3} />
-                  <stop offset="95%" stopColor={COLORS[i % COLORS.length]} stopOpacity={0} />
+                  <stop offset="5%" stopColor={devices.length === 1 ? lineColor : COLORS[i % COLORS.length]} stopOpacity={0.3} />
+                  <stop offset="95%" stopColor={devices.length === 1 ? lineColor : COLORS[i % COLORS.length]} stopOpacity={0} />
                 </linearGradient>
               ))}
             </defs>
-            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.2)" />
+            {showGrid && <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.2)" />}
             <XAxis dataKey="_time" tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-            <YAxis tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} />
-            <Tooltip 
-              contentStyle={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} 
-              itemStyle={{ fontWeight: "bold" }}
-            />
+            <YAxis tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#64748b" } } : undefined} />
+            {showTooltip && (
+              <Tooltip 
+                contentStyle={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} 
+                itemStyle={{ fontWeight: "bold" }}
+                formatter={(val) => [`${typeof val === "number" ? val.toFixed(decimals) : val}${unitSymbol ? ` ${unitSymbol}` : ""}`]}
+              />
+            )}
+            {showLegend && <Legend iconType="line" iconSize={10} wrapperStyle={{ fontSize: "10px" }} />}
             {devices.map((device, i) => (
               <Area 
                 key={device.id} 
                 name={device.name}
-                type="monotone" 
+                type={curveType} 
                 dataKey={device.name} 
-                stroke={COLORS[i % COLORS.length]} 
-                strokeWidth={3}
+                stroke={devices.length === 1 ? lineColor : COLORS[i % COLORS.length]} 
+                strokeWidth={strokeWidth}
                 fillOpacity={1} 
                 fill={`url(#color${device.id})`} 
-                isAnimationActive={false} 
+                isAnimationActive={animation} 
                 connectNulls={true}
               />
             ))}
@@ -228,15 +246,70 @@ export default function LineChartWidget({
                 }}
               />
             )}
-            <Brush 
-              dataKey="_time" 
-              height={20} 
-              stroke="#6366f1" 
-              fill="rgba(255, 255, 255, 0.2)"
-              tickFormatter={() => ""}
-              className="rounded-xl overflow-hidden"
-            />
+            {showBrush && (
+              <Brush 
+                dataKey="_time" 
+                height={20} 
+                stroke={lineColor} 
+                fill="rgba(255, 255, 255, 0.2)"
+                tickFormatter={() => ""}
+                className="rounded-xl overflow-hidden"
+              />
+            )}
           </AreaChart>
+          ) : (
+          <LineChart data={data} margin={{ top: 5, right: 5, left: -25, bottom: 5 }}>
+            {showGrid && <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.2)" />}
+            <XAxis dataKey="_time" tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+            <YAxis tick={{ fontSize: 9, fill: "#64748b" }} axisLine={false} tickLine={false} label={yAxisLabel ? { value: yAxisLabel, angle: -90, position: "insideLeft", style: { fontSize: 10, fill: "#64748b" } } : undefined} />
+            {showTooltip && (
+              <Tooltip 
+                contentStyle={{ background: "rgba(255,255,255,0.8)", backdropFilter: "blur(8px)", border: "1px solid rgba(255,255,255,0.4)", borderRadius: "12px", fontSize: "11px", boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }} 
+                itemStyle={{ fontWeight: "bold" }}
+                formatter={(val) => [`${typeof val === "number" ? val.toFixed(decimals) : val}${unitSymbol ? ` ${unitSymbol}` : ""}`]}
+              />
+            )}
+            {showLegend && <Legend iconType="line" iconSize={10} wrapperStyle={{ fontSize: "10px" }} />}
+            {devices.map((device, i) => (
+              <Line 
+                key={device.id} 
+                name={device.name}
+                type={curveType} 
+                dataKey={device.name} 
+                stroke={devices.length === 1 ? lineColor : COLORS[i % COLORS.length]} 
+                strokeWidth={strokeWidth}
+                dot={false}
+                isAnimationActive={animation} 
+                connectNulls={true}
+              />
+            ))}
+            {config.warningThreshold != null && (
+              <ReferenceLine
+                y={config.warningThreshold}
+                stroke="#ef4444"
+                strokeDasharray="6 4"
+                strokeWidth={2}
+                label={{
+                  value: `⚠ Eşik: ${config.warningThreshold}`,
+                  position: "insideTopRight",
+                  fill: "#ef4444",
+                  fontSize: 10,
+                  fontWeight: "bold",
+                }}
+              />
+            )}
+            {showBrush && (
+              <Brush 
+                dataKey="_time" 
+                height={20} 
+                stroke={lineColor} 
+                fill="rgba(255, 255, 255, 0.2)"
+                tickFormatter={() => ""}
+                className="rounded-xl overflow-hidden"
+              />
+            )}
+          </LineChart>
+          )}
         </ResponsiveContainer>
       </div>
     </div>

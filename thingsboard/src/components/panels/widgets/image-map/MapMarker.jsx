@@ -37,6 +37,10 @@ export default function MapMarker({
   containerRef,
   onDragEnd,
   onRemove,
+  markerSize = 24,
+  markerColor = "#6366f1",
+  showTooltips = true,
+  showValueLabel = false,
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -93,7 +97,7 @@ export default function MapMarker({
     >
       {/* ── Tooltip ── */}
       <AnimatePresence>
-        {hovered && (
+        {showTooltips && hovered && (
           <motion.div
             initial={{ opacity: 0, y: 5 }}
             animate={{ opacity: 1, y: -5 }}
@@ -117,17 +121,36 @@ export default function MapMarker({
         transition={pulseTransition}
         className={`
           relative flex items-center justify-center
-          h-9 w-9 rounded-full
+          rounded-full
           bg-white shadow-md border-2
-          ${isAlert ? "border-red-400 shadow-red-200" : "border-halo-400 shadow-halo-200/30"}
+          ${isAlert ? "border-red-400 shadow-red-200" : "shadow-halo-200/30"}
           ${isEditMode ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"}
           transition-colors duration-200
         `}
+        style={{
+          width: `${markerSize * 1.5}px`,
+          height: `${markerSize * 1.5}px`,
+          borderColor: isAlert ? undefined : markerColor,
+        }}
       >
         <Icon
-          className={`h-4 w-4 ${isAlert ? "text-red-500" : "text-halo-600"}`}
+          className={`${isAlert ? "text-red-500" : ""}`}
+          style={{
+            width: `${markerSize * 0.67}px`,
+            height: `${markerSize * 0.67}px`,
+            color: isAlert ? undefined : markerColor,
+          }}
         />
       </motion.div>
+
+      {/* ── Value label (altında sabit metin) ── */}
+      {showValueLabel && value != null && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 whitespace-nowrap pointer-events-none">
+          <span className="text-[10px] font-bold text-slate-700 bg-white/90 px-1.5 py-0.5 rounded shadow-sm border border-slate-200/60">
+            {value}{unit && ` ${unit}`}
+          </span>
+        </div>
+      )}
 
       {/* ── Edit modda kaldırma (X) butonu ── */}
       {isEditMode && (

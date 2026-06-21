@@ -48,6 +48,8 @@ export default function MapWidget({
     longitudeKey = "longitude",
     showTooltips = true,
     fitBounds = true,
+    tileLayer = "osm",
+    clustering = false,
   } = config;
 
   // ── Zone'ları Asset API'den çek (type=ZONE) ──

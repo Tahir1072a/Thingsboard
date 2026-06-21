@@ -8,6 +8,7 @@
 
 import { useState, useCallback, useRef } from "react";
 import { SlidersHorizontal, Send, Loader2 } from "lucide-react";
+import { getUnitSymbol } from "@/lib/units";
 import toast from "react-hot-toast";
 
 export default function RpcSliderWidget({
@@ -23,7 +24,10 @@ export default function RpcSliderWidget({
   const min = config.min ?? 0;
   const max = config.max ?? 100;
   const step = config.step ?? 1;
-  const unit = config.unit || "%";
+  const unitSymbol = getUnitSymbol(config.unit) || "%";
+  const confirmAction = config.confirmAction || false;
+  const timeout = config.timeout || 10000;
+  const sliderColor = config.sliderColor || "#6366f1";
 
   const [value, setValue] = useState(min);
   const [loading, setLoading] = useState(false);
@@ -32,6 +36,12 @@ export default function RpcSliderWidget({
 
   const sendRpc = useCallback(async (val) => {
     if (!deviceId || isEditMode) return;
+
+    if (confirmAction) {
+      const ok = window.confirm(`${deviceName}: ${val}${unitSymbol} değerini göndermek istediğinize emin misiniz?`);
+      if (!ok) return;
+    }
+
     try {
       setLoading(true);
       setSent(false);
@@ -42,13 +52,13 @@ export default function RpcSliderWidget({
           deviceId,
           method,
           params: { [paramKey]: val },
-          timeout: 10000,
+          timeout,
         }),
       });
       const data = await res.json();
       if (res.ok && data.ok) {
         setSent(true);
-        toast.success(`${deviceName}: ${val}${unit}`);
+        toast.success(`${deviceName}: ${val}${unitSymbol}`);
         setTimeout(() => setSent(false), 2000);
       } else {
         toast.error(data.message || "RPC hatası");
@@ -58,7 +68,7 @@ export default function RpcSliderWidget({
     } finally {
       setLoading(false);
     }
-  }, [deviceId, method, paramKey, unit, deviceName, isEditMode]);
+  }, [deviceId, method, paramKey, unitSymbol, deviceName, isEditMode, confirmAction, timeout]);
 
   const handleChange = (e) => {
     const v = Number(e.target.value);
@@ -86,7 +96,7 @@ export default function RpcSliderWidget({
       <div className="text-center">
         <p className="text-4xl font-bold text-text-main">
           {value}
-          <span className="text-lg text-text-muted ml-1">{unit}</span>
+          <span className="text-lg text-text-muted ml-1">{unitSymbol}</span>
         </p>
         <p className="text-xs text-text-muted mt-1">{deviceName}</p>
       </div>
@@ -103,12 +113,12 @@ export default function RpcSliderWidget({
           disabled={isEditMode}
           className="w-full h-2 rounded-full appearance-none cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
           style={{
-            background: `linear-gradient(to right, #7f56d9 0%, #7f56d9 ${fillPercent}%, #e5e7eb ${fillPercent}%, #e5e7eb 100%)`,
+            background: `linear-gradient(to right, ${sliderColor} 0%, ${sliderColor} ${fillPercent}%, #e5e7eb ${fillPercent}%, #e5e7eb 100%)`,
           }}
         />
         <div className="flex justify-between text-[10px] text-text-light mt-1">
-          <span>{min}{unit}</span>
-          <span>{max}{unit}</span>
+          <span>{min}{unitSymbol}</span>
+          <span>{max}{unitSymbol}</span>
         </div>
       </div>
 

@@ -36,6 +36,7 @@ import toast from "react-hot-toast";
 import { WIDGET_TYPES } from "@/components/panels/WidgetRenderer";
 import { WIDGET_SCHEMAS, WIDGET_CATEGORIES, getDefaultConfig, getDatasourceConstraints } from "./WidgetSchemas";
 import WidgetPreviewer from "./WidgetPreviewer";
+import { getGroupedUnitOptions, getUnitSymbol } from "@/lib/units";
 
 // Kategori ikonu eşleştirme
 const CATEGORY_ICONS = {
@@ -400,6 +401,63 @@ export default function WidgetConfigModal({
             </button>
           </div>
         );
+
+      case "unit_select": {
+        const groupedOptions = getGroupedUnitOptions();
+        const selectedOption = groupedOptions
+          .flatMap((g) => g.options)
+          .find((o) => o.value === value) || null;
+
+        return (
+          <div key={field.key} className="space-y-1.5">
+            <Label className="text-xs font-medium text-text-muted">{field.label}</Label>
+            <ReactSelect
+              value={selectedOption}
+              onChange={(opt) => handleConfigChange(field.key, opt?.value || "")}
+              options={groupedOptions}
+              isClearable
+              placeholder="Birim seçin..."
+              noOptionsMessage={() => "Birim bulunamadı"}
+              formatGroupLabel={(group) => (
+                <div className="text-xs font-semibold text-halo-600 py-1 border-b border-gray-100">
+                  {group.label}
+                </div>
+              )}
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  minHeight: "36px",
+                  fontSize: "14px",
+                  background: "rgba(255,255,255,0.6)",
+                  borderColor: "rgba(255,255,255,0.4)",
+                  boxShadow: "none",
+                  "&:hover": { borderColor: "rgba(99,102,241,0.5)" },
+                }),
+                menu: (base) => ({
+                  ...base,
+                  background: "rgba(255,255,255,0.95)",
+                  backdropFilter: "blur(12px)",
+                  border: "1px solid rgba(255,255,255,0.4)",
+                  zIndex: 50,
+                }),
+                option: (base, state) => ({
+                  ...base,
+                  fontSize: "13px",
+                  padding: "6px 12px",
+                  background: state.isFocused ? "rgba(99,102,241,0.08)" : "transparent",
+                  color: state.isSelected ? "#6366f1" : "#334155",
+                  fontWeight: state.isSelected ? 600 : 400,
+                }),
+                groupHeading: (base) => ({
+                  ...base,
+                  padding: "4px 12px",
+                  margin: 0,
+                }),
+              }}
+            />
+          </div>
+        );
+      }
 
       default:
         return null;

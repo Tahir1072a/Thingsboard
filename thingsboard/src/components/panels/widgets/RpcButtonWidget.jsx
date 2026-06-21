@@ -7,8 +7,10 @@
  */
 
 import { useState, useCallback } from "react";
-import { Zap, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import * as LucideIcons from "lucide-react";
 import toast from "react-hot-toast";
+
+const { Loader2, CheckCircle2, XCircle, Zap } = LucideIcons;
 
 const COLOR_MAP = {
   purple: {
@@ -46,12 +48,21 @@ export default function RpcButtonWidget({
   const buttonLabel = config.buttonLabel || method;
   const buttonColor = config.buttonColor || "purple";
   const timeout = config.timeout || 10000;
+  const confirmAction = config.confirmAction !== false; // varsayılan true
+  const confirmMessage = config.confirmMessage || `"${method}" komutunu göndermek istediğinize emin misiniz?`;
+  const iconName = config.icon || "Zap";
+  const IconComponent = LucideIcons[iconName] || Zap;
 
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null); // "success" | "error" | null
 
   const handleClick = useCallback(async () => {
     if (!deviceId || isEditMode) return;
+
+    if (confirmAction) {
+      const ok = window.confirm(confirmMessage);
+      if (!ok) return;
+    }
 
     try {
       setLoading(true);
@@ -76,7 +87,7 @@ export default function RpcButtonWidget({
       setLoading(false);
       setTimeout(() => setResult(null), 3000);
     }
-  }, [deviceId, method, params, timeout, deviceName, isEditMode]);
+  }, [deviceId, method, params, timeout, deviceName, isEditMode, confirmAction, confirmMessage]);
 
   const colors = COLOR_MAP[buttonColor] || COLOR_MAP.purple;
 
@@ -110,7 +121,7 @@ export default function RpcButtonWidget({
         ) : result === "error" ? (
           <XCircle className="h-5 w-5" />
         ) : (
-          <Zap className="h-5 w-5" />
+          <IconComponent className="h-5 w-5" />
         )}
         {loading ? "Gönderiliyor..." : result === "success" ? "Başarılı!" : result === "error" ? "Hata!" : buttonLabel}
       </button>

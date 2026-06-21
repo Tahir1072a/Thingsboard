@@ -22,6 +22,9 @@ export default function RpcSwitchWidget({
   const paramKey = config.paramKey || "value";
   const onValue = config.onValue !== undefined ? config.onValue : true;
   const offValue = config.offValue !== undefined ? config.offValue : false;
+  const confirmAction = config.confirmAction || false;
+  const timeout = config.timeout || 10000;
+  const activeColor = config.activeColor || "#22c55e";
 
   const [isOn, setIsOn] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -30,6 +33,12 @@ export default function RpcSwitchWidget({
   const handleToggle = useCallback(async () => {
     if (!deviceId || isEditMode) return;
     const newState = !isOn;
+
+    // Onay diyaloğu
+    if (confirmAction) {
+      const ok = window.confirm(`${deviceName} cihazını ${newState ? "AÇMAK" : "KAPATMAK"} istediğinize emin misiniz?`);
+      if (!ok) return;
+    }
 
     try {
       setLoading(true);
@@ -40,7 +49,7 @@ export default function RpcSwitchWidget({
           deviceId,
           method,
           params: { [paramKey]: newState ? onValue : offValue },
-          timeout: 10000,
+          timeout,
         }),
       });
       const data = await res.json();
@@ -56,7 +65,7 @@ export default function RpcSwitchWidget({
     } finally {
       setLoading(false);
     }
-  }, [deviceId, isOn, method, paramKey, onValue, offValue, deviceName, isEditMode]);
+  }, [deviceId, isOn, method, paramKey, onValue, offValue, deviceName, isEditMode, confirmAction, timeout]);
 
   if (!deviceId) {
     return (
@@ -76,12 +85,10 @@ export default function RpcSwitchWidget({
           relative w-24 h-24 rounded-full transition-all duration-500 ease-out
           flex items-center justify-center
           ${loading ? "opacity-70 cursor-wait" : isEditMode ? "cursor-not-allowed opacity-50" : "cursor-pointer"}
-          ${isOn
-            ? "bg-gradient-to-br from-green-400 to-emerald-600 shadow-lg shadow-green-500/30"
-            : "bg-gradient-to-br from-gray-300 to-gray-500 shadow-md shadow-gray-400/20"
-          }
+          ${!isOn ? "bg-gradient-to-br from-gray-300 to-gray-500 shadow-md shadow-gray-400/20" : "shadow-lg"}
           hover:scale-105 active:scale-95
         `}
+        style={isOn ? { background: activeColor, boxShadow: `0 10px 15px -3px ${activeColor}40` } : undefined}
       >
         {loading ? (
           <Loader2 className="h-10 w-10 text-white animate-spin" />

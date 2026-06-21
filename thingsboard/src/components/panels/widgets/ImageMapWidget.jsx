@@ -28,6 +28,10 @@ export default function ImageMapWidget({
   publicToken,
 }) {
   const { imageSrc = "", markers = [] } = config;
+  const markerSize = config.markerSize !== undefined ? config.markerSize : 24;
+  const markerColor = config.markerColor || "#6366f1";
+  const showTooltips = config.showTooltips !== undefined ? config.showTooltips : true;
+  const showValueLabel = config.showValueLabel || false;
 
   /* ── SSE telemetri değerleri: { "deviceId:key": { value, unit } } ── */
   const [telemetryValues, setTelemetryValues] = useState({});
@@ -307,6 +311,10 @@ export default function ImageMapWidget({
                   containerRef={containerRef}
                   onDragEnd={handleMarkerDragEnd}
                   onRemove={handleRemoveMarker}
+                  markerSize={markerSize}
+                  markerColor={markerColor}
+                  showTooltips={showTooltips}
+                  showValueLabel={showValueLabel}
                 />
               );
             })}
