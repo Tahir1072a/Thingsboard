@@ -100,7 +100,7 @@ export async function POST(request) {
       const filePath = path.join(uploadDir, uniqueName);
       await writeFile(filePath, buffer);
 
-      const url = `/uploads/floor-plans/${uniqueName}`;
+      const url = `/api/uploads/floor-plans/${uniqueName}`;
 
       return NextResponse.json({
         ok: true,

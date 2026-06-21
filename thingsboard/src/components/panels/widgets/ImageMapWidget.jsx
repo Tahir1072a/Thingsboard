@@ -13,6 +13,7 @@ import { useEffect, useState, useRef, useCallback, useMemo } from "react";
 import { useMultiTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 import { AnimatePresence } from "framer-motion";
 import { Upload, MapPinPlus, Image as ImageIcon } from "lucide-react";
+import toast from "react-hot-toast";
 
 import MapMarker from "./image-map/MapMarker";
 import MarkerConfigPanel from "./image-map/MarkerConfigPanel";
@@ -131,11 +132,15 @@ export default function ImageMapWidget({
         });
         const json = await res.json();
 
-        if (json.url) {
+        if (json.ok && json.url) {
           updateConfig({ imageSrc: json.url });
+          toast.success("Plan yüklendi.");
+        } else {
+          toast.error(json.message || "Görüntü yükleme başarısız.");
         }
       } catch (err) {
         console.error("Görüntü yüklenemedi:", err);
+        toast.error("Görüntü yüklenirken bir hata oluştu.");
       } finally {
         setUploading(false);
         // Aynı dosyanın tekrar seçilebilmesi için input'u sıfırla
