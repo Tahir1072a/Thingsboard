@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import toast from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/common/confirm-modal";
 
 const TRIGGER_TYPES = [
   { value: "ALARM_CREATED", label: "Alarm Oluşturulduğunda" },
@@ -378,6 +379,7 @@ export default function NotificationsPage() {
   const [pageParams, setPageParams] = useState({ page: 1, limit: 20 });
   const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
   const [filters, setFilters] = useState({ search: "" });
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const fetchRules = useCallback(async () => {
     try {
@@ -434,9 +436,11 @@ export default function NotificationsPage() {
   };
 
   const handleDeleteRule = async (rule) => {
-    const confirmed = confirm(
-      `"${rule.name}" kuralını silmek istediğinizden emin misiniz?`
-    );
+    const confirmed = await confirm({
+      title: "Kuralı Sil",
+      message: `"${rule.name}" kuralını silmek istediğinizden emin misiniz?`,
+      danger: true,
+    });
     if (!confirmed) return;
 
     try {
@@ -587,6 +591,7 @@ export default function NotificationsPage() {
 
       <TableContent
         data={rules}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-12"
         title="Bildirim Kuralları Listesi"
@@ -624,6 +629,8 @@ export default function NotificationsPage() {
         rule={editRule}
         onSuccess={fetchRules}
       />
+
+      <ConfirmDialog />
     </>
   );
 }

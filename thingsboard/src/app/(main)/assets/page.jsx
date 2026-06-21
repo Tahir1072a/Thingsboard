@@ -38,6 +38,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/common/confirm-modal";
 
 // --- Type Config ---
 const typeConfig = {
@@ -232,6 +233,7 @@ export default function AssetsPage() {
     search: "",
     type: "",
   });
+  const { confirm, ConfirmDialog } = useConfirm();
 
   // Fetch Assets
   const fetchAssets = useCallback(async () => {
@@ -270,9 +272,11 @@ export default function AssetsPage() {
 
   // Delete handler
   const handleDeleteAsset = async (asset) => {
-    const confirmed = confirm(
-      `"${asset.name}" varlığını silmek istediğinizden emin misiniz?`
-    );
+    const confirmed = await confirm({
+      title: "Varlığı Sil",
+      message: `"${asset.name}" varlığını silmek istediğinizden emin misiniz?`,
+      danger: true,
+    });
     if (!confirmed) return;
 
     try {
@@ -299,7 +303,7 @@ export default function AssetsPage() {
   // Bulk delete handler
   const handleBulkDelete = async (selectedIds) => {
     const count = selectedIds.length;
-    if (!confirm(`${count} varlığı silmek istediğinizden emin misiniz?`)) return;
+    if (!(await confirm({ title: "Toplu Silme", message: `${count} varlığı silmek istediğinizden emin misiniz?`, danger: true }))) return;
 
     try {
       setLoading(true);
@@ -478,6 +482,7 @@ export default function AssetsPage() {
       {/* Tablo İçeriği */}
       <TableContent
         data={assets}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-12"
         title="Varlık Listesi"
@@ -511,6 +516,8 @@ export default function AssetsPage() {
         onOpenChange={setOpenCreate}
         onSuccess={fetchAssets}
       />
+
+      <ConfirmDialog />
     </>
   );
 }

@@ -33,6 +33,7 @@ import {
   Radio,
   Loader2,
 } from "lucide-react";
+import Breadcrumbs from "@/components/common/breadcrumbs";
 
 // ── Node tipi tanımları ──
 const NODE_CATALOG = [
@@ -286,6 +287,11 @@ export default function RuleChainEditorPage() {
 
   return (
     <div className="h-[calc(100vh-64px)] flex flex-col">
+      <Breadcrumbs items={[
+        { label: "Kural Zincirleri", href: "/rule-chains" },
+        { label: chain?.name || "Kural Zinciri" },
+      ]} className="px-4 pt-2" />
+
       {/* Toolbar */}
       <div className="flex items-center justify-between px-4 py-2 bg-bg-card border-b border-border">
         <div className="flex items-center gap-3">

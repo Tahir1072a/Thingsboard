@@ -481,6 +481,8 @@ export function TableContent({
   gridClassName = "grid-cols-12",
   emptyState,
   getRowId = (row) => row.id,
+  loading = false,
+  onSelectionChange,
 }) {
   const [selectedIds, setSelectedIds] = useState([]);
   const isAllSelected = data?.length > 0 && selectedIds.length === data.length;
@@ -488,7 +490,10 @@ export function TableContent({
   const toggleSelectAll = () => {
     const newSelection = isAllSelected ? [] : data.map(getRowId);
     setSelectedIds(newSelection);
-    // Seçim değiştiğinde herhangi bir olay tetiklenmesine gerek yok!
+    if (onSelectionChange) {
+      const selectedItems = isAllSelected ? [] : data;
+      onSelectionChange(newSelection, selectedItems);
+    }
   };
 
   const toggleSelectRow = (id) => {
@@ -496,6 +501,10 @@ export function TableContent({
       ? selectedIds.filter((item) => item !== id)
       : [...selectedIds, id];
     setSelectedIds(newSelection);
+    if (onSelectionChange) {
+      const selectedItems = data.filter(row => newSelection.includes(getRowId(row)));
+      onSelectionChange(newSelection, selectedItems);
+    }
   };
 
   // const getSelectedRows = () => {}
@@ -617,7 +626,10 @@ export function TableContent({
             </div>
 
             <div className="flex gap-2">
-              {bulkActions.map((action, idx) => (
+              {(typeof bulkActions === "function"
+                ? bulkActions(data?.filter(row => selectedIds.includes(getRowId(row))) || [])
+                : bulkActions
+              ).map((action, idx) => (
                 <Button
                   key={idx}
                   variant="ghost"
@@ -625,6 +637,7 @@ export function TableContent({
                   onClick={async () => {
                     await action.onClick(selectedIds);
                     setSelectedIds([]);
+                    onSelectionChange?.([], []);
                   }}
                   className={
                     action.danger
@@ -656,7 +669,25 @@ export function TableContent({
       <CustomTableHeader columns={finalColumns} gridClassName={gridClassName} />
 
       <div className="divide-y divide-white/10 overflow-y-auto flex-1 min-h-0">
-        {data?.length === 0 ? (
+        {loading ? (
+          <div className="divide-y divide-white/10">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div key={`skeleton-${i}`} className={`grid ${gridClassName} gap-4 px-6 py-4`}>
+                {finalColumns.map((col) => (
+                  <div
+                    key={`sk-${col.id}-${i}`}
+                    className={cn(
+                      spanClasses[col.span] || "col-span-1",
+                      "flex items-center min-w-0"
+                    )}
+                  >
+                    <div className="h-4 bg-gray-200/60 rounded-md animate-pulse w-3/4" />
+                  </div>
+                ))}
+              </div>
+            ))}
+          </div>
+        ) : data?.length === 0 ? (
           <div className="p-12 text-center text-text-muted">
             {emptyState || "Veri bulunamadı"}
           </div>

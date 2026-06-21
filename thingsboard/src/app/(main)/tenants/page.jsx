@@ -581,6 +581,7 @@ export default function TenantsPage() {
       {/* Tablo İçeriği */}
       <TableContent
         data={tenants}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-12"
         title="Organizasyon Listesi"

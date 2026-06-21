@@ -34,6 +34,7 @@ import {
   FileQuestion,
   Eye,
 } from "lucide-react";
+import { useConfirm } from "@/components/common/confirm-modal";
 
 // --- Create Modal ---
 function CreateChainModal({ open, onOpenChange, onSuccess }) {
@@ -144,6 +145,7 @@ export default function RuleChainsPage() {
   const [pageParams, setPageParams] = useState({ page: 1, limit: 20 });
   const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
   const [filters, setFilters] = useState({ search: "" });
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const fetchChains = useCallback(async () => {
     try {
@@ -202,7 +204,7 @@ export default function RuleChainsPage() {
       toast.error("Root zincir silinemez.");
       return;
     }
-    const confirmed = confirm(`"${chain.name}" zincirini silmek istediğinizden emin misiniz?`);
+    const confirmed = await confirm({ title: "Zinciri Sil", message: `"${chain.name}" zincirini silmek istediğinizden emin misiniz?`, danger: true });
     if (!confirmed) return;
 
     try {
@@ -336,6 +338,7 @@ export default function RuleChainsPage() {
 
       <TableContent
         data={chains}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-12"
         title="Kural Zinciri Listesi"
@@ -364,6 +367,8 @@ export default function RuleChainsPage() {
         onOpenChange={setShowCreate}
         onSuccess={fetchChains}
       />
+
+      <ConfirmDialog />
     </>
   );
 }

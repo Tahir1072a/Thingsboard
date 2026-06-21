@@ -328,15 +328,17 @@ function AttributeModal({ attribute, onSave, onClose }) {
       <form
         onClick={(e) => e.stopPropagation()}
         onSubmit={handleSubmit}
-        className="bg-bg-card border border-border rounded-xl p-6 w-full max-w-md shadow-2xl"
+        className="glass-strong sm:max-w-md w-full border border-white/20 rounded-2xl shadow-2xl overflow-hidden flex flex-col m-4"
       >
-        <h3 className="text-lg font-semibold text-text-main mb-4">
-          {isEdit ? "Öznitelik Düzenle" : "Yeni Öznitelik"}
-        </h3>
+        <div className="bg-halo-50/50 px-6 py-5 border-b border-white/10">
+          <h3 className="text-xl font-bold text-text-main flex items-center gap-3">
+            {isEdit ? "Öznitelik Düzenle" : "Yeni Öznitelik Ekle"}
+          </h3>
+        </div>
 
-        <div className="space-y-4">
-          <div>
-            <label className="block text-sm text-text-muted mb-1">
+        <div className="p-6 space-y-5 bg-white/40">
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-text-main">
               Anahtar (Key)
             </label>
             <input
@@ -345,43 +347,43 @@ function AttributeModal({ attribute, onSave, onClose }) {
               onChange={(e) => setKey(e.target.value)}
               disabled={isEdit}
               placeholder="örn: targetTemperature"
-              className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+              className="w-full h-12 px-4 bg-white/90 border border-gray-200 rounded-lg text-text-main placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-halo-600 disabled:opacity-60 disabled:cursor-not-allowed"
               autoFocus
             />
           </div>
 
-          <div>
-            <label className="block text-sm text-text-muted mb-1">
+          <div className="space-y-2">
+            <label className="block text-sm font-bold text-text-main">
               Değer (Value)
             </label>
             <input
               type="text"
               value={value}
               onChange={(e) => setValue(e.target.value)}
-              placeholder="örn: 24.5"
-              className="w-full px-3 py-2 bg-bg-surface border border-border rounded-lg text-text-main placeholder:text-text-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="örn: 24.5 veya true"
+              className="w-full h-12 px-4 bg-white/90 border border-gray-200 rounded-lg text-text-main placeholder:text-text-muted focus:outline-none focus:ring-2 focus:ring-halo-600"
             />
-            <p className="text-xs text-text-muted mt-1">
-              Sayılar, boolean (true/false) ve JSON otomatik algılanır.
+            <p className="text-[11px] text-text-muted">
+              Sayılar, boolean (true/false) ve JSON veri tipleri otomatik algılanır.
             </p>
           </div>
         </div>
 
-        <div className="flex justify-end gap-3 mt-6">
+        <div className="bg-halo-50/30 px-6 py-4 border-t border-white/10 flex justify-end gap-3 backdrop-blur-sm">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm text-text-muted hover:text-text-main transition-colors"
+            className="h-11 px-6 text-sm font-medium border border-gray-300 text-gray-600 bg-white hover:bg-gray-100 rounded-lg transition-colors"
           >
             İptal
           </button>
           <button
             type="submit"
             disabled={!key.trim() || saving}
-            className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 transition-colors flex items-center gap-2"
+            className="h-11 px-8 text-sm font-medium bg-halo-600 hover:bg-halo-700 text-white shadow-md hover:shadow-halo-600/30 rounded-lg disabled:opacity-50 transition-all flex items-center gap-2"
           >
-            {saving && <Loader2 className="h-3 w-3 animate-spin" />}
-            {isEdit ? "Güncelle" : "Ekle"}
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isEdit ? "Güncelle" : "Kaydet"}
           </button>
         </div>
       </form>

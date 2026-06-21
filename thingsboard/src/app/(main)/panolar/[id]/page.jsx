@@ -24,6 +24,7 @@ import {
   Share2, Link, Copy,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import Breadcrumbs from "@/components/common/breadcrumbs";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -166,7 +167,7 @@ export default function DashboardEditorPage() {
           return { ...p, ...updates };
         });
       }
-    } catch {}
+    } catch { }
   }, []);
 
   // ------------------------------------------------------------------ //
@@ -334,28 +335,28 @@ export default function DashboardEditorPage() {
     } else if (addForm.type === "line_chart" && addForm.warningThreshold != null) {
       widgetConfig = { warningThreshold: addForm.warningThreshold };
     } else if (addForm.type === "rpc_switch") {
-      widgetConfig = { 
-        method: addForm.rpcMethod || "setValue", 
-        paramKey: addForm.rpcParamKey || "value", 
-        onValue: true, 
-        offValue: false 
+      widgetConfig = {
+        method: addForm.rpcMethod || "setValue",
+        paramKey: addForm.rpcParamKey || "value",
+        onValue: true,
+        offValue: false
       };
     } else if (addForm.type === "rpc_slider") {
-      widgetConfig = { 
-        method: addForm.rpcMethod || "setValue", 
-        paramKey: addForm.rpcParamKey || "value", 
-        min: addForm.min, 
-        max: addForm.max, 
-        step: addForm.rpcStep || 1, 
-        unit: addForm.rpcUnit || "%" 
+      widgetConfig = {
+        method: addForm.rpcMethod || "setValue",
+        paramKey: addForm.rpcParamKey || "value",
+        min: addForm.min,
+        max: addForm.max,
+        step: addForm.rpcStep || 1,
+        unit: addForm.rpcUnit || "%"
       };
     } else if (addForm.type === "rpc_button") {
-      widgetConfig = { 
-        method: addForm.rpcMethod || "execute", 
-        params: {}, 
-        buttonLabel: addForm.rpcButtonLabel || addForm.title, 
-        buttonColor: addForm.rpcButtonColor || "purple", 
-        timeout: 10000 
+      widgetConfig = {
+        method: addForm.rpcMethod || "execute",
+        params: {},
+        buttonLabel: addForm.rpcButtonLabel || addForm.title,
+        buttonColor: addForm.rpcButtonColor || "purple",
+        timeout: 10000
       };
     }
 
@@ -419,6 +420,13 @@ export default function DashboardEditorPage() {
 
   return (
     <div className="space-y-4 p-1 min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -my-4 px-4 py-4 rounded-xl">
+      {!editMode && (
+        <Breadcrumbs items={[
+          { label: "Panolar", href: "/panolar" },
+          { label: dashboard?.name || "Pano Detayı" },
+        ]} />
+      )}
+
       {/* ── Üst Bar ── */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
@@ -610,67 +618,27 @@ export default function DashboardEditorPage() {
 
               {/* 2. Cihaz Seçimi (image_map hariç) */}
               {addForm.type !== "image_map" && (
-              <div className="space-y-2">
-                <Label className="font-bold text-sm">2. Cihaz(lar)</Label>
-                <ReactSelect
-                  isMulti
-                  options={devices.map(d => ({ label: d.name, value: d._id }))}
-                  value={devices.filter(d => addForm.deviceIds.includes(d._id)).map(d => ({ label: d.name, value: d._id }))}
-                  onChange={(selectedOptions) => {
-                    const selectedValues = selectedOptions ? selectedOptions.map(opt => opt.value) : [];
-                    const isSingleDevice = addForm.type === "value_card" || addForm.type === "gauge";
-                    if (isSingleDevice && selectedValues.length > 1) {
-                      setTimeout(() => toast.error("Bu widget tipi için sadece 1 cihaz seçebilirsiniz."), 0);
-                      return;
-                    }
-                    setAddForm(p => ({ ...p, deviceIds: selectedValues }));
-                    // Autofill: ilk cihazın attribute'larını çek
-                    if (selectedValues.length > 0) {
-                      fetchDeviceAttributes(selectedValues[0]);
-                    }
-                  }}
-                  placeholder="Cihaz seçin..."
-                  noOptionsMessage={() => "Sistemde cihaz bulunamadı."}
-                  className="text-sm"
-                  styles={{
-                    control: (baseStyles) => ({
-                      ...baseStyles,
-                      minHeight: '48px',
-                      borderRadius: '0.375rem',
-                      borderColor: '#e5e7eb',
-                    }),
-                  }}
-                />
-                <p className="text-[11px] text-gray-400">
-                  Birden fazla sensörden gelen veriyi kıyaslamak için birden fazla cihaz seçebilirsiniz (Grafik ve Tablo).
-                </p>
-              </div>
-              )}
-
-              {/* 3. Telemetri Key'leri (image_map hariç) */}
-              {addForm.type !== "image_map" && (
-              <div className="space-y-2">
-                <Label className="font-bold text-sm">3. Telemetri Key&apos;leri</Label>
-                {addForm.deviceIds.length === 0 ? (
-                  <div className="h-[48px] bg-gray-50 border border-gray-200 rounded-md flex items-center px-3 text-sm text-gray-400">
-                    Önce cihaz seçmelisiniz...
-                  </div>
-                ) : (
+                <div className="space-y-2">
+                  <Label className="font-bold text-sm">2. Cihaz(lar)</Label>
                   <ReactSelect
                     isMulti
-                    options={availableKeys.map(k => ({ label: k, value: k }))}
-                    value={addForm.keys.map(k => ({ label: k, value: k }))}
+                    options={devices.map(d => ({ label: d.name, value: d._id }))}
+                    value={devices.filter(d => addForm.deviceIds.includes(d._id)).map(d => ({ label: d.name, value: d._id }))}
                     onChange={(selectedOptions) => {
                       const selectedValues = selectedOptions ? selectedOptions.map(opt => opt.value) : [];
-                      const isSingleKey = addForm.type === "value_card" || addForm.type === "gauge" || addForm.type === "line_chart";
-                      if (isSingleKey && selectedValues.length > 1) {
-                        setTimeout(() => toast.error("Bu widget tipi için sadece 1 veri (key) seçebilirsiniz."), 0);
+                      const isSingleDevice = addForm.type === "value_card" || addForm.type === "gauge";
+                      if (isSingleDevice && selectedValues.length > 1) {
+                        setTimeout(() => toast.error("Bu widget tipi için sadece 1 cihaz seçebilirsiniz."), 0);
                         return;
                       }
-                      setAddForm(p => ({ ...p, keys: selectedValues }));
+                      setAddForm(p => ({ ...p, deviceIds: selectedValues }));
+                      // Autofill: ilk cihazın attribute'larını çek
+                      if (selectedValues.length > 0) {
+                        fetchDeviceAttributes(selectedValues[0]);
+                      }
                     }}
-                    placeholder="Gösterilecek verileri seçin..."
-                    noOptionsMessage={() => "Cihaz(lar)da henüz veri yok."}
+                    placeholder="Cihaz seçin..."
+                    noOptionsMessage={() => "Sistemde cihaz bulunamadı."}
                     className="text-sm"
                     styles={{
                       control: (baseStyles) => ({
@@ -681,11 +649,51 @@ export default function DashboardEditorPage() {
                       }),
                     }}
                   />
-                )}
-                <p className="text-[11px] text-gray-400">
-                  Grafik, Değer Kartı ve Gösterge için 1 veri (key) seçilmelidir. Tablo için birden fazla seçilebilir.
-                </p>
-              </div>
+                  <p className="text-[11px] text-gray-400">
+                    Birden fazla sensörden gelen veriyi kıyaslamak için birden fazla cihaz seçebilirsiniz (Grafik ve Tablo).
+                  </p>
+                </div>
+              )}
+
+              {/* 3. Telemetri Key'leri (image_map hariç) */}
+              {addForm.type !== "image_map" && (
+                <div className="space-y-2">
+                  <Label className="font-bold text-sm">3. Telemetri Key&apos;leri</Label>
+                  {addForm.deviceIds.length === 0 ? (
+                    <div className="h-[48px] bg-gray-50 border border-gray-200 rounded-md flex items-center px-3 text-sm text-gray-400">
+                      Önce cihaz seçmelisiniz...
+                    </div>
+                  ) : (
+                    <ReactSelect
+                      isMulti
+                      options={availableKeys.map(k => ({ label: k, value: k }))}
+                      value={addForm.keys.map(k => ({ label: k, value: k }))}
+                      onChange={(selectedOptions) => {
+                        const selectedValues = selectedOptions ? selectedOptions.map(opt => opt.value) : [];
+                        const isSingleKey = addForm.type === "value_card" || addForm.type === "gauge" || addForm.type === "line_chart";
+                        if (isSingleKey && selectedValues.length > 1) {
+                          setTimeout(() => toast.error("Bu widget tipi için sadece 1 veri (key) seçebilirsiniz."), 0);
+                          return;
+                        }
+                        setAddForm(p => ({ ...p, keys: selectedValues }));
+                      }}
+                      placeholder="Gösterilecek verileri seçin..."
+                      noOptionsMessage={() => "Cihaz(lar)da henüz veri yok."}
+                      className="text-sm"
+                      styles={{
+                        control: (baseStyles) => ({
+                          ...baseStyles,
+                          minHeight: '48px',
+                          borderRadius: '0.375rem',
+                          borderColor: '#e5e7eb',
+                        }),
+                      }}
+                    />
+                  )}
+                  <p className="text-[11px] text-gray-400">
+                    Grafik, Değer Kartı ve Gösterge için 1 veri (key) seçilmelidir. Tablo için birden fazla seçilebilir.
+                  </p>
+                </div>
               )}
 
               {/* 4. Widget Başlığı — image_map için step 2 */}
@@ -742,7 +750,7 @@ export default function DashboardEditorPage() {
               {addForm.type?.startsWith("rpc_") && (
                 <div className="space-y-4 p-4 rounded-xl bg-halo-50/30 border border-halo-200/50">
                   <Label className="font-bold text-sm text-halo-700">⚡ RPC Ayarları</Label>
-                  
+
                   <div className="space-y-2">
                     <Label className="font-bold text-sm">RPC Method</Label>
                     <Input
@@ -875,14 +883,12 @@ export default function DashboardEditorPage() {
                 <button
                   onClick={shareData.isPublic ? handleDisableShare : handleEnableShare}
                   disabled={shareLoading}
-                  className={`relative w-12 h-6 rounded-full transition-colors ${
-                    shareData.isPublic ? "bg-halo-600" : "bg-gray-300"
-                  } ${shareLoading ? "opacity-50" : ""}`}
+                  className={`relative w-12 h-6 rounded-full transition-colors ${shareData.isPublic ? "bg-halo-600" : "bg-gray-300"
+                    } ${shareLoading ? "opacity-50" : ""}`}
                 >
                   <span
-                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${
-                      shareData.isPublic ? "translate-x-6" : ""
-                    }`}
+                    className={`absolute top-0.5 left-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform ${shareData.isPublic ? "translate-x-6" : ""
+                      }`}
                   />
                 </button>
               </div>

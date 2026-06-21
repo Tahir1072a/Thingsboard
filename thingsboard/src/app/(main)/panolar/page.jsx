@@ -17,6 +17,7 @@ import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import toast from "react-hot-toast";
+import { useConfirm } from "@/components/common/confirm-modal";
 
 export default function PanolarPage() {
   const router = useRouter();
@@ -26,6 +27,7 @@ export default function PanolarPage() {
   const [newName, setNewName] = useState("");
   const [newDesc, setNewDesc] = useState("");
   const [creating, setCreating] = useState(false);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const fetchDashboards = useCallback(async () => {
     try {
@@ -75,7 +77,7 @@ export default function PanolarPage() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!confirm(`"${name}" panosunu silmek istediğinize emin misiniz?`)) return;
+    if (!(await confirm({ title: "Panoyu Sil", message: `"${name}" panosunu silmek istediğinize emin misiniz?`, danger: true }))) return;
     try {
       const res = await fetch(`/api/dashboard/${id}`, { method: "DELETE" });
       const data = await res.json();
@@ -227,6 +229,8 @@ export default function PanolarPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog />
     </div>
   );
 }

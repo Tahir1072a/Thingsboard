@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import LiveChart from "@/components/dashboard/LiveChart";
 import HistoricalChart from "@/components/dashboard/HistoricalChart";
 import toast from "react-hot-toast";
+import Breadcrumbs from "@/components/common/breadcrumbs";
 
 export default function DeviceDetailPage() {
   const { id } = useParams();
@@ -124,6 +125,11 @@ export default function DeviceDetailPage() {
 
   return (
     <div className="space-y-6 p-1">
+      <Breadcrumbs items={[
+        { label: "Cihazlar", href: "/devices" },
+        { label: device?.name || "Cihaz Detayı" },
+      ]} />
+
       {/* Üst Bar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">

@@ -16,6 +16,7 @@ import {
   TableHeader,
 } from "@/components/common/table/table-header";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/common/confirm-modal";
 
 const SEVERITY_CONFIG = {
   CRITICAL: { color: "bg-red-100 text-red-700 border-red-200", icon: AlertOctagon, label: "Kritik" },
@@ -37,6 +38,7 @@ export default function AlarmlarPage() {
   const [pageParams, setPageParams] = useState({ page: 1, limit: 20 });
   const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
   const [filters, setFilters] = useState({ search: "", status: "all", severity: "all" });
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const fetchAlarms = useCallback(async () => {
     try {
@@ -94,7 +96,11 @@ export default function AlarmlarPage() {
   };
 
   const handleDelete = async (alarm) => {
-    const confirmed = confirm("Bu alarmı silmek istediğinizden emin misiniz?");
+    const confirmed = await confirm({
+      title: "Alarmı Sil",
+      message: "Bu alarmı silmek istediğinizden emin misiniz?",
+      danger: true,
+    });
     if (!confirmed) return;
 
     try {
@@ -122,7 +128,7 @@ export default function AlarmlarPage() {
 
   const handleBulkDelete = async (selectedIds) => {
     const count = selectedIds.length;
-    if (!confirm(`${count} alarmı silmek istediğinizden emin misiniz?`)) return;
+    if (!(await confirm({ title: "Toplu Silme", message: `${count} alarmı silmek istediğinizden emin misiniz?`, danger: true }))) return;
 
     try {
       setLoading(true);
@@ -142,6 +148,52 @@ export default function AlarmlarPage() {
     } catch (err) {
       console.error(err);
       toast.error("Bir hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Toplu onayla
+  const handleBulkAcknowledge = async (selectedIds) => {
+    try {
+      setLoading(true);
+      const results = await Promise.all(
+        selectedIds.map(id =>
+          fetch("/api/alarm", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ alarmId: id, action: "acknowledge" }),
+          }).then(r => r.json()).catch(() => ({ ok: false }))
+        )
+      );
+      const success = results.filter(r => r.ok).length;
+      if (success > 0) toast.success(`${success} alarm onaylandı.`);
+      await fetchAlarms();
+    } catch {
+      toast.error("Toplu onaylama başarısız.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Toplu temizle
+  const handleBulkClear = async (selectedIds) => {
+    try {
+      setLoading(true);
+      const results = await Promise.all(
+        selectedIds.map(id =>
+          fetch("/api/alarm", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ alarmId: id, action: "clear" }),
+          }).then(r => r.json()).catch(() => ({ ok: false }))
+        )
+      );
+      const success = results.filter(r => r.ok).length;
+      if (success > 0) toast.success(`${success} alarm temizlendi.`);
+      await fetchAlarms();
+    } catch {
+      toast.error("Toplu temizleme başarısız.");
     } finally {
       setLoading(false);
     }
@@ -270,14 +322,33 @@ export default function AlarmlarPage() {
     },
   ];
 
-  const bulkActions = [
-    {
+  const bulkActions = (selectedItems) => {
+    const actions = [];
+    const hasActive = selectedItems.some(a => a.status === "ACTIVE");
+    const hasUncleared = selectedItems.some(a => a.status === "ACTIVE" || a.status === "ACKNOWLEDGED");
+    
+    if (hasActive) {
+      actions.push({
+        label: "Seçilenleri Onayla",
+        onClick: (ids) => handleBulkAcknowledge(ids),
+        icon: <CheckCircle className="h-4 w-4" />,
+      });
+    }
+    if (hasUncleared) {
+      actions.push({
+        label: "Seçilenleri Temizle",
+        onClick: (ids) => handleBulkClear(ids),
+        icon: <XCircle className="h-4 w-4" />,
+      });
+    }
+    actions.push({
       label: "Seçilenleri Sil",
-      onClick: (selectedIds) => handleBulkDelete(selectedIds),
+      onClick: (ids) => handleBulkDelete(ids),
       icon: <Trash2 className="h-4 w-4" />,
       danger: true,
-    },
-  ];
+    });
+    return actions;
+  };
 
   const handlePageChange = (newPage) => {
     setPageParams((prev) => ({ ...prev, page: newPage }));
@@ -295,6 +366,7 @@ export default function AlarmlarPage() {
 
       <TableContent
         data={alarms}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-12"
         title="Alarm Listesi"
@@ -302,9 +374,9 @@ export default function AlarmlarPage() {
         bulkActions={bulkActions}
         getRowId={(alarm) => alarm._id}
         rowClassName={(alarm) => {
-          if (alarm.status === "ACTIVE") return "bg-red-50/50 hover:bg-red-50 border-l-2 border-l-red-500";
-          if (alarm.status === "ACKNOWLEDGED") return "bg-blue-50/50 hover:bg-blue-50";
-          return "";
+          if (alarm.status === "ACTIVE") return "bg-red-50/50 hover:bg-red-50 border-l-2 border-l-red-500 transition-all duration-300";
+          if (alarm.status === "ACKNOWLEDGED") return "bg-blue-50/50 hover:bg-blue-50 transition-all duration-300";
+          return "transition-all duration-300";
         }}
         emptyState={
           <div className="text-center py-12">
@@ -324,6 +396,8 @@ export default function AlarmlarPage() {
           onPageChange: handlePageChange,
         }}
       />
+
+      <ConfirmDialog />
     </>
   );
 }

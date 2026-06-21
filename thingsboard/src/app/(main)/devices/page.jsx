@@ -20,6 +20,7 @@ import {
   TableHeader,
 } from "@/components/common/table/table-header";
 import toast from "react-hot-toast";
+import { useConfirm } from "@/components/common/confirm-modal";
 
 export default function DevicesPage() {
   const router = useRouter();
@@ -29,6 +30,7 @@ export default function DevicesPage() {
 
   const [devices, setDevices] = useState([]);
   const [loading, setLoading] = useState(true);
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const [pageParams, setPageParams] = useState({
     page: 1,
@@ -80,9 +82,11 @@ export default function DevicesPage() {
   }, [fetchDevices]);
 
   const handleDeleteDevice = async (device) => {
-    const confirmed = confirm(
-      `${device.name} cihazını silmek istediğinden emin misiniz?`
-    );
+    const confirmed = await confirm({
+      title: "Cihazı Sil",
+      message: `${device.name} cihazını silmek istediğinden emin misiniz?`,
+      danger: true,
+    });
     if (!confirmed) return;
 
     try {
@@ -236,23 +240,21 @@ export default function DevicesPage() {
   // Toplu silme işlemi
   const handleBulkDelete = async (selectedIds) => {
     const count = selectedIds.length;
-    if (!confirm(`${count} cihazı silmek istediğinizden emin misiniz?`)) return;
+    if (!(await confirm({ title: "Toplu Silme", message: `${count} cihazı silmek istediğinizden emin misiniz?`, danger: true }))) return;
 
     try {
       setLoading(true);
-      let successCount = 0;
-      let failCount = 0;
-
-      for (const id of selectedIds) {
-        try {
-          const res = await fetch(`/api/device/${id}`, { method: "DELETE" });
-          const data = await res.json();
-          if (res.ok && data.ok) successCount++;
-          else failCount++;
-        } catch {
-          failCount++;
-        }
-      }
+      const results = await Promise.all(
+        selectedIds.map(async (id) => {
+          try {
+            const res = await fetch(`/api/device/${id}`, { method: "DELETE" });
+            const data = await res.json();
+            return res.ok && data.ok ? "success" : "fail";
+          } catch { return "fail"; }
+        })
+      );
+      const successCount = results.filter(r => r === "success").length;
+      const failCount = results.filter(r => r === "fail").length;
 
       if (successCount > 0) toast.success(`${successCount} cihaz başarıyla silindi.`);
       if (failCount > 0) toast.error(`${failCount} cihaz silinemedi.`);
@@ -296,6 +298,7 @@ export default function DevicesPage() {
       {/* Tablo İçeriği */}
       <TableContent
         data={devices}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-10"
         title="Cihaz Listesi"
@@ -353,6 +356,8 @@ export default function DevicesPage() {
         device={editDevice}
         onDeviceUpdated={fetchDevices}
       />
+
+      <ConfirmDialog />
     </>
   );
 }

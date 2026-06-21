@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useConfirm } from "@/components/common/confirm-modal";
 
 // --- Helpers ---
 const roleLabels = { TENANT_ADMIN: "Yönetici", OPERATOR: "Operatör", VIEWER: "İzleyici" };
@@ -217,6 +218,7 @@ export default function UsersPage() {
     role: "",
     active: "",
   });
+  const { confirm, ConfirmDialog } = useConfirm();
 
   // Fetch users
   const fetchUsers = useCallback(async () => {
@@ -286,9 +288,11 @@ export default function UsersPage() {
 
   // Delete user
   const handleDeleteUser = async (user) => {
-    const confirmed = confirm(
-      `${user.firstName} ${user.lastName} kullanıcısını silmek istediğinizden emin misiniz?`
-    );
+    const confirmed = await confirm({
+      title: "Kullanıcıyı Sil",
+      message: `${user.firstName} ${user.lastName} kullanıcısını silmek istediğinizden emin misiniz?`,
+      danger: true,
+    });
     if (!confirmed) return;
 
     try {
@@ -448,7 +452,7 @@ export default function UsersPage() {
   // Bulk delete
   const handleBulkDelete = async (selectedIds) => {
     const count = selectedIds.length;
-    if (!confirm(`${count} kullanıcıyı silmek istediğinizden emin misiniz?`))
+    if (!(await confirm({ title: "Toplu Silme", message: `${count} kullanıcıyı silmek istediğinizden emin misiniz?`, danger: true })))
       return;
 
     try {
@@ -510,6 +514,7 @@ export default function UsersPage() {
       {/* Tablo İçeriği */}
       <TableContent
         data={users}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-12"
         title="Kullanıcı Listesi"
@@ -555,6 +560,8 @@ export default function UsersPage() {
         user={editUser}
         onSuccess={fetchUsers}
       />
+
+      <ConfirmDialog />
     </>
   );
 }

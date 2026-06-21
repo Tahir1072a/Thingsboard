@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import AddDevicePorfileModal from "@/components/profiles/device-profile-modal";
 import DeviceProfileDetailSheet from "@/components/device-profiles/device-profile-detail-sheet";
+import { useConfirm } from "@/components/common/confirm-modal";
 
 export default function DeviceProfilesPage() {
   const [openForm, setOpenForm] = useState(false);
@@ -30,6 +31,7 @@ export default function DeviceProfilesPage() {
   const [pageParams, setPageParams] = useState({ page: 1, limit: 10 });
   const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
   const [filters, setFilters] = useState({ search: "", transportType: "" });
+  const { confirm, ConfirmDialog } = useConfirm();
 
   const fetchProfiles = useCallback(async () => {
     try {
@@ -64,7 +66,7 @@ export default function DeviceProfilesPage() {
   }, [fetchProfiles]);
 
   const handleDelete = async (profile) => {
-    if (!confirm(`"${profile.name}" profilini silmek istediğinize emin misiniz?`))
+    if (!(await confirm({ title: "Profili Sil", message: `"${profile.name}" profilini silmek istediğinize emin misiniz?`, danger: true })))
       return;
     try {
       const res = await fetch(`/api/device-profile/${profile._id}`, {
@@ -188,6 +190,7 @@ export default function DeviceProfilesPage() {
       />
       <TableContent
         data={deviceProfiles}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-13"
         title="Cihaz Profili Listesi"
@@ -241,6 +244,8 @@ export default function DeviceProfilesPage() {
           if (!val) fetchProfiles();
         }}
       />
+
+      <ConfirmDialog />
     </>
   );
 }

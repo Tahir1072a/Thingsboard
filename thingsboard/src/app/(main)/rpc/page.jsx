@@ -720,6 +720,7 @@ export default function RpcPage() {
       {/* Tablo İçeriği */}
       <TableContent
         data={rpcs}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-12"
         title="RPC Geçmişi"

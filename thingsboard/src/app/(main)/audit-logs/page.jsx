@@ -309,6 +309,7 @@ export default function AuditLogsPage() {
       {/* Tablo İçeriği */}
       <TableContent
         data={logs}
+        loading={loading}
         columns={columns}
         gridClassName="grid-cols-12"
         title="Denetim Kayıtları"
