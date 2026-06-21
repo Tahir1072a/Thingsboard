@@ -65,6 +65,7 @@ export default function DashboardEditorPage() {
     rpcUnit: "%",
     rpcButtonLabel: "",
     rpcButtonColor: "purple",
+    warningThreshold: null,
   });
 
   // ------------------------------------------------------------------ //
@@ -148,6 +149,25 @@ export default function DashboardEditorPage() {
 
     fetchKeys();
   }, [addForm.deviceIds, addForm.type]);
+
+  // Cihaz seçildiğinde attribute'ları çekip autofill
+  const fetchDeviceAttributes = useCallback(async (deviceId) => {
+    try {
+      const res = await fetch(`/api/device/${deviceId}/attributes?scope=SERVER_SCOPE`);
+      const data = await res.json();
+      if (data.ok && data.data) {
+        const attrs = {};
+        data.data.forEach(a => { attrs[a.key] = a.value; });
+        setAddForm(p => {
+          const updates = {};
+          if (attrs.max_limit != null) updates.max = Number(attrs.max_limit);
+          if (attrs.min_limit != null) updates.min = Number(attrs.min_limit);
+          if (attrs.warning_threshold != null) updates.warningThreshold = Number(attrs.warning_threshold);
+          return { ...p, ...updates };
+        });
+      }
+    } catch {}
+  }, []);
 
   // ------------------------------------------------------------------ //
   // Layout değişikliği
@@ -311,6 +331,8 @@ export default function DashboardEditorPage() {
       widgetConfig = { min: addForm.min, max: addForm.max };
     } else if (isImageMap) {
       widgetConfig = { imageSrc: "", markers: [] };
+    } else if (addForm.type === "line_chart" && addForm.warningThreshold != null) {
+      widgetConfig = { warningThreshold: addForm.warningThreshold };
     } else if (addForm.type === "rpc_switch") {
       widgetConfig = { 
         method: addForm.rpcMethod || "setValue", 
@@ -355,7 +377,7 @@ export default function DashboardEditorPage() {
       widgets: [...prev.widgets, newWidget],
     }));
 
-    setAddForm({ type: "", deviceIds: [], keys: [], title: "", min: 0, max: 100, rpcMethod: "", rpcParamKey: "value", rpcStep: 1, rpcUnit: "%", rpcButtonLabel: "", rpcButtonColor: "purple" });
+    setAddForm({ type: "", deviceIds: [], keys: [], title: "", min: 0, max: 100, rpcMethod: "", rpcParamKey: "value", rpcStep: 1, rpcUnit: "%", rpcButtonLabel: "", rpcButtonColor: "purple", warningThreshold: null });
     setAddDrawerOpen(false);
     toast.success("Widget eklendi! Kaydetmeyi unutmayın.");
   };
@@ -602,6 +624,10 @@ export default function DashboardEditorPage() {
                       return;
                     }
                     setAddForm(p => ({ ...p, deviceIds: selectedValues }));
+                    // Autofill: ilk cihazın attribute'larını çek
+                    if (selectedValues.length > 0) {
+                      fetchDeviceAttributes(selectedValues[0]);
+                    }
                   }}
                   placeholder="Cihaz seçin..."
                   noOptionsMessage={() => "Sistemde cihaz bulunamadı."}
@@ -694,6 +720,21 @@ export default function DashboardEditorPage() {
                       className="h-12 bg-white border-gray-200 text-black"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* 5a. Çizgi Grafik Uyarı Eşiği */}
+              {addForm.type === "line_chart" && (
+                <div className="space-y-2">
+                  <Label className="font-bold text-sm">Uyarı Eşiği (Opsiyonel)</Label>
+                  <Input
+                    type="number"
+                    value={addForm.warningThreshold ?? ""}
+                    onChange={(e) => setAddForm(p => ({ ...p, warningThreshold: e.target.value ? Number(e.target.value) : null }))}
+                    placeholder="Örn: 80"
+                    className="h-12 bg-white border-gray-200 text-black"
+                  />
+                  <p className="text-[11px] text-gray-400">Bu değerin üzerinde grafikte kırmızı uyarı çizgisi gösterilir. Cihaz attribute&apos;larından otomatik doldurulabilir.</p>
                 </div>
               )}
 

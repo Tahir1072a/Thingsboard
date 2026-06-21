@@ -78,6 +78,25 @@ export async function GET(request) {
 
       emitter.on("audit-log", onAuditLog);
 
+      // ── Alarm event listener ──
+      const onAlarm = (alarm) => {
+        if (closed) return;
+        // User filtresi — sadece kendi alarmlarını gör
+        if (userId && alarm.userId && String(alarm.userId) !== userId) return;
+
+        // Belirli cihaz filtresi varsa diğerlerini atla
+        if (deviceIdFilter && String(alarm.deviceId) !== deviceIdFilter) return;
+
+        try {
+          const payload = JSON.stringify({ type: "alarm", ...alarm });
+          controller.enqueue(encoder.encode(`event: alarm\ndata: ${payload}\n\n`));
+        } catch {
+          // stream kapalıysa sessizce geç
+        }
+      };
+
+      emitter.on("alarm", onAlarm);
+
       // Keep-alive ping (30 sn'de bir — proxy/nginx timeout'larını önler)
       const pingInterval = setInterval(() => {
         if (closed) {
@@ -97,6 +116,7 @@ export async function GET(request) {
         clearInterval(pingInterval);
         emitter.off("telemetry", onTelemetry);
         emitter.off("audit-log", onAuditLog);
+        emitter.off("alarm", onAlarm);
         try {
           controller.close();
         } catch {

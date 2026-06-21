@@ -112,7 +112,7 @@ export async function GET(request, { params }) {
     const deviceId = device._id.toString();
 
     // Shared attribute'ları getir
-    let filter = { deviceId, scope: "SHARED_SCOPE" };
+    let filter = { entityId: deviceId, scope: "SHARED_SCOPE" };
 
     if (sharedKeys) {
       const keyList = sharedKeys.split(",").map((k) => k.trim()).filter(Boolean);

@@ -5,14 +5,17 @@
  *
  * Bu dosya SADECE client-side'da çalışır (dynamic import ile ssr: false).
  * Leaflet CSS'i burada import edilir.
+ * Zone/Polygon desteği: Edit modunda çizim, okuma modunda render.
  */
 
 import { useEffect, useRef } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polygon, Tooltip as LeafletTooltip, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
 import "leaflet-defaulticon-compatibility";
+import "leaflet-draw/dist/leaflet.draw.css";
+import "leaflet-draw";
 
 // ── Özel marker ikonu ──
 const deviceIcon = new L.Icon({
@@ -43,12 +46,87 @@ function FitBoundsHelper({ markers }) {
   return null;
 }
 
+// ── DrawControl — Edit modunda polygon çizim aracı ──
+function DrawControl({ onCreated }) {
+  const map = useMap();
+  const controlRef = useRef(null);
+  const drawnRef = useRef(null);
+
+  useEffect(() => {
+    if (controlRef.current) return; // zaten eklendi
+
+    const drawnItems = new L.FeatureGroup();
+    map.addLayer(drawnItems);
+    drawnRef.current = drawnItems;
+
+    const drawControl = new L.Control.Draw({
+      position: "topright",
+      draw: {
+        polygon: {
+          allowIntersection: false,
+          shapeOptions: {
+            color: "#6941c6",
+            fillColor: "#6941c6",
+            fillOpacity: 0.25,
+            weight: 2,
+          },
+        },
+        rectangle: {
+          shapeOptions: {
+            color: "#22c55e",
+            fillColor: "#22c55e",
+            fillOpacity: 0.2,
+            weight: 2,
+          },
+        },
+        polyline: false,
+        circle: false,
+        marker: false,
+        circlemarker: false,
+      },
+      edit: {
+        featureGroup: drawnItems,
+        remove: true,
+      },
+    });
+
+    map.addControl(drawControl);
+    controlRef.current = drawControl;
+
+    map.on(L.Draw.Event.CREATED, (e) => {
+      const layer = e.layer;
+      drawnItems.addLayer(layer);
+      const latLngs = layer.getLatLngs()[0] || layer.getLatLngs();
+      const coords = latLngs.map((ll) => ({ lat: ll.lat, lng: ll.lng }));
+      onCreated?.(coords);
+    });
+
+    return () => {
+      map.off(L.Draw.Event.CREATED);
+      if (controlRef.current) {
+        map.removeControl(controlRef.current);
+        controlRef.current = null;
+      }
+      if (drawnRef.current) {
+        map.removeLayer(drawnRef.current);
+        drawnRef.current = null;
+      }
+    };
+  }, [map, onCreated]);
+
+  return null;
+}
+
 export default function LeafletMap({
   markers = [],
   center = { lat: 41.0082, lng: 28.9784 },
   zoom = 10,
   showTooltips = true,
   fitBounds = true,
+  // Zone desteği
+  zones = [],
+  isEditMode = false,
+  onZoneCreated,
 }) {
   return (
     <MapContainer
@@ -65,6 +143,32 @@ export default function LeafletMap({
 
       {fitBounds && <FitBoundsHelper markers={markers} />}
 
+      {/* Edit modunda çizim aracı */}
+      {isEditMode && onZoneCreated && (
+        <DrawControl onCreated={onZoneCreated} />
+      )}
+
+      {/* Zone/Polygon'ları render et */}
+      {zones.map((zone, i) => (
+        <Polygon
+          key={zone.id || `zone-${i}`}
+          positions={zone.coordinates.map(c => Array.isArray(c) ? c : [c.lat, c.lng])}
+          pathOptions={{
+            color: zone.borderColor || zone.color || "#6941c6",
+            fillColor: zone.color || "#6941c6",
+            fillOpacity: zone.opacity || 0.25,
+            weight: zone.borderWidth || 2,
+          }}
+        >
+          {showTooltips && zone.name && (
+            <LeafletTooltip permanent direction="center" className="zone-label">
+              <span style={{ fontSize: "11px", fontWeight: 600 }}>{zone.name}</span>
+            </LeafletTooltip>
+          )}
+        </Polygon>
+      ))}
+
+      {/* Cihaz marker'ları */}
       {markers.map((marker) => (
         <Marker
           key={marker.id}

@@ -241,7 +241,7 @@ export default function RuleChainsPage() {
     {
       id: "nodes",
       title: "Node Sayısı",
-      span: 2,
+      span: 1,
       align: "center",
       cellRender: (chain) => (
         <Badge variant="outline" className="bg-blue-500/10 text-blue-600 border-transparent font-medium">
@@ -252,7 +252,7 @@ export default function RuleChainsPage() {
     {
       id: "connections",
       title: "Bağlantı",
-      span: 2,
+      span: 1,
       align: "center",
       cellRender: (chain) => (
         <Badge variant="outline" className="bg-purple-500/10 text-purple-600 border-transparent font-medium">
@@ -313,7 +313,7 @@ export default function RuleChainsPage() {
       <TableContent
         data={chains}
         columns={columns}
-        gridClassName="grid-cols-[14]"
+        gridClassName="grid-cols-12"
         title="Kural Zinciri Listesi"
         rowActions={rowActions}
         getRowId={(chain) => chain._id}

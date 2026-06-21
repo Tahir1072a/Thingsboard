@@ -577,7 +577,7 @@ export default function RpcPage() {
     {
       id: "status",
       title: "Durum",
-      span: 2,
+      span: 1,
       cellRender: (rpc) => (
         <Badge
           variant="outline"
@@ -609,7 +609,7 @@ export default function RpcPage() {
     {
       id: "createdAt",
       title: "Zaman",
-      span: 2,
+      span: 1,
       cellRender: (rpc) => (
         <span className="text-sm text-text-muted truncate">
           {timeAgo(rpc.createdAt)}
@@ -721,7 +721,7 @@ export default function RpcPage() {
       <TableContent
         data={rpcs}
         columns={columns}
-        gridClassName="grid-cols-[14]"
+        gridClassName="grid-cols-12"
         title="RPC Geçmişi"
         rowActions={rowActions}
         getRowId={(rpc) => rpc._id || rpc.id}

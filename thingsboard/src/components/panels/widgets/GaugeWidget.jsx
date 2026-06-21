@@ -7,7 +7,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
-import { RadialBarChart, RadialBar, ResponsiveContainer } from "recharts";
+import { RadialBarChart, RadialBar, ResponsiveContainer, PolarAngleAxis } from "recharts";
 
 export default function GaugeWidget({
   devices = [], keys = [], title = "Gauge",
@@ -138,6 +138,7 @@ export default function GaugeWidget({
               barSize={14}
               data={gaugeData}
             >
+              <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
               <RadialBar
                 cornerRadius={10}
                 dataKey="value"

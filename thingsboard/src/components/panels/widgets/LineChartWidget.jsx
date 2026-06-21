@@ -9,7 +9,7 @@
 import { useEffect, useState, useCallback } from "react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
-  Tooltip, ResponsiveContainer, Brush, Legend
+  Tooltip, ResponsiveContainer, Brush, Legend, ReferenceLine
 } from "recharts";
 
 const COLORS = [
@@ -192,6 +192,9 @@ export default function LineChartWidget({
               <span className="text-xs font-bold tabular-nums" style={{ color: COLORS[i % COLORS.length] }}>
                 {lastValues[device.name] !== undefined ? lastValues[device.name].toFixed(1) : "—"}
               </span>
+              {config.warningThreshold != null && lastValues[device.name] > config.warningThreshold && (
+                <span className="ml-1 text-[9px] text-red-500 animate-pulse font-bold">⚠ KRİTİK</span>
+              )}
             </div>
           ))}
         </div>
@@ -229,6 +232,21 @@ export default function LineChartWidget({
                 connectNulls={true}
               />
             ))}
+            {config.warningThreshold != null && (
+              <ReferenceLine
+                y={config.warningThreshold}
+                stroke="#ef4444"
+                strokeDasharray="6 4"
+                strokeWidth={2}
+                label={{
+                  value: `⚠ Eşik: ${config.warningThreshold}`,
+                  position: "insideTopRight",
+                  fill: "#ef4444",
+                  fontSize: 10,
+                  fontWeight: "bold",
+                }}
+              />
+            )}
             <Brush 
               dataKey="_time" 
               height={20} 

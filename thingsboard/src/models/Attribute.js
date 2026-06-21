@@ -3,7 +3,7 @@ import mongoose, { Schema } from "mongoose";
 /**
  * Attribute (Öznitelik) Modeli
  *
- * Cihaz özniteliklerini 3 farklı scope'ta saklar:
+ * Varlık özniteliklerini (Cihaz ve Asset) 3 farklı scope'ta saklar:
  * - SERVER_SCOPE: Sunucu tarafı (platform tarafından yönetilir)
  * - CLIENT_SCOPE: İstemci tarafı (cihaz tarafından gönderilir)
  * - SHARED_SCOPE: Paylaşılan (platform yazar, cihaz okur)
@@ -17,10 +17,15 @@ const AttributeSchema = new Schema(
       index: true,
     },
 
-    deviceId: {
+    entityType: {
+      type: String,
+      enum: ["DEVICE", "ASSET"],
+      default: "DEVICE",
+    },
+
+    entityId: {
       type: Schema.Types.ObjectId,
-      ref: "Device",
-      required: [true, "deviceId zorunludur."],
+      required: [true, "entityId zorunludur."],
       index: true,
     },
 
@@ -67,8 +72,8 @@ const AttributeSchema = new Schema(
 /* İndeksler                                                            */
 /* ------------------------------------------------------------------ */
 // Benzersiz: Bir cihazın aynı scope ve key'de tek bir attribute'u olabilir
-AttributeSchema.index({ tenantId: 1, deviceId: 1, scope: 1, key: 1 }, { unique: true });
-AttributeSchema.index({ deviceId: 1, scope: 1 });
+AttributeSchema.index({ tenantId: 1, entityId: 1, scope: 1, key: 1 }, { unique: true });
+AttributeSchema.index({ entityId: 1, scope: 1 });
 AttributeSchema.index({ key: "text" });
 
 /* ------------------------------------------------------------------ */
@@ -78,24 +83,24 @@ AttributeSchema.index({ key: "text" });
 /**
  * Bir cihazın belirtilen scope'daki tüm attribute'larını getir.
  */
-AttributeSchema.statics.getByScope = function (deviceId, scope) {
-  return this.find({ deviceId, scope }).sort({ key: 1 }).lean();
+AttributeSchema.statics.getByScope = function (entityId, scope) {
+  return this.find({ entityId, scope }).sort({ key: 1 }).lean();
 };
 
 /**
  * Attribute upsert — aynı key varsa güncelle, yoksa oluştur.
  */
-AttributeSchema.statics.upsertAttribute = async function (tenantId, deviceId, scope, key, value) {
+AttributeSchema.statics.upsertAttribute = async function (tenantId, entityId, scope, key, value, entityType = "DEVICE") {
   const valueType = detectValueType(value);
   return this.findOneAndUpdate(
-    { tenantId, deviceId, scope, key },
+    { tenantId, entityId, scope, key },
     {
       $set: {
         value,
         valueType,
         lastUpdateTs: new Date(),
       },
-      $setOnInsert: { tenantId, deviceId, scope, key },
+      $setOnInsert: { tenantId, entityId, entityType, scope, key },
     },
     { upsert: true, new: true, lean: true }
   );
@@ -104,17 +109,17 @@ AttributeSchema.statics.upsertAttribute = async function (tenantId, deviceId, sc
 /**
  * Birden fazla attribute'u aynı anda upsert et.
  */
-AttributeSchema.statics.upsertMany = async function (tenantId, deviceId, scope, attributes) {
+AttributeSchema.statics.upsertMany = async function (tenantId, entityId, scope, attributes, entityType = "DEVICE") {
   const ops = Object.entries(attributes).map(([key, value]) => ({
     updateOne: {
-      filter: { tenantId, deviceId, scope, key },
+      filter: { tenantId, entityId, scope, key },
       update: {
         $set: {
           value,
           valueType: detectValueType(value),
           lastUpdateTs: new Date(),
         },
-        $setOnInsert: { tenantId, deviceId, scope, key },
+        $setOnInsert: { tenantId, entityId, entityType, scope, key },
       },
       upsert: true,
     },
@@ -124,14 +129,14 @@ AttributeSchema.statics.upsertMany = async function (tenantId, deviceId, scope, 
     await this.bulkWrite(ops);
   }
 
-  return this.find({ deviceId, scope }).sort({ key: 1 }).lean();
+  return this.find({ entityId, scope }).sort({ key: 1 }).lean();
 };
 
 /**
  * Belirtilen key'leri sil.
  */
-AttributeSchema.statics.deleteKeys = function (tenantId, deviceId, scope, keys) {
-  return this.deleteMany({ tenantId, deviceId, scope, key: { $in: keys } });
+AttributeSchema.statics.deleteKeys = function (tenantId, entityId, scope, keys) {
+  return this.deleteMany({ tenantId, entityId, scope, key: { $in: keys } });
 };
 
 /* ------------------------------------------------------------------ */

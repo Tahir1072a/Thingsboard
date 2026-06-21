@@ -15,6 +15,7 @@ import {
   Users,
   UserCircle,
   Building2,
+  Boxes,
   ChevronsLeft,
   ChevronsRight,
   Workflow,
@@ -34,6 +35,7 @@ export default function Sidebar() {
       { href: "/alarmlar", label: "Alarmlar", icon: Bell },
       { href: "/panolar", label: "Panolar", icon: LayoutDashboard },
       { href: "/devices", label: "Cihazlar", icon: Router },
+      { href: "/assets", label: "Varlıklar", icon: Boxes },
       { href: "/device-profile", label: "Cihaz Profilleri", icon: UserCheck },
     ];
     if (userRole === "SYSTEM_ADMIN" || userRole === "TENANT_ADMIN" || userRole === "OPERATOR") {
