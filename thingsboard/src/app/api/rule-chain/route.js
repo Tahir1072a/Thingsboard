@@ -15,11 +15,35 @@ export async function GET(request) {
     const { userId, tenantId } = await getSessionUser();
     await connectDB();
 
-    const chains = await RuleChain.find({ tenantId })
-      .sort({ isRoot: -1, updatedAt: -1 })
-      .lean();
+    const searchParams = new URL(request.url).searchParams;
+    const search = searchParams.get("search") || "";
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const page = parseInt(searchParams.get("page") || "1");
 
-    return NextResponse.json({ ok: true, count: chains.length, data: chains });
+    const filter = { tenantId };
+    if (search) {
+      filter.name = { $regex: search, $options: "i" };
+    }
+
+    const [data, total] = await Promise.all([
+      RuleChain.find(filter)
+        .sort({ isRoot: -1, updatedAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      RuleChain.countDocuments(filter),
+    ]);
+
+    return NextResponse.json({
+      ok: true,
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
+    });
   } catch (error) {
     console.error("[GET /api/rule-chain]", error.message);
     return NextResponse.json(

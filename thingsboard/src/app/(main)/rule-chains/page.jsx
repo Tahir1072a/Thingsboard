@@ -141,20 +141,38 @@ export default function RuleChainsPage() {
   const [showCreate, setShowCreate] = useState(false);
   const router = useRouter();
 
+  const [pageParams, setPageParams] = useState({ page: 1, limit: 20 });
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
+  const [filters, setFilters] = useState({ search: "" });
+
   const fetchChains = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/rule-chain");
+      const params = new URLSearchParams();
+      params.append("page", pageParams.page);
+      params.append("limit", pageParams.limit);
+      if (filters.search) params.append("search", filters.search);
+
+      const res = await fetch(`/api/rule-chain?${params.toString()}`);
       const json = await res.json();
-      if (json.ok) setChains(json.data || []);
-      else toast.error(json.message || "Veri alınamadı");
+      if (json.ok) {
+        setChains(json.data || []);
+        if (json.pagination) {
+          setMeta({
+            total: json.pagination.total,
+            totalPages: json.pagination.totalPages,
+          });
+        }
+      } else {
+        toast.error(json.message || "Veri alınamadı");
+      }
     } catch (err) {
       console.error(err);
       toast.error("Sunucuya bağlanılamadı");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pageParams.page, pageParams.limit, filters]);
 
   useEffect(() => {
     fetchChains();
@@ -300,6 +318,10 @@ export default function RuleChainsPage() {
     },
   ];
 
+  const handlePageChange = (newPage) => {
+    setPageParams((prev) => ({ ...prev, page: newPage }));
+  };
+
   return (
     <>
       <TableHeader
@@ -308,6 +330,8 @@ export default function RuleChainsPage() {
         addButtonName="Yeni Kural Zinciri"
         onAdd={() => setShowCreate(true)}
         onRefresh={fetchChains}
+        filterConfig={[]}
+        onFilterChange={setFilters}
       />
 
       <TableContent
@@ -323,10 +347,16 @@ export default function RuleChainsPage() {
             <Workflow className="h-16 w-16 mx-auto text-gray-300" />
             <h3 className="mt-4 text-lg font-semibold">Kural Zinciri Bulunamadı</h3>
             <p className="text-gray-500 mt-2">
-              Yeni bir zincir oluşturup veri akışınızı tasarlayın
+              {filters.search ? "Arama kriterlerinize uygun zincir bulunamadı" : "Yeni bir zincir oluşturup veri akışınızı tasarlayın"}
             </p>
           </div>
         }
+        pagination={{
+          currentPage: pageParams.page,
+          totalPages: meta.totalPages,
+          itemsPerPage: pageParams.limit,
+          onPageChange: handlePageChange,
+        }}
       />
 
       <CreateChainModal

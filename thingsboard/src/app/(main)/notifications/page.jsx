@@ -375,19 +375,36 @@ export default function NotificationsPage() {
   const [rules, setRules] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const [pageParams, setPageParams] = useState({ page: 1, limit: 20 });
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
+  const [filters, setFilters] = useState({ search: "" });
+
   const fetchRules = useCallback(async () => {
     try {
       setLoading(true);
-      const res = await fetch("/api/notification-rule");
+      const params = new URLSearchParams();
+      params.append("page", pageParams.page);
+      params.append("limit", pageParams.limit);
+      if (filters.search) params.append("search", filters.search);
+
+      const res = await fetch(`/api/notification-rule?${params.toString()}`);
       const json = await res.json();
-      if (json.ok) setRules(json.data || []);
+      if (json.ok) {
+        setRules(json.data || []);
+        if (json.pagination) {
+          setMeta({
+            total: json.pagination.total,
+            totalPages: json.pagination.totalPages,
+          });
+        }
+      }
     } catch (err) {
       console.error("Fetch rules error:", err);
       toast.error("Kurallar alınamadı");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [pageParams.page, pageParams.limit, filters]);
 
   useEffect(() => {
     fetchRules();
@@ -549,6 +566,10 @@ export default function NotificationsPage() {
     },
   ];
 
+  const handlePageChange = (newPage) => {
+    setPageParams((prev) => ({ ...prev, page: newPage }));
+  };
+
   return (
     <>
       <TableHeader
@@ -560,6 +581,8 @@ export default function NotificationsPage() {
           setOpenModal(true);
         }}
         onRefresh={fetchRules}
+        filterConfig={[]}
+        onFilterChange={setFilters}
       />
 
       <TableContent
@@ -580,10 +603,16 @@ export default function NotificationsPage() {
               Kural Bulunamadı
             </h3>
             <p className="text-gray-500 mt-2">
-              Henüz hiç bildirim kuralı eklenmemiş
+              {filters.search ? "Arama kriterlerinize uygun bildirim kuralı bulunamadı" : "Henüz hiç bildirim kuralı eklenmemiş"}
             </p>
           </div>
         }
+        pagination={{
+          currentPage: pageParams.page,
+          totalPages: meta.totalPages,
+          itemsPerPage: pageParams.limit,
+          onPageChange: handlePageChange,
+        }}
       />
 
       <RuleEditModal

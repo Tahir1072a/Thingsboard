@@ -6,15 +6,16 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import {
-  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import {
-  Bell, CheckCircle, XCircle, AlertTriangle,
-  AlertOctagon, Info, RotateCw, Filter,
+  CheckCircle, XCircle, AlertTriangle,
+  AlertOctagon, Info, Trash2, ShieldAlert
 } from "lucide-react";
 import toast from "react-hot-toast";
+import {
+  TableContent,
+  TableHeader,
+} from "@/components/common/table/table-header";
+import { cn } from "@/lib/utils";
 
 const SEVERITY_CONFIG = {
   CRITICAL: { color: "bg-red-100 text-red-700 border-red-200", icon: AlertOctagon, label: "Kritik" },
@@ -31,30 +32,40 @@ const STATUS_CONFIG = {
 export default function AlarmlarPage() {
   const [alarms, setAlarms] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState("all");
-  const [severityFilter, setSeverityFilter] = useState("all");
   const [activeCount, setActiveCount] = useState(0);
+
+  const [pageParams, setPageParams] = useState({ page: 1, limit: 20 });
+  const [meta, setMeta] = useState({ total: 0, totalPages: 1 });
+  const [filters, setFilters] = useState({ search: "", status: "all", severity: "all" });
 
   const fetchAlarms = useCallback(async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      if (statusFilter && statusFilter !== "all") params.append("status", statusFilter);
-      if (severityFilter && severityFilter !== "all") params.append("severity", severityFilter);
-      params.append("limit", "100");
+      params.append("page", pageParams.page);
+      params.append("limit", pageParams.limit);
+      if (filters.search) params.append("search", filters.search);
+      if (filters.status && filters.status !== "all") params.append("status", filters.status);
+      if (filters.severity && filters.severity !== "all") params.append("severity", filters.severity);
 
       const res = await fetch(`/api/alarm?${params.toString()}`);
       const data = await res.json();
       if (data.ok) {
         setAlarms(data.data);
         setActiveCount(data.activeCount);
+        if (data.pagination) {
+          setMeta({
+            total: data.pagination.total,
+            totalPages: data.pagination.totalPages,
+          });
+        }
       }
     } catch (err) {
       toast.error("Alarmlar yüklenemedi.");
     } finally {
       setLoading(false);
     }
-  }, [statusFilter, severityFilter]);
+  }, [pageParams.page, pageParams.limit, filters]);
 
   useEffect(() => {
     fetchAlarms();
@@ -62,6 +73,7 @@ export default function AlarmlarPage() {
 
   const handleAction = async (alarmId, action) => {
     try {
+      setLoading(true);
       const res = await fetch("/api/alarm", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -70,166 +82,248 @@ export default function AlarmlarPage() {
       const data = await res.json();
       if (data.ok) {
         toast.success(data.message);
-        fetchAlarms();
+        await fetchAlarms();
       } else {
         toast.error(data.message);
       }
     } catch {
       toast.error("İşlem başarısız.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleDelete = async (alarm) => {
+    const confirmed = confirm("Bu alarmı silmek istediğinizden emin misiniz?");
+    if (!confirmed) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/alarm`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alarmId: alarm._id }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        toast.success("Alarm silindi.");
+        await fetchAlarms();
+      } else {
+        toast.error(data.message || "Silme işlemi başarısız.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Bir hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async (selectedIds) => {
+    const count = selectedIds.length;
+    if (!confirm(`${count} alarmı silmek istediğinizden emin misiniz?`)) return;
+
+    try {
+      setLoading(true);
+      const res = await fetch(`/api/alarm`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alarmIds: selectedIds }),
+      });
+      const data = await res.json();
+
+      if (res.ok && data.ok) {
+        toast.success(`${count} alarm silindi.`);
+        await fetchAlarms();
+      } else {
+        toast.error(data.message || "Toplu silme işlemi başarısız.");
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Bir hata oluştu.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterConfig = [
+    {
+      key: "status",
+      placeholder: "Durum",
+      options: [
+        { label: "Aktif", value: "ACTIVE" },
+        { label: "Onaylanmış", value: "ACKNOWLEDGED" },
+        { label: "Temizlenmiş", value: "CLEARED" },
+      ],
+    },
+    {
+      key: "severity",
+      placeholder: "Önem",
+      options: [
+        { label: "Kritik", value: "CRITICAL" },
+        { label: "Önemli", value: "MAJOR" },
+        { label: "Düşük", value: "MINOR" },
+      ],
+    },
+  ];
+
+  const columns = [
+    {
+      id: "alarm",
+      title: "Alarm",
+      span: 3,
+      cellRender: (alarm) => {
+        const sev = SEVERITY_CONFIG[alarm.severity] || SEVERITY_CONFIG.MINOR;
+        const SevIcon = sev.icon;
+        return (
+          <div className="flex items-center gap-3">
+            <div className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-lg shadow-sm transition-transform", sev.color)}>
+              <SevIcon className="h-4 w-4" />
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-sm font-semibold text-text-main truncate">
+                {alarm.type}
+              </p>
+              <p className="text-xs text-text-muted truncate">
+                📱 {alarm.deviceName || "Bilinmeyen"}
+              </p>
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      id: "details",
+      title: "Detaylar",
+      span: 3,
+      cellRender: (alarm) => (
+        <div className="overflow-hidden">
+          <p className="text-sm text-text-main truncate">
+            Anahtar: {alarm.details?.key || "—"}
+          </p>
+          <p className="text-xs text-text-muted truncate">
+            Değer: {alarm.details?.triggerValue?.toFixed(1) || "—"} {alarm.details?.threshold ? `(Eşik: ${alarm.details.threshold})` : ""}
+          </p>
+        </div>
+      ),
+    },
+    {
+      id: "severity",
+      title: "Önem",
+      span: 1,
+      align: "center",
+      cellRender: (alarm) => {
+        const sev = SEVERITY_CONFIG[alarm.severity] || SEVERITY_CONFIG.MINOR;
+        return (
+          <Badge variant="outline" className={cn("border-transparent font-medium", sev.color)}>
+            {sev.label}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: "status",
+      title: "Durum",
+      span: 1,
+      align: "center",
+      cellRender: (alarm) => {
+        const stat = STATUS_CONFIG[alarm.status] || STATUS_CONFIG.ACTIVE;
+        return (
+          <Badge variant="outline" className={cn("border-transparent font-medium", stat.color)}>
+            <span className={`h-1.5 w-1.5 rounded-full ${stat.dot} mr-1.5`} />
+            {stat.label}
+          </Badge>
+        );
+      },
+    },
+    {
+      id: "createdAt",
+      title: "Zaman",
+      span: 2,
+      cellRender: (alarm) => (
+        <span className="text-sm text-text-muted truncate">
+          {new Date(alarm.createdAt).toLocaleString("tr-TR")}
+        </span>
+      ),
+    },
+  ];
+
+  const rowActions = [
+    {
+      label: "Onayla",
+      onClick: (alarm) => handleAction(alarm._id, "acknowledge"),
+      icon: <CheckCircle className="h-4 w-4" />,
+      show: (alarm) => alarm.status === "ACTIVE",
+    },
+    {
+      label: "Temizle",
+      onClick: (alarm) => handleAction(alarm._id, "clear"),
+      icon: <XCircle className="h-4 w-4" />,
+      show: (alarm) => alarm.status === "ACTIVE" || alarm.status === "ACKNOWLEDGED",
+    },
+    {
+      label: "Sil",
+      onClick: (alarm) => handleDelete(alarm),
+      icon: <Trash2 className="h-4 w-4" />,
+      className: "text-red-600",
+    },
+  ];
+
+  const bulkActions = [
+    {
+      label: "Seçilenleri Sil",
+      onClick: (selectedIds) => handleBulkDelete(selectedIds),
+      icon: <Trash2 className="h-4 w-4" />,
+      danger: true,
+    },
+  ];
+
+  const handlePageChange = (newPage) => {
+    setPageParams((prev) => ({ ...prev, page: newPage }));
+  };
+
   return (
-    <div className="space-y-6 p-1">
-      {/* Başlık */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gradient flex items-center gap-3">
-            <Bell className="h-7 w-7" />
-            Alarmlar
-          </h1>
-          <p className="text-sm text-text-muted mt-1">
-            Cihaz profillerindeki kurallar ihlal edildiğinde alarm oluşur
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {activeCount > 0 && (
-            <Badge className="bg-red-500 text-white px-3 py-1 text-sm">
-              {activeCount} Aktif Alarm
-            </Badge>
-          )}
-          <Button
-            onClick={fetchAlarms}
-            variant="outline"
-            size="sm"
-            className="gap-2"
-          >
-            <RotateCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Yenile
-          </Button>
-        </div>
-      </div>
+    <>
+      <TableHeader
+        title="Alarmlar"
+        advert={`Cihaz profillerindeki kurallar ihlal edildiğinde oluşan alarmlar${activeCount > 0 ? ` — ${activeCount} Aktif Alarm` : ""}`}
+        onRefresh={fetchAlarms}
+        filterConfig={filterConfig}
+        onFilterChange={setFilters}
+      />
 
-      {/* Filtreler */}
-      <div className="glass p-4 flex items-center gap-4 flex-wrap">
-        <Filter className="h-4 w-4 text-text-muted" />
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px] h-9 bg-white/90 border-gray-200 text-black">
-            <SelectValue placeholder="Durum" />
-          </SelectTrigger>
-          <SelectContent className="bg-white border-gray-200">
-            <SelectItem value="all">Tüm Durumlar</SelectItem>
-            <SelectItem value="ACTIVE">Aktif</SelectItem>
-            <SelectItem value="ACKNOWLEDGED">Onaylanmış</SelectItem>
-            <SelectItem value="CLEARED">Temizlenmiş</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <Select value={severityFilter} onValueChange={setSeverityFilter}>
-          <SelectTrigger className="w-[180px] h-9 bg-white/90 border-gray-200 text-black">
-            <SelectValue placeholder="Önem" />
-          </SelectTrigger>
-          <SelectContent className="bg-white border-gray-200">
-            <SelectItem value="all">Tüm Seviyeler</SelectItem>
-            <SelectItem value="CRITICAL">Kritik</SelectItem>
-            <SelectItem value="MAJOR">Önemli</SelectItem>
-            <SelectItem value="MINOR">Düşük</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
-
-      {/* Alarm Listesi */}
-      {loading ? (
-        <div className="glass rounded-xl p-12 text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-halo-600 mx-auto" />
-        </div>
-      ) : alarms.length === 0 ? (
-        <div className="glass rounded-xl text-center py-16">
-          <CheckCircle className="h-16 w-16 mx-auto text-green-300 mb-4" />
-          <h3 className="text-lg font-semibold text-text-main">Alarm bulunmuyor</h3>
-          <p className="text-sm text-text-muted mt-2">
-            Tüm sistemler normal çalışıyor
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {alarms.map((alarm) => {
-            const sev = SEVERITY_CONFIG[alarm.severity] || SEVERITY_CONFIG.MINOR;
-            const stat = STATUS_CONFIG[alarm.status] || STATUS_CONFIG.ACTIVE;
-            const SevIcon = sev.icon;
-
-            return (
-              <div
-                key={alarm._id}
-                className={`glass rounded-xl p-4 flex items-center justify-between gap-4 transition-all hover:shadow-md ${
-                  alarm.status === "ACTIVE" ? "border-l-4 border-l-red-500" : ""
-                }`}
-              >
-                <div className="flex items-center gap-4 flex-1 min-w-0">
-                  {/* Severity Icon */}
-                  <div className={`p-2 rounded-lg ${sev.color}`}>
-                    <SevIcon className="h-5 w-5" />
-                  </div>
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-text-main">{alarm.type}</span>
-                      <Badge variant="outline" className={sev.color}>
-                        {sev.label}
-                      </Badge>
-                      <Badge variant="outline" className={stat.color}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${stat.dot} mr-1.5`} />
-                        {stat.label}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-text-muted">
-                      <span>📱 {alarm.deviceName || "Bilinmeyen"}</span>
-                      <span>📊 {alarm.details?.key}: {alarm.details?.triggerValue?.toFixed(1)}</span>
-                      <span>⏰ {new Date(alarm.createdAt).toLocaleString("tr-TR")}</span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Aksiyonlar */}
-                {alarm.status === "ACTIVE" && (
-                  <div className="flex gap-2 shrink-0">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAction(alarm._id, "acknowledge")}
-                      className="text-blue-600 border-blue-200 hover:bg-blue-50 gap-1"
-                    >
-                      <CheckCircle className="h-3.5 w-3.5" />
-                      Onayla
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAction(alarm._id, "clear")}
-                      className="text-green-600 border-green-200 hover:bg-green-50 gap-1"
-                    >
-                      <XCircle className="h-3.5 w-3.5" />
-                      Temizle
-                    </Button>
-                  </div>
-                )}
-                {alarm.status === "ACKNOWLEDGED" && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleAction(alarm._id, "clear")}
-                    className="text-green-600 border-green-200 hover:bg-green-50 gap-1"
-                  >
-                    <XCircle className="h-3.5 w-3.5" />
-                    Temizle
-                  </Button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+      <TableContent
+        data={alarms}
+        columns={columns}
+        gridClassName="grid-cols-12"
+        title="Alarm Listesi"
+        rowActions={rowActions}
+        bulkActions={bulkActions}
+        getRowId={(alarm) => alarm._id}
+        rowClassName={(alarm) => {
+          if (alarm.status === "ACTIVE") return "bg-red-50/50 hover:bg-red-50 border-l-2 border-l-red-500";
+          if (alarm.status === "ACKNOWLEDGED") return "bg-blue-50/50 hover:bg-blue-50";
+          return "";
+        }}
+        emptyState={
+          <div className="text-center py-12">
+            <ShieldAlert className="h-16 w-16 mx-auto text-green-400 mb-4" />
+            <h3 className="text-lg font-semibold text-text-main">Alarm bulunmuyor</h3>
+            <p className="text-sm text-text-muted mt-2">
+              {filters.search || filters.status !== "all" || filters.severity !== "all" 
+                ? "Filtrelerinize uygun alarm bulunamadı" 
+                : "Tüm sistemler normal çalışıyor"}
+            </p>
+          </div>
+        }
+        pagination={{
+          currentPage: pageParams.page,
+          totalPages: meta.totalPages,
+          itemsPerPage: pageParams.limit,
+          onPageChange: handlePageChange,
+        }}
+      />
+    </>
   );
 }

@@ -19,14 +19,34 @@ export async function GET(request) {
 
     await connectDB();
 
-    const rules = await NotificationRule.find({ tenantId })
-      .sort({ createdAt: -1 })
-      .lean();
+    const searchParams = new URL(request.url).searchParams;
+    const search = searchParams.get("search") || "";
+    const limit = parseInt(searchParams.get("limit") || "20");
+    const page = parseInt(searchParams.get("page") || "1");
+
+    const filter = { tenantId };
+    if (search) {
+      filter.name = { $regex: search, $options: "i" };
+    }
+
+    const [data, total] = await Promise.all([
+      NotificationRule.find(filter)
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit)
+        .lean(),
+      NotificationRule.countDocuments(filter),
+    ]);
 
     return NextResponse.json({
       ok: true,
-      count: rules.length,
-      data: rules,
+      data,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit) || 1,
+      },
     });
   } catch (error) {
     console.error("[GET /api/notification-rule]", error.message);

@@ -4,6 +4,7 @@
  * StatCardWidget — Çoklu Metrik Kartı
  * Tek cihazın birden fazla metriğini yan yana gösterir.
  * SSE ile canlı güncelleme alır. Recharts kullanmaz — pure CSS + Lucide icons.
+ * publicToken verildiğinde SSE yerine polling kullanır.
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
@@ -22,7 +23,7 @@ const ACCENT_COLORS = [
 
 export default function StatCardWidget({
   devices = [], keys = [], title = "Çoklu Metrik",
-  config = {},
+  config = {}, publicToken,
 }) {
   const device = devices[0];
   const deviceId = device?.id;
@@ -56,17 +57,26 @@ export default function StatCardWidget({
     });
   }, [keys]);
 
+  // Telemetri URL'ini belirle
+  const getTelemetryUrl = useCallback((key, params = "") => {
+    if (publicToken) {
+      return `/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}${params}`;
+    }
+    return `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}${params}`;
+  }, [publicToken, deviceId]);
+
   useEffect(() => {
     if (!deviceId || keys.length === 0) return;
 
     let isMounted = true;
     const sseRef = { current: null };
+    let pollInterval = null;
 
     // 1. Her key için geçmiş veriyi çek
     const fetchHistory = async () => {
       try {
         const promises = keys.map(key =>
-          fetch(`/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}&limit=2`)
+          fetch(getTelemetryUrl(key, `&limit=2`))
             .then(res => res.json())
             .then(json => ({ key, data: json.data || [] }))
         );
@@ -95,29 +105,56 @@ export default function StatCardWidget({
       }
     };
 
-    // 2. Canlı veriyi (SSE) başlat
-    const startSSE = () => {
-      const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
-      sseRef.current = es;
+    // 2. Canlı veriyi başlat
+    const startLiveData = () => {
+      if (publicToken) {
+        pollInterval = setInterval(async () => {
+          if (!isMounted) return;
+          try {
+            const promises = keys.map(key =>
+              fetch(getTelemetryUrl(key, `&limit=1`))
+                .then(res => res.json())
+                .then(json => ({ key, data: json.data || [] }))
+            );
+            const results = await Promise.all(promises);
+            results.forEach(({ key, data }) => {
+              if (data.length > 0) {
+                handleData({
+                  key,
+                  value: data[0].value,
+                });
+              }
+            });
+            if (isMounted) setConnected(true);
+          } catch {
+            if (isMounted) setConnected(false);
+          }
+        }, 10000);
+        setConnected(true);
+      } else {
+        const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
+        sseRef.current = es;
 
-      es.onopen = () => { if (isMounted) setConnected(true); };
-      es.onerror = () => { if (isMounted) setConnected(false); };
-      es.onmessage = (e) => {
-        if (!isMounted) return;
-        try { handleData(JSON.parse(e.data)); } catch {}
-      };
+        es.onopen = () => { if (isMounted) setConnected(true); };
+        es.onerror = () => { if (isMounted) setConnected(false); };
+        es.onmessage = (e) => {
+          if (!isMounted) return;
+          try { handleData(JSON.parse(e.data)); } catch {}
+        };
+      }
     };
 
     fetchHistory().then(() => {
-      if (isMounted) startSSE();
+      if (isMounted) startLiveData();
     });
 
     return () => {
       isMounted = false;
       if (sseRef.current) sseRef.current.close();
+      if (pollInterval) clearInterval(pollInterval);
       setConnected(false);
     };
-  }, [deviceId, keys, handleData]);
+  }, [deviceId, keys, handleData, publicToken, getTelemetryUrl]);
 
   const TrendIcon = { up: TrendingUp, down: TrendingDown, stable: Minus };
   const trendLabel = { up: "text-green-500", down: "text-red-500", stable: "text-gray-400" };

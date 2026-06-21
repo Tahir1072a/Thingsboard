@@ -4,6 +4,7 @@
  * BarChartWidget — Çubuk Grafik Widget
  * Birden fazla cihazın son değerlerini karşılaştırmalı çubuk grafikle gösterir.
  * SSE ile canlı güncelleme alır.
+ * publicToken verildiğinde SSE yerine polling kullanır.
  */
 
 import { useEffect, useState, useCallback } from "react";
@@ -19,7 +20,7 @@ const COLORS = [
 
 export default function BarChartWidget({
   devices = [], keys = [], title = "Çubuk Grafik",
-  config = {},
+  config = {}, publicToken,
 }) {
   const orientation = config.orientation || "vertical";
   const maxBars = config.maxBars || 10;
@@ -38,17 +39,26 @@ export default function BarChartWidget({
     setLatestValues((prev) => ({ ...prev, [device.id]: value }));
   }, [targetKey, devices]);
 
+  // Telemetri URL'ini belirle
+  const getTelemetryUrl = useCallback((deviceId, params = "") => {
+    if (publicToken) {
+      return `/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(targetKey)}${params}`;
+    }
+    return `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(targetKey)}${params}`;
+  }, [publicToken, targetKey]);
+
   useEffect(() => {
     if (devices.length === 0) return;
 
     let isMounted = true;
     const sseRef = { current: null };
+    let pollInterval = null;
 
     // 1. Geçmiş verileri çek (her cihaz için son değer)
     const fetchHistory = async () => {
       try {
         const promises = devices.map(d =>
-          fetch(`/api/telemetry?deviceId=${encodeURIComponent(d.id)}&key=${encodeURIComponent(targetKey)}&limit=1`)
+          fetch(getTelemetryUrl(d.id, `&limit=1`))
             .then(res => res.json())
             .then(json => ({ deviceId: d.id, data: json.data || [] }))
         );
@@ -69,33 +79,61 @@ export default function BarChartWidget({
       }
     };
 
-    // 2. Canlı veriyi (SSE) başlat
-    const startSSE = () => {
-      const url = devices.length === 1
-        ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
-        : `/api/sse`;
+    // 2. Canlı veriyi başlat
+    const startLiveData = () => {
+      if (publicToken) {
+        pollInterval = setInterval(async () => {
+          if (!isMounted) return;
+          try {
+            const promises = devices.map(d =>
+              fetch(getTelemetryUrl(d.id, `&limit=1`))
+                .then(res => res.json())
+                .then(json => ({ deviceId: d.id, data: json.data || [] }))
+            );
+            const results = await Promise.all(promises);
+            results.forEach(({ deviceId, data }) => {
+              if (data.length > 0) {
+                handleData({
+                  deviceId,
+                  key: targetKey,
+                  value: data[0].value,
+                });
+              }
+            });
+            if (isMounted) setConnected(true);
+          } catch {
+            if (isMounted) setConnected(false);
+          }
+        }, 10000);
+        setConnected(true);
+      } else {
+        const url = devices.length === 1
+          ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
+          : `/api/sse`;
 
-      const es = new EventSource(url);
-      sseRef.current = es;
+        const es = new EventSource(url);
+        sseRef.current = es;
 
-      es.onopen = () => { if (isMounted) setConnected(true); };
-      es.onerror = () => { if (isMounted) setConnected(false); };
-      es.onmessage = (e) => {
-        if (!isMounted) return;
-        try { handleData(JSON.parse(e.data)); } catch {}
-      };
+        es.onopen = () => { if (isMounted) setConnected(true); };
+        es.onerror = () => { if (isMounted) setConnected(false); };
+        es.onmessage = (e) => {
+          if (!isMounted) return;
+          try { handleData(JSON.parse(e.data)); } catch {}
+        };
+      }
     };
 
     fetchHistory().then(() => {
-      if (isMounted) startSSE();
+      if (isMounted) startLiveData();
     });
 
     return () => {
       isMounted = false;
       if (sseRef.current) sseRef.current.close();
+      if (pollInterval) clearInterval(pollInterval);
       setConnected(false);
     };
-  }, [devices, targetKey, handleData]);
+  }, [devices, targetKey, handleData, publicToken, getTelemetryUrl]);
 
   // Çubuk grafik verisi: her cihaz bir bar
   const chartData = devices
