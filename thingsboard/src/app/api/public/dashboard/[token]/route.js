@@ -9,6 +9,7 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Dashboard from "@/models/Dashboard";
+import { resolveAliases } from "@/lib/alias-resolver";
 
 export async function GET(request, { params }) {
   try {
@@ -57,6 +58,18 @@ export async function GET(request, { params }) {
       }
     });
 
+    // Entity Alias'ı server-side çözümle (public dashboard'da auth yok)
+    let resolvedDevices = {};
+    if (dashboard.entityAliases && dashboard.entityAliases.length > 0) {
+      resolvedDevices = await resolveAliases(dashboard.entityAliases, dashboard.tenantId);
+      // Çözümlenen cihazların ID'lerini de deviceSet'e ekle
+      Object.values(resolvedDevices).forEach((devices) => {
+        devices.forEach((d) => {
+          if (d.id) deviceSet.add(d.id);
+        });
+      });
+    }
+
     // Güvenlik: hassas alanları strip et
     const {
       ownerId,
@@ -71,6 +84,7 @@ export async function GET(request, { params }) {
         ...safeDashboard,
         devices: Array.from(deviceSet),
         allowedKeys: Array.from(keySet),
+        resolvedDevices,
       },
     });
   } catch (error) {

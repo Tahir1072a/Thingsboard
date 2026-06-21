@@ -168,6 +168,7 @@ export default function PublicDashboardPage() {
                   <WidgetRenderer
                     widget={widget}
                     isEditMode={false}
+                    resolvedDevices={dashboard.resolvedDevices || {}}
                     publicToken={token}
                   />
                 </div>

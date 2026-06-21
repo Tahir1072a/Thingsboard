@@ -29,7 +29,7 @@ import ReactSelect from "react-select";
 import {
   X, Plus, ChevronRight, Settings2, Eye, Palette,
   BarChart3, Gauge, LayoutGrid, Table2, MapPin, Zap, Bell, Hash,
-  Map, PieChart, Power, SlidersHorizontal, AlertCircle,
+  Map, PieChart, Power, SlidersHorizontal, AlertCircle, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import toast from "react-hot-toast";
@@ -54,6 +54,8 @@ export default function WidgetConfigModal({
   mode = "add",
   widget = null,
   devices = [],
+  entityAliases = [],
+  onAliasChange,
   onSave,
   onClose,
 }) {
@@ -68,6 +70,15 @@ export default function WidgetConfigModal({
   const [availableKeys, setAvailableKeys] = useState([]);
   const [activeCategory, setActiveCategory] = useState(null);
 
+  // Alias state
+  const [useAlias, setUseAlias] = useState(false);
+  const [selectedAliasId, setSelectedAliasId] = useState(null);
+  const [newAliasForm, setNewAliasForm] = useState(null);
+  // newAliasForm: { aliasName, type, config: { assetId, deviceProfileId, deviceId, deviceIds } }
+  const [aliasPreview, setAliasPreview] = useState([]); // resolved devices preview
+  const [assets, setAssets] = useState([]);
+  const [profiles, setProfiles] = useState([]);
+
   // Edit mode: widget verilerini yükle
   useEffect(() => {
     if (open && mode === "edit" && widget) {
@@ -78,6 +89,16 @@ export default function WidgetConfigModal({
       setConfig(widget.config || {});
       setStep("configure");
       setActiveTab("basic");
+      // Alias edit desteği
+      if (widget.aliasId) {
+        setUseAlias(true);
+        setSelectedAliasId(widget.aliasId);
+      } else {
+        setUseAlias(false);
+        setSelectedAliasId(null);
+      }
+      setNewAliasForm(null);
+      setAliasPreview([]);
     } else if (open && mode === "add") {
       setSelectedType("");
       setTitle("");
@@ -87,19 +108,86 @@ export default function WidgetConfigModal({
       setStep("select");
       setActiveTab("basic");
       setActiveCategory(null);
+      setUseAlias(false);
+      setSelectedAliasId(null);
+      setNewAliasForm(null);
+      setAliasPreview([]);
     }
   }, [open, mode, widget]);
 
-  // Telemetri key'lerini çek (cihaz seçildiğinde)
+  // Fetch assets & profiles when modal opens
   useEffect(() => {
-    if (selectedDeviceIds.length === 0) {
+    if (!open) return;
+    const fetchAssets = async () => {
+      try {
+        const res = await fetch("/api/asset?limit=100");
+        const data = await res.json();
+        if (data.ok) setAssets(data.data || []);
+      } catch { setAssets([]); }
+    };
+    const fetchProfiles = async () => {
+      try {
+        const res = await fetch("/api/device-profile?limit=100");
+        const data = await res.json();
+        if (data.ok) setProfiles(data.data || []);
+      } catch { setProfiles([]); }
+    };
+    fetchAssets();
+    fetchProfiles();
+  }, [open]);
+
+  // Alias preview — resolve selected or new alias
+  useEffect(() => {
+    if (!useAlias) { setAliasPreview([]); return; }
+
+    let aliasToResolve = null;
+
+    if (selectedAliasId) {
+      aliasToResolve = entityAliases.find(a => a.id === selectedAliasId);
+    } else if (newAliasForm && newAliasForm.type) {
+      aliasToResolve = {
+        id: "__preview__",
+        aliasName: newAliasForm.aliasName || "preview",
+        type: newAliasForm.type,
+        config: newAliasForm.config || {},
+      };
+    }
+
+    if (!aliasToResolve) { setAliasPreview([]); return; }
+
+    const resolve = async () => {
+      try {
+        const res = await fetch("/api/alias/resolve", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ aliases: [aliasToResolve] }),
+        });
+        const data = await res.json();
+        if (data.ok && data.resolved) {
+          const devices = data.resolved[aliasToResolve.id] || [];
+          setAliasPreview(devices);
+        } else {
+          setAliasPreview([]);
+        }
+      } catch { setAliasPreview([]); }
+    };
+    resolve();
+  }, [useAlias, selectedAliasId, newAliasForm, entityAliases]);
+
+  // Telemetri key'lerini çek (cihaz seçildiğinde veya alias preview'dan)
+  useEffect(() => {
+    // Alias modunda aliasPreview'dan deviceId al
+    const effectiveDeviceId = useAlias
+      ? aliasPreview[0]?.id
+      : selectedDeviceIds[0];
+
+    if (!effectiveDeviceId) {
       setAvailableKeys([]);
       return;
     }
     const fetchKeys = async () => {
       try {
-        const deviceId = selectedDeviceIds[0];
-        const res = await fetch(`/api/telemetry/keys?deviceId=${deviceId}`);
+        const res = await fetch(`/api/telemetry/keys?deviceId=${effectiveDeviceId}`);
         const data = await res.json();
         if (data.ok) {
           setAvailableKeys(data.keys || []);
@@ -109,7 +197,7 @@ export default function WidgetConfigModal({
       }
     };
     fetchKeys();
-  }, [selectedDeviceIds]);
+  }, [selectedDeviceIds, useAlias, aliasPreview]);
 
   // Attribute auto-fill (cihaz seçildiğinde)
   useEffect(() => {
@@ -169,16 +257,19 @@ export default function WidgetConfigModal({
 
     const constraints = getDatasourceConstraints(selectedType);
 
-    if (constraints.requireDevice && selectedDeviceIds.length === 0) {
-      toast.error("En az bir cihaz seçmelisiniz.");
-      return;
+    // Alias kullanılmıyorsa standart doğrulamalar
+    if (!useAlias) {
+      if (constraints.requireDevice && selectedDeviceIds.length === 0) {
+        toast.error("En az bir cihaz seçmelisiniz.");
+        return;
+      }
+      if (constraints.maxDevices && selectedDeviceIds.length > constraints.maxDevices) {
+        toast.error(`Bu widget için maksimum ${constraints.maxDevices} cihaz seçilebilir.`);
+        return;
+      }
     }
     if (constraints.requireKey && selectedKeys.length === 0) {
       toast.error("En az bir telemetri verisi seçmelisiniz.");
-      return;
-    }
-    if (constraints.maxDevices && selectedDeviceIds.length > constraints.maxDevices) {
-      toast.error(`Bu widget için maksimum ${constraints.maxDevices} cihaz seçilebilir.`);
       return;
     }
     if (constraints.maxKeys && selectedKeys.length > constraints.maxKeys) {
@@ -186,17 +277,11 @@ export default function WidgetConfigModal({
       return;
     }
 
-    const selectedDevices = selectedDeviceIds.map(id => {
-      const d = devices.find(x => x._id === id);
-      return { id: d?._id, name: d?.name || "" };
-    }).filter(d => d.id);
-
     const typeConfig = WIDGET_TYPES.find(t => t.type === selectedType);
 
     const widgetObj = {
       i: mode === "edit" && widget ? widget.i : `w-${Date.now()}`,
       type: selectedType,
-      devices: selectedDevices,
       keys: selectedKeys,
       title: title.trim(),
       config,
@@ -207,6 +292,37 @@ export default function WidgetConfigModal({
         h: typeConfig?.defaultSize?.h || 3,
       } : {}),
     };
+
+    if (useAlias) {
+      // Yeni alias oluştur
+      if (newAliasForm && newAliasForm.aliasName && newAliasForm.type) {
+        const newAlias = {
+          id: crypto.randomUUID(),
+          aliasName: newAliasForm.aliasName,
+          type: newAliasForm.type,
+          config: newAliasForm.config || {},
+        };
+        if (onAliasChange) {
+          onAliasChange([...entityAliases, newAlias]);
+        }
+        widgetObj.aliasId = newAlias.id;
+      } else if (selectedAliasId) {
+        // Mevcut alias kullan
+        widgetObj.aliasId = selectedAliasId;
+      } else {
+        toast.error("Bir alias seçin veya yeni oluşturun.");
+        return;
+      }
+      // Alias modunda devices boş olur
+      widgetObj.devices = [];
+    } else {
+      // Normal mod — cihaz listesi ekle
+      const selectedDevices = selectedDeviceIds.map(id => {
+        const d = devices.find(x => x._id === id);
+        return { id: d?._id, name: d?.name || "" };
+      }).filter(d => d.id);
+      widgetObj.devices = selectedDevices;
+    }
 
     onSave(widgetObj);
   };
@@ -574,32 +690,260 @@ export default function WidgetConfigModal({
                       <Settings2 className="h-3.5 w-3.5" /> Veri Kaynağı
                     </h4>
 
-                    {/* Cihaz seçimi */}
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-medium text-text-muted">Cihaz</Label>
-                      <ReactSelect
-                        isMulti={!schema.datasource.maxDevices || schema.datasource.maxDevices > 1}
-                        options={deviceOptions}
-                        value={deviceOptions.filter(o => selectedDeviceIds.includes(o.value))}
-                        onChange={(selected) => {
-                          const ids = Array.isArray(selected)
-                            ? selected.map(s => s.value)
-                            : selected ? [selected.value] : [];
-                          setSelectedDeviceIds(ids);
-                        }}
-                        placeholder="Cihaz seçin..."
-                        className="text-sm"
-                        styles={{
-                          control: (base) => ({
-                            ...base,
-                            minHeight: 36,
-                            backgroundColor: "rgba(255,255,255,0.6)",
-                            borderColor: "rgba(255,255,255,0.4)",
-                          }),
-                          menu: (base) => ({ ...base, zIndex: 50 }),
-                        }}
-                      />
+                    {/* Alias Toggle */}
+                    <div className="flex items-center justify-between py-1">
+                      <Label className="text-xs font-medium text-text-muted">Alias Kullan</Label>
+                      <button
+                        type="button"
+                        onClick={() => setUseAlias(!useAlias)}
+                        className={`relative w-11 h-6 rounded-full transition-colors ${useAlias ? 'bg-halo-600' : 'bg-gray-300'}`}
+                      >
+                        <span className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${useAlias ? 'translate-x-5' : ''}`} />
+                      </button>
                     </div>
+
+                    {!useAlias ? (
+                      /* ── Normal cihaz seçimi (mevcut) ── */
+                      <>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-text-muted">Cihaz</Label>
+                          <ReactSelect
+                            isMulti={!schema.datasource.maxDevices || schema.datasource.maxDevices > 1}
+                            options={deviceOptions}
+                            value={deviceOptions.filter(o => selectedDeviceIds.includes(o.value))}
+                            onChange={(selected) => {
+                              const ids = Array.isArray(selected)
+                                ? selected.map(s => s.value)
+                                : selected ? [selected.value] : [];
+                              setSelectedDeviceIds(ids);
+                            }}
+                            placeholder="Cihaz seçin..."
+                            className="text-sm"
+                            styles={{
+                              control: (base) => ({
+                                ...base,
+                                minHeight: 36,
+                                backgroundColor: "rgba(255,255,255,0.6)",
+                                borderColor: "rgba(255,255,255,0.4)",
+                              }),
+                              menu: (base) => ({ ...base, zIndex: 50 }),
+                            }}
+                          />
+                        </div>
+                      </>
+                    ) : (
+                      /* ── Alias modu ── */
+                      <div className="space-y-3 p-3 rounded-xl bg-white/40 backdrop-blur border border-white/20">
+                        {/* Mevcut alias seçimi */}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-text-muted">Mevcut Alias</Label>
+                          <ReactSelect
+                            options={entityAliases.map(a => ({ value: a.id, label: a.aliasName }))}
+                            value={selectedAliasId ? { value: selectedAliasId, label: entityAliases.find(a => a.id === selectedAliasId)?.aliasName || selectedAliasId } : null}
+                            onChange={(opt) => {
+                              setSelectedAliasId(opt?.value || null);
+                              if (opt) setNewAliasForm(null);
+                            }}
+                            isClearable
+                            placeholder="Alias seçin..."
+                            noOptionsMessage={() => "Henüz alias yok"}
+                            className="text-sm"
+                            styles={{
+                              control: (base) => ({
+                                ...base,
+                                minHeight: 36,
+                                backgroundColor: "rgba(255,255,255,0.6)",
+                                borderColor: "rgba(255,255,255,0.4)",
+                              }),
+                              menu: (base) => ({ ...base, zIndex: 50, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)" }),
+                            }}
+                          />
+                        </div>
+
+                        <div className="text-center text-xs text-text-muted">— veya —</div>
+
+                        {/* Yeni alias oluştur butonu / formu */}
+                        {!newAliasForm ? (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedAliasId(null);
+                              setNewAliasForm({ aliasName: "", type: "", config: {} });
+                            }}
+                            className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border-2 border-dashed border-halo-300 text-xs font-medium text-halo-600 hover:bg-halo-50/50 transition-colors"
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Yeni Alias Oluştur
+                          </button>
+                        ) : (
+                          <div className="space-y-3 p-3 rounded-lg bg-white/30 border border-white/20">
+                            <div className="flex items-center justify-between">
+                              <span className="text-xs font-bold text-text-muted uppercase tracking-wider">Yeni Alias</span>
+                              <button
+                                type="button"
+                                onClick={() => setNewAliasForm(null)}
+                                className="text-gray-400 hover:text-gray-600"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
+                            {/* Alias adı */}
+                            <div className="space-y-1">
+                              <Label className="text-xs font-medium text-text-muted">Alias Adı</Label>
+                              <Input
+                                value={newAliasForm.aliasName}
+                                onChange={(e) => setNewAliasForm(prev => ({ ...prev, aliasName: e.target.value }))}
+                                placeholder="Alias adı..."
+                                className="h-8 text-sm glass-strong border-white/40"
+                              />
+                            </div>
+
+                            {/* Alias tipi */}
+                            <div className="space-y-1">
+                              <Label className="text-xs font-medium text-text-muted">Alias Tipi</Label>
+                              <Select
+                                value={newAliasForm.type || ""}
+                                onValueChange={(v) => setNewAliasForm(prev => ({ ...prev, type: v, config: {} }))}
+                              >
+                                <SelectTrigger className="h-8 text-sm glass-strong border-white/40">
+                                  <SelectValue placeholder="Tip seçin" />
+                                </SelectTrigger>
+                                <SelectContent className="glass-strong">
+                                  <SelectItem value="SINGLE_DEVICE">Tek Cihaz</SelectItem>
+                                  <SelectItem value="DEVICE_LIST">Cihaz Listesi</SelectItem>
+                                  <SelectItem value="ASSET_CHILDREN">Asset Alt Cihazları</SelectItem>
+                                  <SelectItem value="DEVICE_PROFILE">Cihaz Profili</SelectItem>
+                                  <SelectItem value="ASSET_CHILDREN_BY_PROFILE">Asset + Profil</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+
+                            {/* Tip bazlı alt alanlar */}
+                            {newAliasForm.type === "SINGLE_DEVICE" && (
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-text-muted">Cihaz</Label>
+                                <ReactSelect
+                                  options={deviceOptions}
+                                  value={deviceOptions.find(o => o.value === newAliasForm.config?.deviceId) || null}
+                                  onChange={(opt) => setNewAliasForm(prev => ({ ...prev, config: { ...prev.config, deviceId: opt?.value || null } }))}
+                                  placeholder="Cihaz seçin..."
+                                  className="text-sm"
+                                  styles={{
+                                    control: (base) => ({ ...base, minHeight: 32, backgroundColor: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.4)" }),
+                                    menu: (base) => ({ ...base, zIndex: 50, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)" }),
+                                  }}
+                                />
+                              </div>
+                            )}
+
+                            {newAliasForm.type === "DEVICE_LIST" && (
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-text-muted">Cihazlar</Label>
+                                <ReactSelect
+                                  isMulti
+                                  options={deviceOptions}
+                                  value={deviceOptions.filter(o => (newAliasForm.config?.deviceIds || []).includes(o.value))}
+                                  onChange={(selected) => setNewAliasForm(prev => ({ ...prev, config: { ...prev.config, deviceIds: Array.isArray(selected) ? selected.map(s => s.value) : [] } }))}
+                                  placeholder="Cihazları seçin..."
+                                  className="text-sm"
+                                  styles={{
+                                    control: (base) => ({ ...base, minHeight: 32, backgroundColor: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.4)" }),
+                                    menu: (base) => ({ ...base, zIndex: 50, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)" }),
+                                  }}
+                                />
+                              </div>
+                            )}
+
+                            {newAliasForm.type === "ASSET_CHILDREN" && (
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-text-muted">Asset</Label>
+                                <ReactSelect
+                                  options={assets.map(a => ({ value: a._id, label: a.name }))}
+                                  value={assets.map(a => ({ value: a._id, label: a.name })).find(o => o.value === newAliasForm.config?.assetId) || null}
+                                  onChange={(opt) => setNewAliasForm(prev => ({ ...prev, config: { ...prev.config, assetId: opt?.value || null } }))}
+                                  placeholder="Asset seçin..."
+                                  className="text-sm"
+                                  styles={{
+                                    control: (base) => ({ ...base, minHeight: 32, backgroundColor: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.4)" }),
+                                    menu: (base) => ({ ...base, zIndex: 50, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)" }),
+                                  }}
+                                />
+                              </div>
+                            )}
+
+                            {newAliasForm.type === "DEVICE_PROFILE" && (
+                              <div className="space-y-1">
+                                <Label className="text-xs font-medium text-text-muted">Cihaz Profili</Label>
+                                <ReactSelect
+                                  options={profiles.map(p => ({ value: p._id, label: p.name }))}
+                                  value={profiles.map(p => ({ value: p._id, label: p.name })).find(o => o.value === newAliasForm.config?.deviceProfileId) || null}
+                                  onChange={(opt) => setNewAliasForm(prev => ({ ...prev, config: { ...prev.config, deviceProfileId: opt?.value || null } }))}
+                                  placeholder="Profil seçin..."
+                                  className="text-sm"
+                                  styles={{
+                                    control: (base) => ({ ...base, minHeight: 32, backgroundColor: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.4)" }),
+                                    menu: (base) => ({ ...base, zIndex: 50, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)" }),
+                                  }}
+                                />
+                              </div>
+                            )}
+
+                            {newAliasForm.type === "ASSET_CHILDREN_BY_PROFILE" && (
+                              <>
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-medium text-text-muted">Asset</Label>
+                                  <ReactSelect
+                                    options={assets.map(a => ({ value: a._id, label: a.name }))}
+                                    value={assets.map(a => ({ value: a._id, label: a.name })).find(o => o.value === newAliasForm.config?.assetId) || null}
+                                    onChange={(opt) => setNewAliasForm(prev => ({ ...prev, config: { ...prev.config, assetId: opt?.value || null } }))}
+                                    placeholder="Asset seçin..."
+                                    className="text-sm"
+                                    styles={{
+                                      control: (base) => ({ ...base, minHeight: 32, backgroundColor: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.4)" }),
+                                      menu: (base) => ({ ...base, zIndex: 50, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)" }),
+                                    }}
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <Label className="text-xs font-medium text-text-muted">Cihaz Profili</Label>
+                                  <ReactSelect
+                                    options={profiles.map(p => ({ value: p._id, label: p.name }))}
+                                    value={profiles.map(p => ({ value: p._id, label: p.name })).find(o => o.value === newAliasForm.config?.deviceProfileId) || null}
+                                    onChange={(opt) => setNewAliasForm(prev => ({ ...prev, config: { ...prev.config, deviceProfileId: opt?.value || null } }))}
+                                    placeholder="Profil seçin..."
+                                    className="text-sm"
+                                    styles={{
+                                      control: (base) => ({ ...base, minHeight: 32, backgroundColor: "rgba(255,255,255,0.6)", borderColor: "rgba(255,255,255,0.4)" }),
+                                      menu: (base) => ({ ...base, zIndex: 50, background: "rgba(255,255,255,0.95)", backdropFilter: "blur(12px)" }),
+                                    }}
+                                  />
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Çözümlenen cihazlar preview */}
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-medium text-text-muted">Çözümlenen Cihazlar</Label>
+                          {aliasPreview.length > 0 ? (
+                            <div className="space-y-1 max-h-32 overflow-y-auto">
+                              {aliasPreview.map((d) => (
+                                <div key={d.id} className="flex items-center gap-2 text-xs text-text-main py-0.5">
+                                  <Check className="h-3 w-3 text-green-500 shrink-0" />
+                                  <span className="font-medium">{d.name}</span>
+                                  {d.profileName && (
+                                    <span className="text-text-muted">({d.profileName})</span>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-text-muted italic">Henüz cihaz bulunamadı</p>
+                          )}
+                        </div>
+                      </div>
+                    )}
 
                     {/* Key seçimi */}
                     {schema.datasource.requireKey && (
@@ -615,7 +959,7 @@ export default function WidgetConfigModal({
                               : selected ? [selected.value] : [];
                             setSelectedKeys(keys);
                           }}
-                          placeholder={availableKeys.length === 0 ? "Önce cihaz seçin" : "Veri seçin..."}
+                          placeholder={availableKeys.length === 0 ? (useAlias ? "Alias cihaz çözümlemesi bekleniyor" : "Önce cihaz seçin") : "Veri seçin..."}
                           isDisabled={availableKeys.length === 0}
                           className="text-sm"
                           styles={{

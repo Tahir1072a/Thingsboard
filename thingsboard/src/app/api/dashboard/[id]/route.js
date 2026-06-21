@@ -71,7 +71,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { name, description, widgets } = body;
+    const { name, description, widgets, entityAliases } = body;
 
     const dashboard = result.dashboard;
     if (name !== undefined) dashboard.name = name;
@@ -81,6 +81,7 @@ export async function PUT(request, { params }) {
       dashboard.widgets = widgets.map((w) => ({
         i: w.i,
         type: w.type,
+        aliasId: w.aliasId || null,
         devices: (w.devices || []).map((d) => ({ id: String(d.id), name: d.name || "" })),
         keys: w.keys || [],
         title: w.title || "Widget",
@@ -89,6 +90,14 @@ export async function PUT(request, { params }) {
         y: Number.isFinite(w.y) ? w.y : 0,
         w: Number.isFinite(w.w) ? w.w : 4,
         h: Number.isFinite(w.h) ? w.h : 3,
+      }));
+    }
+    if (entityAliases !== undefined) {
+      dashboard.entityAliases = entityAliases.map((a) => ({
+        id: a.id,
+        aliasName: a.aliasName,
+        type: a.type,
+        config: a.config || {},
       }));
     }
 

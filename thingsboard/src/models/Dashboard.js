@@ -23,7 +23,10 @@ const WidgetSchema = new Schema(
       required: true,
     },
 
-    // Bağlı cihaz(lar)
+    // Entity Alias referansı (yeni sistem)
+    aliasId: { type: String, default: null },
+
+    // Bağlı cihaz(lar) — alias yoksa fallback olarak kullanılır
     devices: [
       {
         id: { type: String, required: true },
@@ -82,6 +85,27 @@ const DashboardSchema = new Schema(
 
     // Widget konfigürasyonları
     widgets: [WidgetSchema],
+
+    // ── Entity Alias Tanımları ──
+    entityAliases: [
+      {
+        id: { type: String, required: true },
+        aliasName: { type: String, required: true },
+        type: {
+          type: String,
+          enum: [
+            "SINGLE_DEVICE",
+            "DEVICE_LIST",
+            "ASSET_CHILDREN",
+            "DEVICE_PROFILE",
+            "ASSET_CHILDREN_BY_PROFILE",
+          ],
+          required: true,
+        },
+        config: { type: Schema.Types.Mixed, default: {} },
+        _id: false,
+      },
+    ],
 
     // ── Paylaşım ──
     isPublic: {

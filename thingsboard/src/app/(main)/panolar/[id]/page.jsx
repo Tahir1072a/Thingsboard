@@ -49,6 +49,9 @@ export default function DashboardEditorPage() {
   const [widgetModal, setWidgetModal] = useState({ open: false, mode: "add", widget: null });
   const [devices, setDevices] = useState([]);
 
+  // Entity Alias çözümlenmiş cihazlar: { [aliasId]: [{id, name, profileName}] }
+  const [resolvedDevices, setResolvedDevices] = useState({});
+
   // ------------------------------------------------------------------ //
   // Veri çekme
   // ------------------------------------------------------------------ //
@@ -103,6 +106,34 @@ export default function DashboardEditorPage() {
     fetchDashboard();
     fetchDevices();
   }, [fetchDashboard, fetchDevices]);
+
+  // ── Alias'ları çözümle ──
+  const resolveEntityAliases = useCallback(async (aliases) => {
+    if (!aliases || aliases.length === 0) {
+      setResolvedDevices({});
+      return;
+    }
+    try {
+      const res = await fetch("/api/alias/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aliases }),
+      });
+      const data = await res.json();
+      if (data.ok && data.resolved) {
+        setResolvedDevices(data.resolved);
+      }
+    } catch (err) {
+      console.error("Alias çözümleme hatası:", err);
+    }
+  }, []);
+
+  // Dashboard yüklendiğinde alias'ları çözümle
+  useEffect(() => {
+    if (dashboard?.entityAliases?.length > 0) {
+      resolveEntityAliases(dashboard.entityAliases);
+    }
+  }, [dashboard?.entityAliases, resolveEntityAliases]);
 
   // ------------------------------------------------------------------ //
   // Widget ekleme / düzenleme (modal)
@@ -172,6 +203,7 @@ export default function DashboardEditorPage() {
           name: dashboard.name,
           description: dashboard.description,
           widgets: sanitizedWidgets,
+          entityAliases: dashboard.entityAliases || [],
         }),
         signal: controller.signal,
       });
@@ -416,6 +448,7 @@ export default function DashboardEditorPage() {
                 <WidgetRenderer
                   widget={widget}
                   isEditMode={editMode}
+                  resolvedDevices={resolvedDevices}
                   onDelete={() => handleRemoveWidget(widget.i)}
                   onEdit={(w) => setWidgetModal({ open: true, mode: "edit", widget: w })}
                   onWidgetConfigChange={(newConfig) => {
@@ -439,6 +472,11 @@ export default function DashboardEditorPage() {
         mode={widgetModal.mode}
         widget={widgetModal.widget}
         devices={devices}
+        entityAliases={dashboard?.entityAliases || []}
+        onAliasChange={(newAliases) => {
+          setDashboard((prev) => ({ ...prev, entityAliases: newAliases }));
+          resolveEntityAliases(newAliases);
+        }}
         onSave={handleWidgetSave}
         onClose={() => setWidgetModal({ open: false, mode: "add", widget: null })}
       />

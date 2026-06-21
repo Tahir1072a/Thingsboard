@@ -143,6 +143,7 @@ export const WIDGET_TYPES = [
 export default function WidgetRenderer({
   widget,
   isEditMode = false,
+  resolvedDevices = {},
   onDelete,
   onEdit,
   onWidgetConfigChange,
@@ -161,6 +162,11 @@ export default function WidgetRenderer({
     );
   }
 
+  // Alias varsa çözümlenmiş cihazları kullan, yoksa doğrudan devices[]
+  const devices = widget.aliasId && resolvedDevices[widget.aliasId]
+    ? resolvedDevices[widget.aliasId]
+    : widget.devices || [];
+
   return (
     <BaseWidgetCard
       title={widget.title}
@@ -169,7 +175,7 @@ export default function WidgetRenderer({
       onEdit={onEdit ? () => onEdit(widget) : undefined}
     >
       <Component
-        devices={widget.devices || []}
+        devices={devices}
         keys={widget.keys || []}
         title={widget.title}
         config={widget.config || {}}
