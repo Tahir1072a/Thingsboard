@@ -3,16 +3,26 @@
 /**
  * SSE Pool — Tek EventSource bağlantısı üzerinden tüm widget'lara veri dağıtımı
  *
- * Problem: Her widget kendi EventSource bağlantısını açıyor → 10+ widget = 10+ SSE bağlantı.
+ * Problem: Her widget kendi EventSource bağlantısını açıyor → 6+ bağlantı = tarayıcı limiti.
  * Çözüm: Singleton pool — tek bağlantı, subscription-based dağıtım.
  *
  * Kullanım:
- *   import { useSSEPool } from "./sse-pool.js";
- *   const { subscribe, unsubscribe } = useSSEPool();
- *   subscribe("telemetry", deviceId, callback);
+ *   import { useTelemetrySSE, useAlarmSSE, useSSEConnected } from "@/lib/sse-pool";
+ *
+ *   // Tek cihaz telemetrisi
+ *   useTelemetrySSE(deviceId, handleData);
+ *
+ *   // Çoklu cihaz telemetrisi
+ *   useMultiTelemetrySSE(deviceIds, handleData);
+ *
+ *   // Alarm dinleme
+ *   useAlarmSSE(handleAlarm, deviceId);
+ *
+ *   // Bağlantı durumu
+ *   const connected = useSSEConnected();
  */
 
-import { createContext, useContext, useEffect, useRef, useCallback, useState } from "react";
+import { createContext, useContext, useEffect, useRef, useCallback, useState, useSyncExternalStore } from "react";
 
 // ── Singleton SSE Manager ──
 class SSEPoolManager {
@@ -22,6 +32,7 @@ class SSEPoolManager {
     this.subCounter = 0;
     this.reconnectTimer = null;
     this.connected = false;
+    this._connectedListeners = new Set(); // React state sync
   }
 
   connect(url = "/api/sse") {
@@ -30,11 +41,10 @@ class SSEPoolManager {
     this.eventSource = new EventSource(url);
 
     this.eventSource.onopen = () => {
-      this.connected = true;
-      console.log("[sse-pool] Bağlantı kuruldu");
+      this._setConnected(true);
     };
 
-    // Telemetri event
+    // Telemetri event (named event — server sends "event: telemetry\ndata: ...")
     this.eventSource.addEventListener("telemetry", (e) => {
       try {
         const data = JSON.parse(e.data);
@@ -67,7 +77,7 @@ class SSEPoolManager {
     });
 
     this.eventSource.onerror = () => {
-      this.connected = false;
+      this._setConnected(false);
       this.eventSource?.close();
       this.eventSource = null;
 
@@ -75,11 +85,29 @@ class SSEPoolManager {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = setTimeout(() => {
         if (this._hasSubscribers()) {
-          console.log("[sse-pool] Yeniden bağlanılıyor...");
           this.connect(url);
         }
       }, 5000);
     };
+  }
+
+  _setConnected(value) {
+    if (this.connected === value) return;
+    this.connected = value;
+    // React bileşenlerini bilgilendir
+    for (const listener of this._connectedListeners) {
+      listener();
+    }
+  }
+
+  // useSyncExternalStore API — React'in önerdiği yöntem
+  subscribeConnected(listener) {
+    this._connectedListeners.add(listener);
+    return () => this._connectedListeners.delete(listener);
+  }
+
+  getConnectedSnapshot() {
+    return this.connected;
   }
 
   _dispatch(channel, data) {
@@ -137,7 +165,7 @@ class SSEPoolManager {
       this.eventSource.close();
       this.eventSource = null;
     }
-    this.connected = false;
+    this._setConnected(false);
   }
 
   _hasSubscribers() {
@@ -189,7 +217,7 @@ export function SSEPoolProvider({ children }) {
   );
 }
 
-// ── Hook ──
+// ── Base Hook ──
 export function useSSEPool() {
   const pool = useContext(SSEPoolContext) || getPool();
 
@@ -209,11 +237,30 @@ export function useSSEPool() {
 
   const getStats = useCallback(() => pool.getStats(), [pool]);
 
-  return { subscribe, unsubscribe, getStats };
+  return { subscribe, unsubscribe, getStats, pool };
 }
 
+// ── Connected State Hook ──
 /**
- * Convenience hook — belirli bir cihazın telemetrisini dinle
+ * SSE bağlantı durumunu döndürür.
+ * @returns {boolean} true = bağlı, false = bağlı değil
+ */
+export function useSSEConnected() {
+  const pool = useContext(SSEPoolContext) || getPool();
+
+  return useSyncExternalStore(
+    (listener) => pool.subscribeConnected(listener),
+    () => pool.getConnectedSnapshot(),
+    () => false // SSR snapshot
+  );
+}
+
+// ── Convenience Hooks ──
+
+/**
+ * Tek cihazın telemetrisini dinle.
+ * @param {string|null} deviceId - Cihaz ID (null = devre dışı)
+ * @param {Function} callback - Veri geldiğinde çağrılır: (data) => void
  */
 export function useTelemetrySSE(deviceId, callback) {
   const { subscribe, unsubscribe } = useSSEPool();
@@ -227,7 +274,32 @@ export function useTelemetrySSE(deviceId, callback) {
 }
 
 /**
- * Convenience hook — alarmları dinle
+ * Çoklu cihazın telemetrisini dinle (filtre yok — tüm telemetri gelir, callback'te filtrele).
+ * @param {string[]|null} deviceIds - Cihaz ID listesi (boş/null = devre dışı)
+ * @param {Function} callback - Veri geldiğinde çağrılır: (data) => void
+ */
+export function useMultiTelemetrySSE(deviceIds, callback) {
+  const { subscribe, unsubscribe } = useSSEPool();
+
+  useEffect(() => {
+    if (!deviceIds?.length || !callback) return;
+
+    // Tek cihaz → deviceId filtreli subscribe
+    if (deviceIds.length === 1) {
+      const subId = subscribe("telemetry", callback, { deviceId: deviceIds[0] });
+      return () => unsubscribe("telemetry", subId);
+    }
+
+    // Çoklu cihaz → filtre yok, tüm telemetriyi al, callback içinde filtrele
+    const subId = subscribe("telemetry", callback);
+    return () => unsubscribe("telemetry", subId);
+  }, [deviceIds?.join(","), callback, subscribe, unsubscribe]);
+}
+
+/**
+ * Alarmları dinle.
+ * @param {Function} callback - Alarm geldiğinde çağrılır: (alarm) => void
+ * @param {string} [deviceId] - Opsiyonel cihaz filtresi
  */
 export function useAlarmSSE(callback, deviceId) {
   const { subscribe, unsubscribe } = useSSEPool();

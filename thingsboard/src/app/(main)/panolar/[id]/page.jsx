@@ -61,12 +61,12 @@ export default function DashboardEditorPage() {
         // Widget pozisyonlarını sanitize et (mevcut veritabanı verisinde null/undefined olabilir)
         const sanitized = {
           ...data.data,
-          widgets: (data.data.widgets || []).map((w) => ({
+          widgets: (data.data.widgets || []).map((w, idx) => ({
             ...w,
-            x: Number.isFinite(w.x) ? w.x : 0,
-            y: Number.isFinite(w.y) ? w.y : 0,
-            w: Number.isFinite(w.w) ? w.w : 4,
-            h: Number.isFinite(w.h) ? w.h : 3,
+            x: Number.isFinite(w.x) && w.x !== null ? w.x : (idx % 12),
+            y: Number.isFinite(w.y) && w.y !== null ? w.y : (idx * 10),
+            w: Number.isFinite(w.w) && w.w !== null ? w.w : 4,
+            h: Number.isFinite(w.h) && w.h !== null ? w.h : 3,
           })),
         };
         setDashboard(sanitized);
@@ -152,15 +152,18 @@ export default function DashboardEditorPage() {
     try {
       setSaving(true);
 
-      // Widget verilerini sanitize et — Infinity, NaN, null gibi
-      // JSON.stringify'ın null'a dönüştürdüğü değerleri temizle
-      const sanitizedWidgets = dashboard.widgets.map((w) => ({
+      // Widget verilerini sanitize et
+      const sanitizedWidgets = (dashboard.widgets || []).map((w, idx) => ({
         ...w,
-        x: Number.isFinite(w.x) ? w.x : 0,
-        y: Number.isFinite(w.y) ? w.y : 0,
+        x: Number.isFinite(w.x) ? w.x : (idx % 12),
+        y: Number.isFinite(w.y) ? w.y : (idx * 10),
         w: Number.isFinite(w.w) ? w.w : 4,
         h: Number.isFinite(w.h) ? w.h : 3,
       }));
+
+      // 15 saniye timeout — sunucu yanıt vermezse zorla kes
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const res = await fetch(`/api/dashboard/${id}`, {
         method: "PUT",
@@ -170,7 +173,10 @@ export default function DashboardEditorPage() {
           description: dashboard.description,
           widgets: sanitizedWidgets,
         }),
+        signal: controller.signal,
       });
+      clearTimeout(timeoutId);
+
       const data = await res.json();
       if (data.ok) {
         toast.success("Pano kaydedildi!");
@@ -179,8 +185,11 @@ export default function DashboardEditorPage() {
         toast.error(data.message || "Kaydetme başarısız.");
       }
     } catch (err) {
-      console.error("[handleSave]", err);
-      toast.error("Kaydetme hatası.");
+      if (err.name === "AbortError") {
+        toast.error("Kaydetme zaman aşımına uğradı. Lütfen tekrar deneyin.");
+      } else {
+        toast.error("Kaydetme hatası.");
+      }
     } finally {
       setSaving(false);
     }
@@ -255,7 +264,6 @@ export default function DashboardEditorPage() {
   };
 
   // Render
-  // ------------------------------------------------------------------ //
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">

@@ -921,6 +921,30 @@ async function gracefulShutdown(signal) {
   }
 }
 
+// ── uncaughtException / unhandledRejection ──
+// Next.js dev mode'da vendor-chunks/worker.js hatası oluşabiliyor.
+// Bu hatalar sunucuyu çökertmemeli — logla ve devam et.
+process.on("uncaughtException", (err) => {
+  // Worker thread hataları → non-fatal, logla ve devam et
+  if (
+    err.code === "MODULE_NOT_FOUND" &&
+    err.message?.includes("vendor-chunks")
+  ) {
+    // Bu bilinen bir Next.js dev mode hatası, sessizce atla
+    return;
+  }
+  if (err.message?.includes("worker thread exited")) {
+    // Worker thread crash — Next.js kendi recovery mekanizmasını kullanır
+    return;
+  }
+  // Diğer uncaughtException'lar → logla (sunucuyu çökertme)
+  logger.error({ err }, "uncaughtException (sunucu çalışmaya devam ediyor)");
+});
+
+process.on("unhandledRejection", (reason) => {
+  logger.error({ err: reason }, "unhandledRejection");
+});
+
 // Başlat
 main().catch((err) => {
   logger.error({ err }, "Sunucu başlatma hatası");

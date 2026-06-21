@@ -7,7 +7,8 @@
  * publicToken verildiğinde SSE yerine polling kullanır.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useMultiTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 import { ArrowUpUp, ArrowDownDown } from "lucide-react";
 
 export default function TableWidget({
@@ -16,7 +17,7 @@ export default function TableWidget({
 }) {
   // Veri yapısı: { [deviceId]: { [key]: value, _time: timestamp } }
   const [deviceData, setDeviceData] = useState({});
-  const [connected, setConnected] = useState(false);
+  const connected = useSSEConnected();
 
   const handleData = useCallback((incoming) => {
     const { deviceId, key, value, timestamp } = incoming;
@@ -38,6 +39,10 @@ export default function TableWidget({
     });
   }, [keys, devices]);
 
+  // SSE Pool hook — canlı veri (authenticated mod)
+  const deviceIds = useMemo(() => devices.map(d => d.id), [devices]);
+  useMultiTelemetrySSE(!publicToken ? deviceIds : null, handleData);
+
   // Telemetri URL'ini belirle
   const getTelemetryUrl = useCallback((deviceId, params = "") => {
     if (publicToken) {
@@ -50,7 +55,6 @@ export default function TableWidget({
     if (devices.length === 0 || keys.length === 0) return;
 
     let isMounted = true;
-    const sseRef = { current: null };
     let pollInterval = null;
 
     // 1. Tüm cihazların son değerlerini çek (Pivot için limit 1 yeterli)
@@ -69,9 +73,7 @@ export default function TableWidget({
           
           results.forEach(({ deviceId, data }) => {
             initialData[deviceId] = {};
-            // En yeniler başta (limit 10 çektik çünkü birden fazla key olabilir)
             data.forEach(item => {
-              // Sadece seçili key'leri al ve daha yeni bir değeri henüz yazmadıysak yaz
               if (keys.includes(item.key) && initialData[deviceId][item.key] === undefined) {
                 initialData[deviceId][item.key] = item.value;
                 if (!initialData[deviceId]._time) initialData[deviceId]._time = item.timestamp;
@@ -86,7 +88,7 @@ export default function TableWidget({
       }
     };
 
-    // 2. Canlı veriyi başlat
+    // 2. Canlı veriyi başlat (sadece polling — SSE artık hook ile yönetiliyor)
     const startLiveData = () => {
       if (publicToken) {
         // Public mod: 10 saniyede bir polling
@@ -109,27 +111,8 @@ export default function TableWidget({
                 });
               });
             });
-            if (isMounted) setConnected(true);
-          } catch {
-            if (isMounted) setConnected(false);
-          }
+          } catch {}
         }, 10000);
-        setConnected(true);
-      } else {
-        // SSE modu (orijinal)
-        const url = devices.length === 1 
-          ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
-          : `/api/sse`;
-          
-        const es = new EventSource(url);
-        sseRef.current = es;
-
-        es.onopen = () => { if (isMounted) setConnected(true); };
-        es.onerror = () => { if (isMounted) setConnected(false); };
-        es.onmessage = (e) => {
-          if (!isMounted) return;
-          try { handleData(JSON.parse(e.data)); } catch {}
-        };
       }
     };
 
@@ -139,11 +122,9 @@ export default function TableWidget({
 
     return () => {
       isMounted = false;
-      if (sseRef.current) sseRef.current.close();
       if (pollInterval) clearInterval(pollInterval);
-      setConnected(false);
     };
-  }, [devices, keys, handleData, publicToken, getTelemetryUrl]);
+  }, [devices, keys, publicToken, getTelemetryUrl]);
 
   return (
     <div className="h-full flex flex-col">

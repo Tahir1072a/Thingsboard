@@ -3,10 +3,11 @@
 /**
  * AlarmWidget — Alarm Listesi Widget
  * Seçili cihazlar için canlı alarm tablosu gösterir.
- * SSE ile yeni alarm olaylarını dinler.
+ * SSE Pool üzerinden alarm olaylarını dinler.
  */
 
 import { useEffect, useState, useCallback } from "react";
+import { useAlarmSSE, useSSEConnected } from "@/lib/sse-pool";
 import { CheckCircle2, AlertTriangle } from "lucide-react";
 
 const SEVERITY_STYLES = {
@@ -30,7 +31,7 @@ export default function AlarmWidget({
   const maxRows = config.maxRows || 10;
 
   const [alarms, setAlarms] = useState([]);
-  const [connected, setConnected] = useState(false);
+  // connected state artık useSSEConnected() hook'undan geliyor (aşağıda)
   const [loading, setLoading] = useState(true);
 
   // Cihaz ismi hızlı lookup
@@ -85,45 +86,16 @@ export default function AlarmWidget({
     });
   }, [devices]);
 
+  // İlk yükleme — alarmları çek
   useEffect(() => {
     if (devices.length === 0) return;
+    fetchAlarms();
+  }, [devices, fetchAlarms]);
 
-    let isMounted = true;
-    const sseRef = { current: null };
-
-    // 1. Alarmları çek
-    const init = async () => {
-      await fetchAlarms();
-
-      if (!isMounted) return;
-
-      // 2. SSE başlat (alarm event'leri dinlemek için)
-      const url = devices.length === 1
-        ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
-        : `/api/sse`;
-
-      const es = new EventSource(url);
-      sseRef.current = es;
-
-      es.onopen = () => { if (isMounted) setConnected(true); };
-      es.onerror = () => { if (isMounted) setConnected(false); };
-      es.addEventListener("alarm", (e) => {
-        if (!isMounted) return;
-        try {
-          const data = JSON.parse(e.data);
-          handleAlarmEvent(data);
-        } catch { }
-      });
-    };
-
-    init();
-
-    return () => {
-      isMounted = false;
-      if (sseRef.current) sseRef.current.close();
-      setConnected(false);
-    };
-  }, [devices, fetchAlarms, handleAlarmEvent]);
+  // SSE Pool üzerinden alarm dinle (tek bağlantı)
+  const connected = useSSEConnected();
+  const deviceId = devices.length === 1 ? devices[0].id : undefined;
+  useAlarmSSE(handleAlarmEvent, deviceId);
 
   // Filtreleme
   const filteredAlarms = alarms

@@ -8,6 +8,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { useTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 
 export default function ValueCardWidget({
   devices = [], keys = [], title = "Değer",
@@ -21,7 +22,7 @@ export default function ValueCardWidget({
 
   const [value, setValue] = useState(null);
   const [trend, setTrend] = useState("stable"); // up | down | stable
-  const [connected, setConnected] = useState(false);
+  const connected = useSSEConnected();
   const [lastUpdate, setLastUpdate] = useState(null);
   const prevValueRef = useRef(null);
 
@@ -47,11 +48,13 @@ export default function ValueCardWidget({
     return `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}${params}`;
   }, [publicToken, deviceId, key]);
 
+  // SSE pool hook — aktif sadece publicToken yokken
+  useTelemetrySSE(!publicToken ? deviceId : null, handleData);
+
   useEffect(() => {
     if (!deviceId) return;
 
     let isMounted = true;
-    const sseRef = { current: null };
     let pollInterval = null;
 
     const fetchHistory = async () => {
@@ -84,23 +87,8 @@ export default function ValueCardWidget({
                 timestamp: json.data[0].timestamp,
               });
             }
-            if (isMounted) setConnected(true);
-          } catch {
-            if (isMounted) setConnected(false);
-          }
+          } catch {}
         }, 10000);
-        setConnected(true);
-      } else {
-        // SSE modu (orijinal)
-        const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
-        sseRef.current = es;
-
-        es.onopen = () => { if (isMounted) setConnected(true); };
-        es.onerror = () => { if (isMounted) setConnected(false); };
-        es.onmessage = (e) => {
-          if (!isMounted) return;
-          try { handleData(JSON.parse(e.data)); } catch {}
-        };
       }
     };
 
@@ -110,9 +98,7 @@ export default function ValueCardWidget({
 
     return () => {
       isMounted = false;
-      if (sseRef.current) sseRef.current.close();
       if (pollInterval) clearInterval(pollInterval);
-      setConnected(false);
     };
   }, [deviceId, key, handleData, publicToken, getTelemetryUrl]);
 

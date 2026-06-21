@@ -54,7 +54,7 @@ export async function GET(request) {
             protocol: doc.protocol,
             timestamp: doc.timestamp,
           });
-          controller.enqueue(encoder.encode(`data: ${payload}\n\n`));
+          controller.enqueue(encoder.encode(`event: telemetry\ndata: ${payload}\n\n`));
         } catch {
           // stream kapandıysa sessizce geç
         }

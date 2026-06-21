@@ -201,7 +201,7 @@ export default function WidgetConfigModal({
       config,
       ...(mode === "add" ? {
         x: 0,
-        y: 9999, // react-grid-layout otomatik compact eder
+        y: 99999, // react-grid-layout otomatik compact eder
         w: typeConfig?.defaultSize?.w || 4,
         h: typeConfig?.defaultSize?.h || 3,
       } : {}),

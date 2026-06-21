@@ -6,7 +6,8 @@
  * publicToken verildiğinde SSE yerine polling kullanır.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useMultiTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Brush, Legend, ReferenceLine
@@ -25,7 +26,7 @@ export default function LineChartWidget({
   const targetKey = keys[0] || "value"; // LineChart artık tek key alıyor
   
   const [data, setData] = useState([]);
-  const [connected, setConnected] = useState(false);
+  const connected = useSSEConnected();
   const [lastValues, setLastValues] = useState({});
 
   // Grafikteki noktaları çizmek için gerekli.
@@ -57,6 +58,10 @@ export default function LineChartWidget({
     setLastValues((prev) => ({ ...prev, [device.name]: value }));
   }, [targetKey, devices, maxPoints]);
 
+  // SSE Pool hook — canlı veri (authenticated mod)
+  const deviceIds = useMemo(() => devices.map(d => d.id), [devices]);
+  useMultiTelemetrySSE(!publicToken ? deviceIds : null, addPoint);
+
   // Telemetri URL'ini belirle (public vs authenticated)
   const getTelemetryUrl = useCallback((deviceId, params = "") => {
     if (publicToken) {
@@ -69,7 +74,6 @@ export default function LineChartWidget({
     if (devices.length === 0) return;
 
     let isMounted = true;
-    const sseRef = { current: null };
     let pollInterval = null;
 
     // 1. Önce geçmiş verileri çek
@@ -90,7 +94,6 @@ export default function LineChartWidget({
           // Tüm cihazların verilerini zamana göre grupla
           results.forEach(({ deviceName, data }) => {
             if (!data) return;
-            // Eskiden yeniye sıralı olduğunu varsayıyoruz (veya tersine çeviriyoruz, API descending veriyorsa reverse yapalım)
             const sortedData = [...data].reverse();
             
             sortedData.forEach(item => {
@@ -103,7 +106,6 @@ export default function LineChartWidget({
             });
           });
 
-          // Zamanlara göre sırala ve son maxPoints kadarını al
           const sortedKeys = Object.keys(grouped).sort();
           const arr = sortedKeys.map(k => grouped[k]).slice(-maxPoints);
           
@@ -115,7 +117,7 @@ export default function LineChartWidget({
       }
     };
 
-    // 2. Canlı veriyi başlat
+    // 2. Canlı veriyi başlat (sadece polling — SSE artık hook ile yönetiliyor)
     const startLiveData = () => {
       if (publicToken) {
         // Public mod: 10 saniyede bir polling
@@ -138,27 +140,8 @@ export default function LineChartWidget({
                 });
               }
             });
-            if (isMounted) setConnected(true);
-          } catch {
-            if (isMounted) setConnected(false);
-          }
+          } catch {}
         }, 10000);
-        setConnected(true);
-      } else {
-        // SSE modu (orijinal)
-        const url = devices.length === 1 
-          ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
-          : `/api/sse`;
-          
-        const es = new EventSource(url);
-        sseRef.current = es;
-
-        es.onopen = () => { if (isMounted) setConnected(true); };
-        es.onerror = () => { if (isMounted) setConnected(false); };
-        es.onmessage = (e) => {
-          if (!isMounted) return;
-          try { addPoint(JSON.parse(e.data)); } catch {}
-        };
       }
     };
 
@@ -168,11 +151,9 @@ export default function LineChartWidget({
 
     return () => {
       isMounted = false;
-      if (sseRef.current) sseRef.current.close();
       if (pollInterval) clearInterval(pollInterval);
-      setConnected(false);
     };
-  }, [devices, targetKey, maxPoints, publicToken, getTelemetryUrl]); // addPoint dependency'si sorun yaratmamalı
+  }, [devices, targetKey, maxPoints, publicToken, getTelemetryUrl]);
 
   return (
     <div className="h-full flex flex-col">

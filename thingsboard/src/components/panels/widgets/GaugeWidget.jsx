@@ -7,6 +7,7 @@
  */
 
 import { useEffect, useState, useCallback } from "react";
+import { useTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 import { RadialBarChart, RadialBar, ResponsiveContainer, PolarAngleAxis } from "recharts";
 
 export default function GaugeWidget({
@@ -22,7 +23,7 @@ export default function GaugeWidget({
   const unit = config.unit || "";
 
   const [value, setValue] = useState(null);
-  const [connected, setConnected] = useState(false);
+  const connected = useSSEConnected();
 
   const handleData = useCallback((incoming) => {
     if (incoming.key === key) {
@@ -38,11 +39,13 @@ export default function GaugeWidget({
     return `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}${params}`;
   }, [publicToken, deviceId, key]);
 
+  // SSE pool hook — aktif sadece publicToken yokken
+  useTelemetrySSE(!publicToken ? deviceId : null, handleData);
+
   useEffect(() => {
     if (!deviceId) return;
 
     let isMounted = true;
-    const sseRef = { current: null };
     let pollInterval = null;
 
     const fetchHistory = async () => {
@@ -71,23 +74,8 @@ export default function GaugeWidget({
                 value: json.data[0].value,
               });
             }
-            if (isMounted) setConnected(true);
-          } catch {
-            if (isMounted) setConnected(false);
-          }
+          } catch {}
         }, 10000);
-        setConnected(true);
-      } else {
-        // SSE modu (orijinal)
-        const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
-        sseRef.current = es;
-
-        es.onopen = () => { if (isMounted) setConnected(true); };
-        es.onerror = () => { if (isMounted) setConnected(false); };
-        es.onmessage = (e) => {
-          if (!isMounted) return;
-          try { handleData(JSON.parse(e.data)); } catch {}
-        };
       }
     };
 
@@ -97,9 +85,7 @@ export default function GaugeWidget({
 
     return () => {
       isMounted = false;
-      if (sseRef.current) sseRef.current.close();
       if (pollInterval) clearInterval(pollInterval);
-      setConnected(false);
     };
   }, [deviceId, key, handleData, publicToken, getTelemetryUrl]);
 

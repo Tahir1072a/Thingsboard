@@ -10,6 +10,7 @@
  */
 
 import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useMultiTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 import { AnimatePresence } from "framer-motion";
 import { Upload, MapPinPlus, Image as ImageIcon } from "lucide-react";
 
@@ -30,7 +31,6 @@ export default function ImageMapWidget({
 
   /* ── SSE telemetri değerleri: { "deviceId:key": { value, unit } } ── */
   const [telemetryValues, setTelemetryValues] = useState({});
-  const [connected, setConnected] = useState(false);
 
   /* ── Marker ekleme paneli görünürlüğü ── */
   const [showMarkerPanel, setShowMarkerPanel] = useState(false);
@@ -42,95 +42,61 @@ export default function ImageMapWidget({
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
 
-  /* ──────────────────────────────────────────────
-   * SSE / Polling — Her benzersiz deviceId için bağlantı aç
-   * ────────────────────────────────────────────── */
+  /* ── Benzersiz cihaz ID'leri ── */
   const uniqueDeviceIds = useMemo(
     () => [...new Set(markers.map((m) => m.deviceId).filter(Boolean))],
     [markers]
   );
 
+  /* ── SSE Pool üzerinden telemetri dinle (tek bağlantı) ── */
+  const connected = useSSEConnected();
+
+  const handleTelemetry = useCallback((data) => {
+    setTelemetryValues((prev) => ({
+      ...prev,
+      [`${data.deviceId}:${data.key}`]: {
+        value: data.value,
+        unit: data.unit || "",
+      },
+    }));
+  }, []);
+
+  useMultiTelemetrySSE(!publicToken ? uniqueDeviceIds : null, handleTelemetry);
+
+  /* Polling modu (public dashboard) */
   useEffect(() => {
-    if (uniqueDeviceIds.length === 0) return;
+    if (!publicToken || uniqueDeviceIds.length === 0) return;
 
     let isMounted = true;
-    let pollInterval = null;
-
-    if (publicToken) {
-      // Public mod: 10 saniyede bir polling
-      const fetchLatest = async () => {
-        if (!isMounted) return;
-        try {
-          const promises = uniqueDeviceIds.map((id) =>
-            fetch(`/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(id)}&latest=true`)
-              .then((res) => res.json())
-              .then((json) => ({ deviceId: id, data: json.data || [] }))
-          );
-          const results = await Promise.all(promises);
-          results.forEach(({ deviceId, data }) => {
-            data.forEach((item) => {
-              setTelemetryValues((prev) => ({
-                ...prev,
-                [`${deviceId}:${item.key}`]: {
-                  value: item.value,
-                  unit: item.unit || "",
-                },
-              }));
-            });
-          });
-          if (isMounted) setConnected(true);
-        } catch {
-          if (isMounted) setConnected(false);
-        }
-      };
-
-      fetchLatest(); // İlk çekim
-      pollInterval = setInterval(fetchLatest, 10000);
-    } else {
-      // SSE modu (orijinal)
-      const sources = uniqueDeviceIds.map((id) => {
-        const es = new EventSource(
-          `/api/sse?deviceId=${encodeURIComponent(id)}`
+    const fetchLatest = async () => {
+      if (!isMounted) return;
+      try {
+        const promises = uniqueDeviceIds.map((id) =>
+          fetch(`/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(id)}&latest=true`)
+            .then((res) => res.json())
+            .then((json) => ({ deviceId: id, data: json.data || [] }))
         );
-
-        es.onopen = () => {
-          if (isMounted) setConnected(true);
-        };
-
-        es.onerror = () => {
-          if (isMounted) setConnected(false);
-        };
-
-        es.onmessage = (e) => {
-          if (!isMounted) return;
-          try {
-            const data = JSON.parse(e.data);
+        const results = await Promise.all(promises);
+        results.forEach(({ deviceId, data }) => {
+          data.forEach((item) => {
             setTelemetryValues((prev) => ({
               ...prev,
-              [`${data.deviceId}:${data.key}`]: {
-                value: data.value,
-                unit: data.unit || "",
+              [`${deviceId}:${item.key}`]: {
+                value: item.value,
+                unit: item.unit || "",
               },
             }));
-          } catch {
-            /* malformed JSON — yoksay */
-          }
-        };
+          });
+        });
+      } catch { /* polling hatası */ }
+    };
 
-        return es;
-      });
-
-      return () => {
-        isMounted = false;
-        sources.forEach((es) => es.close());
-        setConnected(false);
-      };
-    }
+    fetchLatest();
+    const pollInterval = setInterval(fetchLatest, 10000);
 
     return () => {
       isMounted = false;
-      if (pollInterval) clearInterval(pollInterval);
-      setConnected(false);
+      clearInterval(pollInterval);
     };
   }, [uniqueDeviceIds, publicToken]);
 

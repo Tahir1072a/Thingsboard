@@ -6,7 +6,8 @@
  * deviceId = MongoDB ObjectId kullanır.
  */
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
+import { useTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 import {
   LineChart, Line, XAxis, YAxis, CartesianGrid,
   Tooltip, ResponsiveContainer, Legend,
@@ -24,9 +25,8 @@ export default function LiveChart({
   title = "Canlı Veri",
 }) {
   const [data, setData] = useState([]);
-  const [connected, setConnected] = useState(false);
   const [lastValues, setLastValues] = useState({});
-  const esRef = useRef(null);
+  const connected = useSSEConnected();
 
   const addPoint = useCallback((incoming) => {
     const { key, value, timestamp } = incoming;
@@ -51,21 +51,8 @@ export default function LiveChart({
     setLastValues((prev) => ({ ...prev, [key]: value }));
   }, [keys, maxPoints]);
 
-  useEffect(() => {
-    if (!deviceId) return;
-
-    const url = `/api/sse?deviceId=${encodeURIComponent(deviceId)}`;
-    const es = new EventSource(url);
-    esRef.current = es;
-
-    es.onopen = () => setConnected(true);
-    es.onerror = () => setConnected(false);
-    es.onmessage = (e) => {
-      try { addPoint(JSON.parse(e.data)); } catch {}
-    };
-
-    return () => { es.close(); setConnected(false); };
-  }, [deviceId, addPoint]);
+  // SSE Pool üzerinden telemetri dinle
+  useTelemetrySSE(deviceId, addPoint);
 
   return (
     <div className="glass rounded-xl p-4 shadow-sm">

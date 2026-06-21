@@ -77,9 +77,14 @@ export async function PUT(request, { params }) {
     if (name !== undefined) dashboard.name = name;
     if (description !== undefined) dashboard.description = description;
     if (widgets !== undefined) {
-      // Widget pozisyon değerlerini sanitize et
+      // Widget'ları sadece bilinen alanlarla sınırla
       dashboard.widgets = widgets.map((w) => ({
-        ...w,
+        i: w.i,
+        type: w.type,
+        devices: (w.devices || []).map((d) => ({ id: String(d.id), name: d.name || "" })),
+        keys: w.keys || [],
+        title: w.title || "Widget",
+        config: w.config || {},
         x: Number.isFinite(w.x) ? w.x : 0,
         y: Number.isFinite(w.y) ? w.y : 0,
         w: Number.isFinite(w.w) ? w.w : 4,
@@ -89,8 +94,8 @@ export async function PUT(request, { params }) {
 
     await dashboard.save();
 
-    // Audit log
-    auditDashboardAction(userId, "DASHBOARD_UPDATE", dashboard, { changes: body }, tenantId);
+    // Audit log (fire-and-forget)
+    auditDashboardAction(userId, "DASHBOARD_UPDATE", dashboard, { changes: Object.keys(body) }, tenantId);
 
     return NextResponse.json({
       ok: true,
@@ -98,7 +103,7 @@ export async function PUT(request, { params }) {
       data: dashboard.toObject(),
     });
   } catch (error) {
-    console.error("[PUT /api/dashboard/:id]", error);
+    console.error("[PUT /api/dashboard/:id]", error.message);
     return NextResponse.json({ ok: false, message: error.message }, { status: 500 });
   }
 }

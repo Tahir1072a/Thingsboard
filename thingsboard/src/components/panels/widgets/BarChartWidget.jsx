@@ -7,7 +7,8 @@
  * publicToken verildiğinde SSE yerine polling kullanır.
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
+import { useMultiTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, Cell, ResponsiveContainer,
@@ -27,7 +28,7 @@ export default function BarChartWidget({
   const targetKey = keys[0] || "value";
 
   const [latestValues, setLatestValues] = useState({});
-  const [connected, setConnected] = useState(false);
+  const connected = useSSEConnected();
 
   const handleData = useCallback((incoming) => {
     const { deviceId, key, value } = incoming;
@@ -38,6 +39,10 @@ export default function BarChartWidget({
 
     setLatestValues((prev) => ({ ...prev, [device.id]: value }));
   }, [targetKey, devices]);
+
+  // SSE Pool hook — canlı veri (authenticated mod)
+  const deviceIds = useMemo(() => devices.map(d => d.id), [devices]);
+  useMultiTelemetrySSE(!publicToken ? deviceIds : null, handleData);
 
   // Telemetri URL'ini belirle
   const getTelemetryUrl = useCallback((deviceId, params = "") => {
@@ -51,7 +56,6 @@ export default function BarChartWidget({
     if (devices.length === 0) return;
 
     let isMounted = true;
-    const sseRef = { current: null };
     let pollInterval = null;
 
     // 1. Geçmiş verileri çek (her cihaz için son değer)
@@ -79,7 +83,7 @@ export default function BarChartWidget({
       }
     };
 
-    // 2. Canlı veriyi başlat
+    // 2. Canlı veriyi başlat (sadece polling — SSE artık hook ile yönetiliyor)
     const startLiveData = () => {
       if (publicToken) {
         pollInterval = setInterval(async () => {
@@ -100,26 +104,8 @@ export default function BarChartWidget({
                 });
               }
             });
-            if (isMounted) setConnected(true);
-          } catch {
-            if (isMounted) setConnected(false);
-          }
+          } catch {}
         }, 10000);
-        setConnected(true);
-      } else {
-        const url = devices.length === 1
-          ? `/api/sse?deviceId=${encodeURIComponent(devices[0].id)}`
-          : `/api/sse`;
-
-        const es = new EventSource(url);
-        sseRef.current = es;
-
-        es.onopen = () => { if (isMounted) setConnected(true); };
-        es.onerror = () => { if (isMounted) setConnected(false); };
-        es.onmessage = (e) => {
-          if (!isMounted) return;
-          try { handleData(JSON.parse(e.data)); } catch {}
-        };
       }
     };
 
@@ -129,11 +115,9 @@ export default function BarChartWidget({
 
     return () => {
       isMounted = false;
-      if (sseRef.current) sseRef.current.close();
       if (pollInterval) clearInterval(pollInterval);
-      setConnected(false);
     };
-  }, [devices, targetKey, handleData, publicToken, getTelemetryUrl]);
+  }, [devices, targetKey, publicToken, getTelemetryUrl]);
 
   // Çubuk grafik verisi: her cihaz bir bar
   const chartData = devices

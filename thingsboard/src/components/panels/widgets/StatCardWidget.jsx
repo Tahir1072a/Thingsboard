@@ -9,6 +9,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { Activity, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { useTelemetrySSE, useSSEConnected } from "@/lib/sse-pool";
 
 const ACCENT_COLORS = [
   { text: "text-indigo-500", bg: "bg-indigo-50", border: "border-indigo-200/50", ring: "ring-indigo-100" },
@@ -34,7 +35,7 @@ export default function StatCardWidget({
 
   // { [key]: { value, prevValue, trend } }
   const [metrics, setMetrics] = useState({});
-  const [connected, setConnected] = useState(false);
+  const connected = useSSEConnected();
   const prevValuesRef = useRef({});
 
   const handleData = useCallback((incoming) => {
@@ -65,11 +66,13 @@ export default function StatCardWidget({
     return `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}${params}`;
   }, [publicToken, deviceId]);
 
+  // SSE pool hook — aktif sadece publicToken yokken
+  useTelemetrySSE(!publicToken ? deviceId : null, handleData);
+
   useEffect(() => {
     if (!deviceId || keys.length === 0) return;
 
     let isMounted = true;
-    const sseRef = { current: null };
     let pollInterval = null;
 
     // 1. Her key için geçmiş veriyi çek
@@ -125,22 +128,8 @@ export default function StatCardWidget({
                 });
               }
             });
-            if (isMounted) setConnected(true);
-          } catch {
-            if (isMounted) setConnected(false);
-          }
+          } catch {}
         }, 10000);
-        setConnected(true);
-      } else {
-        const es = new EventSource(`/api/sse?deviceId=${encodeURIComponent(deviceId)}`);
-        sseRef.current = es;
-
-        es.onopen = () => { if (isMounted) setConnected(true); };
-        es.onerror = () => { if (isMounted) setConnected(false); };
-        es.onmessage = (e) => {
-          if (!isMounted) return;
-          try { handleData(JSON.parse(e.data)); } catch {}
-        };
       }
     };
 
@@ -150,9 +139,7 @@ export default function StatCardWidget({
 
     return () => {
       isMounted = false;
-      if (sseRef.current) sseRef.current.close();
       if (pollInterval) clearInterval(pollInterval);
-      setConnected(false);
     };
   }, [deviceId, keys, handleData, publicToken, getTelemetryUrl]);
 

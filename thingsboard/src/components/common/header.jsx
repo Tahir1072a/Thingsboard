@@ -3,6 +3,7 @@
 import { useSession, signOut } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useCallback } from "react";
+import { useAlarmSSE } from "@/lib/sse-pool";
 import { Button } from "../ui/button";
 import { Bell, User, LogOut, ChevronDown, AlertTriangle, CheckCircle } from "lucide-react";
 import {
@@ -45,55 +46,47 @@ export default function Header({ pageTitle = "Anasayfa" }) {
     return () => clearInterval(interval);
   }, [fetchAlarmCount]);
 
-  // SSE ile anlık alarm bildirimi
-  useEffect(() => {
-    const es = new EventSource("/api/sse");
-    es.addEventListener("alarm", (e) => {
-      try {
-        const alarm = JSON.parse(e.data);
-        // Sadece yeni aktif alarmlar için bildirim göster
-        if (alarm.status === "ACTIVE") {
-          const severityEmoji = alarm.severity === "CRITICAL" ? "🔴" : alarm.severity === "MAJOR" ? "🟠" : "🟡";
-          toast(
-            (t) => (
-              <div
-                className="flex items-start gap-3 cursor-pointer"
-                onClick={() => {
-                  toast.dismiss(t.id);
-                  router.push("/alarmlar");
-                }}
-              >
-                <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
-                <div>
-                  <div className="font-semibold text-sm">
-                    {severityEmoji} {alarm.type}
-                  </div>
-                  <div className="text-xs text-gray-500 mt-0.5">
-                    {alarm.deviceName} • {alarm.details?.key}: {alarm.details?.triggerValue}
-                  </div>
-                  <div className="text-xs text-blue-500 mt-1">
-                    Alarma git →
-                  </div>
-                </div>
+  // SSE Pool ile anlık alarm bildirimi (tek bağlantı paylaşılır)
+  const handleAlarmSSE = useCallback((alarm) => {
+    if (alarm.status === "ACTIVE") {
+      const severityEmoji = alarm.severity === "CRITICAL" ? "🔴" : alarm.severity === "MAJOR" ? "🟠" : "🟡";
+      toast(
+        (t) => (
+          <div
+            className="flex items-start gap-3 cursor-pointer"
+            onClick={() => {
+              toast.dismiss(t.id);
+              router.push("/alarmlar");
+            }}
+          >
+            <AlertTriangle className="h-5 w-5 text-red-500 shrink-0 mt-0.5" />
+            <div>
+              <div className="font-semibold text-sm">
+                {severityEmoji} {alarm.type}
               </div>
-            ),
-            {
-              duration: 8000,
-              style: { border: alarm.severity === "CRITICAL" ? "1px solid #ef4444" : "1px solid #f97316" },
-            }
-          );
-          // Badge'ı hemen güncelle
-          setActiveCount((prev) => prev + 1);
-          setRecentAlarms((prev) => [alarm, ...prev.slice(0, 4)]);
-        } else if (alarm.status === "CLEARED") {
-          // Temizlenen alarmı listeden kaldır
-          setActiveCount((prev) => Math.max(0, prev - 1));
-          setRecentAlarms((prev) => prev.filter((a) => a._id !== alarm._id));
+              <div className="text-xs text-gray-500 mt-0.5">
+                {alarm.deviceName} • {alarm.details?.key}: {alarm.details?.triggerValue}
+              </div>
+              <div className="text-xs text-blue-500 mt-1">
+                Alarma git →
+              </div>
+            </div>
+          </div>
+        ),
+        {
+          duration: 8000,
+          style: { border: alarm.severity === "CRITICAL" ? "1px solid #ef4444" : "1px solid #f97316" },
         }
-      } catch {}
-    });
-    return () => es.close();
+      );
+      setActiveCount((prev) => prev + 1);
+      setRecentAlarms((prev) => [alarm, ...prev.slice(0, 4)]);
+    } else if (alarm.status === "CLEARED") {
+      setActiveCount((prev) => Math.max(0, prev - 1));
+      setRecentAlarms((prev) => prev.filter((a) => a._id !== alarm._id));
+    }
   }, [router]);
+
+  useAlarmSSE(handleAlarmSSE);
 
   const handleAcknowledge = async (alarmId) => {
     try {
