@@ -322,6 +322,7 @@ export default function WidgetConfigModal({
         return { id: d?._id, name: d?.name || "" };
       }).filter(d => d.id);
       widgetObj.devices = selectedDevices;
+      widgetObj.aliasId = null;
     }
 
     onSave(widgetObj);
