@@ -4,8 +4,10 @@ import { authOptions } from "@/lib/auth";
 import crypto from "crypto";
 import path from "path";
 import { writeFile, mkdir } from "fs/promises";
+import { PutObjectCommand } from "@aws-sdk/client-s3";
+import r2, { R2_BUCKET, R2_PUBLIC_URL } from "@/lib/r2";
 
-const MAX_SIZE = 5 * 1024 * 1024; // 5MB
+const MAX_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = [
   "image/png",
   "image/jpeg",
@@ -49,7 +51,7 @@ export async function POST(request) {
     // Boyut kontrolü
     if (file.size > MAX_SIZE) {
       return NextResponse.json(
-        { ok: false, message: "Dosya boyutu 5MB'ı aşamaz." },
+        { ok: false, message: "Dosya boyutu 10MB'ı aşamaz." },
         { status: 400 }
       );
     }
@@ -67,8 +69,6 @@ export async function POST(request) {
 
     if (useR2) {
       // ── Cloudflare R2 ──
-      const { PutObjectCommand } = await import("@aws-sdk/client-s3");
-      const { default: r2, R2_BUCKET, R2_PUBLIC_URL } = await import("@/lib/r2");
 
       const r2Key = `floor-plans/${uniqueName}`;
       await r2.send(
