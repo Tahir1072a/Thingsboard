@@ -16,11 +16,13 @@ import { Input } from "@/components/ui/input";
 import {
   Save, ArrowLeft, Plus, X,
   LayoutDashboard, Pencil, Check,
-  Share2, Link, Copy,
+  Share2, Link, Copy, Link2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Breadcrumbs from "@/components/common/breadcrumbs";
 import WidgetConfigModal from "@/components/panels/widgets/config/WidgetConfigModal";
+import AliasManagerPanel from "@/components/panels/widgets/config/AliasManagerPanel";
+import { AnimatePresence } from "framer-motion";
 
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
@@ -41,6 +43,7 @@ export default function DashboardEditorPage() {
   const [shareData, setShareData] = useState({ isPublic: false, publicToken: null, publicUrl: null });
   const [shareLoading, setShareLoading] = useState(false);
   const [copied, setCopied] = useState(null); // 'url' | 'embed' | null
+  const [aliasPanel, setAliasPanel] = useState(false); // Alias yönetim paneli
 
   // Container width ölçümü (react-grid-layout v2 hook)
   const { width: containerWidth, containerRef } = useContainerWidth({ initialWidth: 1200 });
@@ -394,6 +397,20 @@ export default function DashboardEditorPage() {
                 <Save className="mr-1.5 h-4 w-4" />
                 {saving ? "Kaydediliyor..." : "Kaydet"}
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setAliasPanel(true)}
+                className="border-purple-300 text-purple-700 bg-purple-50 hover:bg-purple-100"
+              >
+                <Link2 className="mr-1.5 h-4 w-4" />
+                Alias Yönetimi
+                {(dashboard?.entityAliases?.length || 0) > 0 && (
+                  <span className="ml-1.5 bg-purple-200 text-purple-800 text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                    {dashboard.entityAliases.length}
+                  </span>
+                )}
+              </Button>
             </>
           )}
           <Button
@@ -486,6 +503,22 @@ export default function DashboardEditorPage() {
         onSave={handleWidgetSave}
         onClose={() => setWidgetModal({ open: false, mode: "add", widget: null })}
       />
+
+      {/* ── Alias Yönetim Paneli ── */}
+      <AnimatePresence>
+        {aliasPanel && (
+          <AliasManagerPanel
+            aliases={dashboard?.entityAliases || []}
+            widgets={dashboard?.widgets || []}
+            devices={devices}
+            onAliasChange={(newAliases) => {
+              setDashboard((prev) => ({ ...prev, entityAliases: newAliases }));
+              resolveEntityAliases(newAliases);
+            }}
+            onClose={() => setAliasPanel(false)}
+          />
+        )}
+      </AnimatePresence>
 
 
       {/* ── Paylaşım Modal ── */}

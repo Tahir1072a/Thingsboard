@@ -582,7 +582,7 @@ export default function WidgetConfigModal({
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent 
+      <DialogContent
         className="!max-w-[1100px] w-[95vw] h-[85vh] p-0 overflow-hidden glass-strong border-white/20 flex flex-col"
         style={{ maxWidth: '1100px' }}
       >

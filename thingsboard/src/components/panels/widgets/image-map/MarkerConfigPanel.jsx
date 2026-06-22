@@ -28,14 +28,37 @@ const ICON_OPTIONS = [
   { value: "generic", label: "Genel", icon: CircleDot },
 ];
 
-export default function MarkerConfigPanel({ devices = [], onAdd, onClose }) {
-  const [deviceId, setDeviceId] = useState(devices[0]?.id || "");
+export default function MarkerConfigPanel({ devices: propDevices = [], onAdd, onClose }) {
+  const [deviceList, setDeviceList] = useState([]);
+  const [loadingDevices, setLoadingDevices] = useState(false);
+  const [deviceId, setDeviceId] = useState("");
   const [telemetryKey, setTelemetryKey] = useState("");
   const [iconType, setIconType] = useState("generic");
   const [availableKeys, setAvailableKeys] = useState([]);
   const [loadingKeys, setLoadingKeys] = useState(false);
 
-  const selectedDevice = devices.find((d) => d.id === deviceId);
+  // Parent'tan cihaz gelmediyse API'den çek
+  useEffect(() => {
+    if (propDevices.length > 0) {
+      setDeviceList(propDevices.map(d => ({ id: d.id || d._id, name: d.name })));
+      setDeviceId(propDevices[0]?.id || propDevices[0]?._id || "");
+      return;
+    }
+    setLoadingDevices(true);
+    fetch("/api/device?limit=100")
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok && data.data) {
+          const list = data.data.map(d => ({ id: d._id, name: d.name }));
+          setDeviceList(list);
+          if (list.length > 0) setDeviceId(list[0].id);
+        }
+      })
+      .catch(() => setDeviceList([]))
+      .finally(() => setLoadingDevices(false));
+  }, [propDevices]);
+
+  const selectedDevice = deviceList.find((d) => d.id === deviceId);
 
   // Cihaz seçildiğinde telemetri key'lerini çek
   useEffect(() => {
@@ -101,11 +124,14 @@ export default function MarkerConfigPanel({ devices = [], onAdd, onClose }) {
             value={deviceId}
             onChange={(e) => setDeviceId(e.target.value)}
             className={inputCls}
+            disabled={loadingDevices}
           >
-            {devices.length === 0 && (
+            {loadingDevices ? (
+              <option value="">Cihazlar yükleniyor...</option>
+            ) : deviceList.length === 0 ? (
               <option value="">Cihaz bulunamadı</option>
-            )}
-            {devices.map((d) => (
+            ) : null}
+            {deviceList.map((d) => (
               <option key={d.id} value={d.id}>
                 {d.name}
               </option>
