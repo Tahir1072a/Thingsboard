@@ -45,6 +45,12 @@ export default function DashboardEditorPage() {
   // Container width ölçümü (react-grid-layout v2 hook)
   const { width: containerWidth, containerRef } = useContainerWidth({ initialWidth: 1200 });
 
+  // Calculate dynamic rowHeight based on container width
+  // Grid has 12 columns with 12px margin, so each column width is:
+  // (containerWidth - 13*12) / 12
+  // rowHeight should be proportional for square-ish cells
+  const dynamicRowHeight = Math.max(30, Math.floor((containerWidth - 13 * 12) / 12));
+
   // Widget ekleme/düzenleme modalı
   const [widgetModal, setWidgetModal] = useState({ open: false, mode: "add", widget: null });
   const [devices, setDevices] = useState([]);
@@ -434,14 +440,14 @@ export default function DashboardEditorPage() {
             width={containerWidth}
             layouts={{ lg: layoutData }}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 2 }}
-            rowHeight={80}
+            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 1 }}
+            rowHeight={dynamicRowHeight}
             isDraggable={editMode}
             isResizable={editMode}
             onLayoutChange={handleLayoutChange}
             draggableHandle=".widget-drag-handle"
             compactType="vertical"
-            margin={[12, 12]}
+            margin={containerWidth < 768 ? [8, 8] : [12, 12]}
           >
             {dashboard.widgets.map((widget) => (
               <div key={widget.i}>

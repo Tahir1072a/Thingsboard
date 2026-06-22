@@ -7,7 +7,7 @@
  * Yeni marker plan merkezine (50%, 50%) eklenir.
  */
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Thermometer,
@@ -32,8 +32,25 @@ export default function MarkerConfigPanel({ devices = [], onAdd, onClose }) {
   const [deviceId, setDeviceId] = useState(devices[0]?.id || "");
   const [telemetryKey, setTelemetryKey] = useState("");
   const [iconType, setIconType] = useState("generic");
+  const [availableKeys, setAvailableKeys] = useState([]);
+  const [loadingKeys, setLoadingKeys] = useState(false);
 
   const selectedDevice = devices.find((d) => d.id === deviceId);
+
+  // Cihaz seçildiğinde telemetri key'lerini çek
+  useEffect(() => {
+    if (!deviceId) { setAvailableKeys([]); return; }
+    setLoadingKeys(true);
+    setTelemetryKey(""); // Cihaz değiştiğinde key sıfırla
+    fetch(`/api/telemetry/keys?deviceId=${deviceId}`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.ok) setAvailableKeys(data.keys || []);
+        else setAvailableKeys([]);
+      })
+      .catch(() => setAvailableKeys([]))
+      .finally(() => setLoadingKeys(false));
+  }, [deviceId]);
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -96,19 +113,38 @@ export default function MarkerConfigPanel({ devices = [], onAdd, onClose }) {
           </select>
         </div>
 
-        {/* ── Telemetri key ── */}
+        {/* ── Telemetri key (autocomplete dropdown) ── */}
         <div>
           <label className="block text-xs font-medium text-text-muted mb-1">
             Telemetri Anahtarı
           </label>
-          <input
-            type="text"
-            value={telemetryKey}
-            onChange={(e) => setTelemetryKey(e.target.value)}
-            placeholder="ör. temperature"
-            className={inputCls}
-            required
-          />
+          {loadingKeys ? (
+            <div className={`${inputCls} flex items-center gap-2 text-text-muted/60`}>
+              <div className="w-3 h-3 border-2 border-gray-300 border-t-halo-500 rounded-full animate-spin" />
+              Yükleniyor...
+            </div>
+          ) : availableKeys.length > 0 ? (
+            <select
+              value={telemetryKey}
+              onChange={(e) => setTelemetryKey(e.target.value)}
+              className={inputCls}
+              required
+            >
+              <option value="">Veri seçin...</option>
+              {availableKeys.map((k) => (
+                <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+          ) : (
+            <input
+              type="text"
+              value={telemetryKey}
+              onChange={(e) => setTelemetryKey(e.target.value)}
+              placeholder="ör. temperature"
+              className={inputCls}
+              required
+            />
+          )}
         </div>
 
         {/* ── İkon tipi ── */}

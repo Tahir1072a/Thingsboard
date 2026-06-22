@@ -251,18 +251,6 @@ export default function ImageMapWidget({
         className="hidden"
       />
 
-      {/* ── Marker ekleme paneli (overlay) ── */}
-      <AnimatePresence>
-        {showMarkerPanel && (
-          <div className="relative z-30 mb-2">
-            <MarkerConfigPanel
-              devices={devices}
-              onAdd={handleAddMarker}
-              onClose={() => setShowMarkerPanel(false)}
-            />
-          </div>
-        )}
-      </AnimatePresence>
 
       {/* ── Ana görüntü alanı ── */}
       <div
@@ -275,6 +263,19 @@ export default function ImageMapWidget({
           }
         `}
       >
+        {/* Marker ekleme paneli — absolute overlay, resmi küçültmez */}
+        <AnimatePresence>
+          {showMarkerPanel && (
+            <div className="absolute top-3 left-3 z-30">
+              <MarkerConfigPanel
+                devices={devices}
+                onAdd={handleAddMarker}
+                onClose={() => setShowMarkerPanel(false)}
+              />
+            </div>
+          )}
+        </AnimatePresence>
+
         {imageSrc ? (
           <>
             {/* Kat planı görüntüsü */}
@@ -292,9 +293,10 @@ export default function ImageMapWidget({
               const displayValue = telemetry?.value;
               const displayUnit = telemetry?.unit || "";
 
-              /* Basit alert: sayısal değer varsa ve eşik aşıldıysa */
+              /* Basit alert: sayısal değer ve konfigüre edilebilir eşik */
+              const alertThreshold = config.alertThreshold ?? 100;
               const isAlert =
-                typeof displayValue === "number" && displayValue > 100;
+                typeof displayValue === "number" && displayValue > alertThreshold;
 
               return (
                 <MapMarker

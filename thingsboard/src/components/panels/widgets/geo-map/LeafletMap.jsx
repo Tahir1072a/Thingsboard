@@ -17,6 +17,22 @@ import "leaflet-defaulticon-compatibility";
 import "leaflet-draw/dist/leaflet.draw.css";
 import "leaflet-draw";
 
+// ── Harita katmanı (tile) yapılandırmaları ──
+const TILE_CONFIGS = {
+  osm: {
+    url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  },
+  satellite: {
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: '&copy; <a href="https://www.esri.com/">Esri</a>',
+  },
+  dark: {
+    url: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+    attribution: '&copy; <a href="https://carto.com/">CARTO</a>',
+  },
+};
+
 // ── Özel marker ikonu ──
 const deviceIcon = new L.Icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
@@ -123,11 +139,14 @@ export default function LeafletMap({
   zoom = 10,
   showTooltips = true,
   fitBounds = true,
+  tileLayer = "osm",
   // Zone desteği
   zones = [],
   isEditMode = false,
   onZoneCreated,
 }) {
+  const tile = TILE_CONFIGS[tileLayer] || TILE_CONFIGS.osm;
+
   return (
     <MapContainer
       center={[center.lat, center.lng]}
@@ -137,8 +156,8 @@ export default function LeafletMap({
       scrollWheelZoom={true}
     >
       <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+        attribution={TILE_CONFIGS[tileLayer]?.attribution || TILE_CONFIGS.osm.attribution}
+        url={TILE_CONFIGS[tileLayer]?.url || TILE_CONFIGS.osm.url}
       />
 
       {fitBounds && <FitBoundsHelper markers={markers} />}

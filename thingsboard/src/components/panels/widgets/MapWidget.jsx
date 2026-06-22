@@ -93,7 +93,7 @@ export default function MapWidget({
 
   const allZones = [...zones, ...configZones];
 
-  // ── Cihaz konumlarını telemetriden çek ──
+  // ── Cihaz konumlarını telemetriden çek (paralel) ──
   const fetchLocations = useCallback(async () => {
     if (!devices || devices.length === 0) {
       setLoading(false);
@@ -101,55 +101,47 @@ export default function MapWidget({
     }
 
     try {
-      const newMarkers = [];
+      const baseUrl = publicToken
+        ? `/api/public/telemetry/${publicToken}`
+        : `/api/telemetry`;
 
-      for (const device of devices) {
-        const deviceId = device.id || device._id;
-        if (!deviceId) continue;
+      const results = await Promise.all(
+        devices.map(async (device) => {
+          const deviceId = device.id || device._id;
+          if (!deviceId) return null;
+          try {
+            const res = await fetch(`${baseUrl}?deviceId=${deviceId}&latest=true`);
+            const json = await res.json();
 
-        const baseUrl = publicToken
-          ? `/api/public/telemetry/${publicToken}`
-          : `/api/telemetry`;
+            if (json.ok && json.data) {
+              const latEntry = json.data.find((d) => d.key === latitudeKey);
+              const lngEntry = json.data.find((d) => d.key === longitudeKey);
 
-        const params = new URLSearchParams({
-          deviceId,
-          latest: "true",
-        });
+              if (latEntry && lngEntry) {
+                const lat = parseFloat(latEntry.value);
+                const lng = parseFloat(lngEntry.value);
 
-        const res = await fetch(`${baseUrl}?${params}`);
-        const json = await res.json();
+                if (!isNaN(lat) && !isNaN(lng)) {
+                  const extraData = {};
+                  json.data
+                    .filter((d) => d.key !== latitudeKey && d.key !== longitudeKey)
+                    .forEach((d) => { extraData[d.key] = d.value; });
 
-        if (json.ok && json.data) {
-          const latEntry = json.data.find((d) => d.key === latitudeKey);
-          const lngEntry = json.data.find((d) => d.key === longitudeKey);
-
-          if (latEntry && lngEntry) {
-            const lat = parseFloat(latEntry.value);
-            const lng = parseFloat(lngEntry.value);
-
-            if (!isNaN(lat) && !isNaN(lng)) {
-              // Ek telemetri bilgileri
-              const extraData = {};
-              json.data
-                .filter((d) => d.key !== latitudeKey && d.key !== longitudeKey)
-                .forEach((d) => {
-                  extraData[d.key] = d.value;
-                });
-
-              newMarkers.push({
-                id: deviceId,
-                name: device.name || device.label || "Cihaz",
-                lat,
-                lng,
-                extraData,
-                lastUpdate: latEntry.timestamp,
-              });
+                  return {
+                    id: deviceId,
+                    name: device.name || device.label || "Cihaz",
+                    lat, lng, extraData,
+                    lastUpdate: latEntry.timestamp,
+                  };
+                }
+              }
             }
-          }
-        }
-      }
+          } catch { /* tek cihaz hatası diğerlerini etkilemesin */ }
+          return null;
+        })
+      );
 
-      setMarkers(newMarkers);
+      setMarkers(results.filter(Boolean));
     } catch (err) {
       console.error("Map fetch error:", err);
     } finally {
@@ -167,9 +159,7 @@ export default function MapWidget({
 
   // ── Edit mode config ──
   const handleConfigChange = (newConfig) => {
-    if (onConfigChange) {
-      onConfigChange(widgetId, { ...config, ...newConfig });
-    }
+    onConfigChange?.({ ...config, ...newConfig });
   };
 
   // ── Zone çizim callback ──
@@ -222,6 +212,7 @@ export default function MapWidget({
         showTooltips={showTooltips}
         fitBounds={fitBounds && markers.length > 0}
         zones={allZones}
+        tileLayer={tileLayer}
         isEditMode={isEditMode}
         onZoneCreated={isEditMode ? handleZoneCreated : undefined}
       />
