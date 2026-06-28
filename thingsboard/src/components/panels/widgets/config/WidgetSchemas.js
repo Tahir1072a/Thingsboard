@@ -1089,4 +1089,20 @@ Object.assign(WIDGET_SCHEMAS, {
     ],
     advancedFields: [],
   },
+  scada_bar_gauge: {
+    category: "scada",
+    datasource: { maxDevices: 1, maxKeys: 1, requireDevice: true, requireKey: true },
+    basicFields: [
+      { key: "label", label: "Etiket", type: "text", defaultValue: "Değer", placeholder: "Tension" },
+      { key: "unit", label: "Birim", type: "text", defaultValue: "", placeholder: "RPM" },
+      { key: "min", label: "Minimum", type: "number", defaultValue: 0 },
+      { key: "max", label: "Maksimum", type: "number", defaultValue: 100 },
+    ],
+    advancedFields: [
+      { key: "orientation", label: "Yön", type: "select", defaultValue: "horizontal", options: [
+        { value: "horizontal", label: "Yatay" },
+        { value: "vertical", label: "Dikey" },
+      ] },
+    ],
+  },
 });

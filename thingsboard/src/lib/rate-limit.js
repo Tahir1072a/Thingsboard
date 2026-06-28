@@ -88,8 +88,11 @@ export const RATE_LIMITS = {
   // Auth (login/register): 10 istek / 15 dakika
   auth: { max: 10, windowSec: 900, keyPrefix: "auth" },
 
-  // Genel API: 100 istek / 15 dakika
-  api: { max: 100, windowSec: 900, keyPrefix: "api" },
+  // Genel API: 500 istek / 15 dakika
+  api: { max: 500, windowSec: 900, keyPrefix: "api" },
+
+  // SSE bağlantı: 30 istek / dakika (long-lived, reconnect'leri sınırla)
+  sse: { max: 30, windowSec: 60, keyPrefix: "sse" },
 
   // Telemetri gönderimi: 600 istek / dakika (cihaz başına)
   telemetry: { max: 600, windowSec: 60, keyPrefix: "telemetry" },

@@ -8,6 +8,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useAuditLogSSE } from "@/lib/sse-pool";
 import { CheckCircle2, XCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -81,21 +82,15 @@ export function ProfileAuditLogTab({ profileId }) {
     fetchLogs();
   }, [fetchLogs]);
 
-  useEffect(() => {
-    if (!profileId) return;
-    const es = new EventSource("/api/sse");
-    es.addEventListener("audit-log", (e) => {
-      try {
-        const log = JSON.parse(e.data);
-        if (log.entityId === profileId && log.entityType === "DEVICE_PROFILE") {
-          if (currentPage === 1) {
-            setLogs((prev) => [log, ...prev.slice(0, itemsPerPage - 1)]);
-          }
-        }
-      } catch {}
-    });
-    return () => es.close();
+  const handleSSEAuditLog = useCallback((log) => {
+    if (log.entityId === profileId && log.entityType === "DEVICE_PROFILE") {
+      if (currentPage === 1) {
+        setLogs((prev) => [log, ...prev.slice(0, itemsPerPage - 1)]);
+      }
+    }
   }, [profileId, currentPage, itemsPerPage]);
+
+  useAuditLogSSE(profileId ? handleSSEAuditLog : null);
 
   const columns = [
     {

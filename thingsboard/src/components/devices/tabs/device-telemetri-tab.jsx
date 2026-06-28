@@ -24,6 +24,7 @@ import {
   Clock,
 } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useTelemetrySSE } from "@/lib/sse-pool";
 import Fuse from "fuse.js";
 import { Badge } from "@/components/ui/badge";
 
@@ -172,41 +173,30 @@ export function DeviceTelemetryTab({ deviceId }) {
   }, [fetchTelemetry]);
 
   // SSE Canlı Güncelleme
-  useEffect(() => {
-    if (!deviceId) return;
+  const handleSSETelemetry = useCallback((item) => {
+    const newItem = {
+      id: item._id || Date.now().toString(),
+      key: item.key,
+      value: item.value,
+      type: item.valueType || (typeof item.value === "number" ? "number" : "string"),
+      timestamp: item.timestamp || new Date().toISOString(),
+      unit: item.unit,
+      protocol: item.protocol,
+    };
 
-    const es = new EventSource("/api/sse");
-    es.addEventListener("telemetry", (e) => {
-      try {
-        const item = JSON.parse(e.data);
-        // Sadece bu cihaza ait telemetriyi al
-        if (String(item.deviceId) !== String(deviceId)) return;
-
-        const newItem = {
-          id: item._id || Date.now().toString(),
-          key: item.key,
-          value: item.value,
-          type: item.valueType || (typeof item.value === "number" ? "number" : "string"),
-          timestamp: item.timestamp || new Date().toISOString(),
-          unit: item.unit,
-          protocol: item.protocol,
-        };
-
-        // Aynı key varsa güncelle, yoksa ekle
-        setTelemetryData((prev) => {
-          const idx = prev.findIndex((p) => p.key === newItem.key);
-          if (idx >= 0) {
-            const updated = [...prev];
-            updated[idx] = newItem;
-            return updated;
-          }
-          return [...prev, newItem].sort((a, b) => a.key.localeCompare(b.key));
-        });
-      } catch {}
+    // Aynı key varsa güncelle, yoksa ekle
+    setTelemetryData((prev) => {
+      const idx = prev.findIndex((p) => p.key === newItem.key);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = newItem;
+        return updated;
+      }
+      return [...prev, newItem].sort((a, b) => a.key.localeCompare(b.key));
     });
+  }, []);
 
-    return () => es.close();
-  }, [deviceId]);
+  useTelemetrySSE(deviceId, handleSSETelemetry);
 
   const filteredData = useMemo(() => {
     if (!searchQuery) return telemetryData;

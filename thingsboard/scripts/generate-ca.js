@@ -106,6 +106,7 @@ serverCert.setExtensions([
     altNames: [
       { type: 2, value: "localhost" },      // DNS
       { type: 7, ip: "127.0.0.1" },         // IP
+      { type: 7, ip: "10.16.107.166" },     // Local Network IP
     ],
   },
 ]);

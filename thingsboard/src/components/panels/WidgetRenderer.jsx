@@ -30,6 +30,7 @@ import ScadaPipeWidget from "./widgets/scada/ScadaPipeWidget";
 import ScadaMotorWidget from "./widgets/scada/ScadaMotorWidget";
 import ScadaSensorWidget from "./widgets/scada/ScadaSensorWidget";
 import ScadaGaugeWidget from "./widgets/scada/ScadaGaugeWidget";
+import ScadaBarGaugeWidget from "./widgets/scada/ScadaBarGaugeWidget";
 import BaseWidgetCard from "./BaseWidgetCard";
 import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell, MapPin, Power, SlidersHorizontal, Zap, Factory, Droplets, Thermometer, Activity, CircleDot } from "lucide-react";
 import dynamic from "next/dynamic";
@@ -58,6 +59,7 @@ const WIDGET_MAP = {
   scada_motor: ScadaMotorWidget,
   scada_sensor: ScadaSensorWidget,
   scada_gauge: ScadaGaugeWidget,
+  scada_bar_gauge: ScadaBarGaugeWidget,
 };
 
 export const WIDGET_TYPES = [
@@ -201,6 +203,13 @@ export const WIDGET_TYPES = [
     icon: Gauge,
     description: "Endüstriyel analog gösterge",
     defaultSize: { w: 4, h: 4 },
+  },
+  {
+    type: "scada_bar_gauge",
+    label: "SCADA Bar Gösterge",
+    icon: BarChart3,
+    description: "Yatay/dikey bar gösterge",
+    defaultSize: { w: 6, h: 3 },
   },
 ];
 

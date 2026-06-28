@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useAuditLogSSE } from "@/lib/sse-pool";
 import {
   CheckCircle2,
   XCircle,
@@ -150,14 +151,11 @@ export default function AuditLogsPage() {
   }, [fetchData]);
 
   // SSE Real-time Updates
-  useEffect(() => {
-    const es = new EventSource("/api/sse");
-    es.addEventListener("audit-log", (e) => {
-      const log = JSON.parse(e.data);
-      setLogs((prev) => [log, ...prev.slice(0, pageParams.limit - 1)]);
-    });
-    return () => es.close();
-  }, []);
+  const handleSSEAuditLog = useCallback((log) => {
+    setLogs((prev) => [log, ...prev.slice(0, pageParams.limit - 1)]);
+  }, [pageParams.limit]);
+
+  useAuditLogSSE(handleSSEAuditLog);
 
   // Filtre konfigürasyonu
   const filterConfig = [

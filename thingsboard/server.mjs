@@ -313,7 +313,7 @@ async function checkTransportMismatch(deviceId, protocol, userId) {
         profileName: profile.name,
         message: `Cihaz "${device.name}" profilde ${expected} tanımlı ama ${protocol} ile veri gönderdi.`,
       },
-    }).catch(() => {});
+    }).catch(() => { });
 
     // SSE uyarısı
     emitter.emit("audit-log", {
@@ -410,7 +410,7 @@ async function main() {
         const peerCert = client.conn.getPeerCertificate(true);
         if (peerCert && peerCert.fingerprint256) {
           const fingerprint = peerCert.fingerprint256.replace(/:/g, "").toLowerCase();
-
+          logger.info({ fingerprint }, "Gelen cihaz parmak izi:");
           return verifyDeviceCertificate(fingerprint)
             .then((device) => {
               if (!device) {

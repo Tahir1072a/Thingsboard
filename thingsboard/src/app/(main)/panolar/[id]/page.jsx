@@ -17,6 +17,7 @@ import {
   Save, ArrowLeft, Plus, X,
   LayoutDashboard, Pencil, Check,
   Share2, Link, Copy, Link2,
+  Factory, Layers, Settings2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Breadcrumbs from "@/components/common/breadcrumbs";
@@ -55,6 +56,11 @@ export default function DashboardEditorPage() {
   const [copied, setCopied] = useState(null); // 'url' | 'embed' | null
   const [aliasPanel, setAliasPanel] = useState(false); // Alias yönetim paneli
 
+  // ── Dashboard States (sekmeler) ──
+  const [activeStateId, setActiveStateId] = useState("default");
+  const [addingState, setAddingState] = useState(false);
+  const [newStateName, setNewStateName] = useState("");
+
   // Container width ölçümü (react-grid-layout v2 hook)
   const { width: containerWidth, containerRef } = useContainerWidth({ initialWidth: 1200 });
 
@@ -91,7 +97,18 @@ export default function DashboardEditorPage() {
             h: Number.isFinite(w.h) && w.h !== null ? w.h : 3,
           })),
         };
+        // States desteği — yoksa tek default state oluştur
+        const states = sanitized.states && sanitized.states.length > 0
+          ? sanitized.states
+          : [{ id: "default", name: "Ana", widgets: sanitized.widgets || [] }];
+        sanitized.states = states;
+
+        // Aktif state'in widget'larını yükle
+        const firstState = states[0];
+        sanitized.widgets = firstState.widgets || [];
+
         setDashboard(sanitized);
+        setActiveStateId(firstState.id);
         setTempName(sanitized.name);
         // Paylaşım durumunu yükle
         if (data.data.isPublic && data.data.publicToken) {
@@ -221,8 +238,15 @@ export default function DashboardEditorPage() {
         body: JSON.stringify({
           name: dashboard.name,
           description: dashboard.description,
+          states: (dashboard.states || []).map(s =>
+            s.id === activeStateId
+              ? { ...s, widgets: sanitizedWidgets }
+              : s
+          ),
           widgets: sanitizedWidgets,
           entityAliases: dashboard.entityAliases || [],
+          layoutType: dashboard.layoutType || "default",
+          layoutConfig: dashboard.layoutConfig || {},
           gridCols: 24,
         }),
         signal: controller.signal,
@@ -445,6 +469,126 @@ export default function DashboardEditorPage() {
           </Button>
         </div>
       </div>
+      {/* ── Dashboard State Tabs ── */}
+      {dashboard.states && dashboard.states.length > 0 && (
+        <div className="flex items-center gap-1 flex-wrap">
+          {dashboard.states.map((state) => (
+            <button
+              key={state.id}
+              onClick={() => {
+                // Mevcut state'in widget'larını kaydet
+                setDashboard(prev => ({
+                  ...prev,
+                  states: prev.states.map(s =>
+                    s.id === activeStateId ? { ...s, widgets: prev.widgets } : s
+                  ),
+                }));
+                // Yeni state'e geç
+                setTimeout(() => {
+                  setDashboard(prev => {
+                    const targetState = prev.states.find(s => s.id === state.id);
+                    return { ...prev, widgets: targetState?.widgets || [] };
+                  });
+                  setActiveStateId(state.id);
+                }, 0);
+              }}
+              className={`
+                px-4 py-2 text-sm font-medium rounded-lg border transition-all
+                ${activeStateId === state.id
+                  ? "bg-white border-gray-300 text-gray-900 shadow-sm"
+                  : "bg-transparent border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                }
+              `}
+            >
+              {state.name}
+              {editMode && dashboard.states.length > 1 && activeStateId === state.id && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (state.id === "default") return toast.error("Ana sekme silinemez.");
+                    const filtered = dashboard.states.filter(s => s.id !== state.id);
+                    setDashboard(prev => ({
+                      ...prev,
+                      states: filtered,
+                      widgets: filtered[0]?.widgets || [],
+                    }));
+                    setActiveStateId(filtered[0]?.id || "default");
+                    toast.success(`"${state.name}" sekmesi silindi.`);
+                  }}
+                  className="ml-2 text-gray-400 hover:text-red-500"
+                  title="Sekmeyi sil"
+                >
+                  <X className="h-3 w-3 inline" />
+                </button>
+              )}
+            </button>
+          ))}
+
+          {/* Yeni sekme ekleme (edit modda) */}
+          {editMode && (
+            addingState ? (
+              <div className="flex items-center gap-1">
+                <Input
+                  value={newStateName}
+                  onChange={(e) => setNewStateName(e.target.value)}
+                  placeholder="Sekme adı"
+                  className="h-8 w-32 text-sm"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && newStateName.trim()) {
+                      const newId = `state_${Date.now()}`;
+                      setDashboard(prev => ({
+                        ...prev,
+                        states: [...(prev.states || []), { id: newId, name: newStateName.trim(), widgets: [] }],
+                      }));
+                      setNewStateName("");
+                      setAddingState(false);
+                      toast.success(`"${newStateName.trim()}" sekmesi eklendi.`);
+                    } else if (e.key === "Escape") {
+                      setAddingState(false);
+                      setNewStateName("");
+                    }
+                  }}
+                />
+                <Button size="sm" variant="ghost" onClick={() => { setAddingState(false); setNewStateName(""); }}>
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingState(true)}
+                className="px-3 py-2 text-sm text-gray-400 hover:text-halo-600 hover:bg-halo-50 rounded-lg border border-dashed border-gray-300 transition-all"
+              >
+                <Plus className="h-3.5 w-3.5 inline mr-1" />
+                Sekme
+              </button>
+            )
+          )}
+
+          {/* SCADA Layout toggle (edit modda) */}
+          {editMode && (
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={() => {
+                  const newType = dashboard.layoutType === "scada" ? "default" : "scada";
+                  setDashboard(prev => ({ ...prev, layoutType: newType }));
+                  toast.success(newType === "scada" ? "SCADA modu aktif" : "Normal mod aktif");
+                }}
+                className={`
+                  flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all
+                  ${dashboard.layoutType === "scada"
+                    ? "bg-slate-700 text-white border-slate-700"
+                    : "bg-white text-gray-500 border-gray-300 hover:border-slate-500 hover:text-slate-700"
+                  }
+                `}
+              >
+                <Factory className="h-3.5 w-3.5" />
+                SCADA
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Grid Layout ── */}
       {dashboard.widgets.length === 0 ? (
@@ -464,7 +608,7 @@ export default function DashboardEditorPage() {
           )}
         </div>
       ) : (
-        <div ref={containerRef}>
+        <div ref={containerRef} className={dashboard.layoutType === "scada" ? "bg-[#e0e0e0] rounded-lg p-2 min-h-[600px]" : ""}>
           <ResponsiveGridLayout
             className="layout"
             width={containerWidth}
@@ -476,8 +620,8 @@ export default function DashboardEditorPage() {
             isResizable={editMode}
             onLayoutChange={handleLayoutChange}
             draggableHandle=".widget-drag-handle"
-            compactType="vertical"
-            margin={containerWidth < 768 ? [8, 8] : [12, 12]}
+            compactType={dashboard.layoutType === "scada" ? null : "vertical"}
+            margin={dashboard.layoutType === "scada" ? [4, 4] : (containerWidth < 768 ? [8, 8] : [12, 12])}
           >
             {dashboard.widgets.map((widget) => (
               <div key={widget.i}>

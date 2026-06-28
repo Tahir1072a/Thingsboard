@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useAlarmSSE } from "@/lib/sse-pool";
 import {
   RefreshCw,
   AlertTriangle,
@@ -100,30 +101,22 @@ export function DeviceAlarmsTab({ deviceId }) {
     fetchAlarms();
   }, [fetchAlarms]);
 
-  useEffect(() => {
-    if (!deviceId) return;
-    const es = new EventSource("/api/sse");
-    es.addEventListener("alarm", (e) => {
-      try {
-        const alarm = JSON.parse(e.data);
-        if (String(alarm.deviceId) === String(deviceId)) {
-          setAlarms((prev) => {
-            const idx = prev.findIndex((a) => a._id === alarm._id);
-            if (idx >= 0) {
-              const updated = [...prev];
-              updated[idx] = alarm;
-              return updated;
-            }
-            if (currentPage === 1) {
-              return [alarm, ...prev.slice(0, itemsPerPage - 1)];
-            }
-            return prev;
-          });
-        }
-      } catch {}
+  const handleSSEAlarm = useCallback((alarm) => {
+    setAlarms((prev) => {
+      const idx = prev.findIndex((a) => a._id === alarm._id);
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = alarm;
+        return updated;
+      }
+      if (currentPage === 1) {
+        return [alarm, ...prev.slice(0, itemsPerPage - 1)];
+      }
+      return prev;
     });
-    return () => es.close();
-  }, [deviceId]);
+  }, [currentPage, itemsPerPage]);
+
+  useAlarmSSE(handleSSEAlarm, deviceId);
 
   const handleAction = async (alarmId, action) => {
     try {

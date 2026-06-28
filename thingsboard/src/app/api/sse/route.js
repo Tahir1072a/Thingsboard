@@ -22,8 +22,8 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request) {
-  // Rate limit kontrolü
-  const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+  // Rate limit kontrolü (SSE'ye özel ayrı bucket)
+  const rateLimitResponse = await rateLimit(request, RATE_LIMITS.sse);
   if (rateLimitResponse) return rateLimitResponse;
 
   // Session'dan tenantId al — SSE bağlantısı sadece auth kullanıcılara açık

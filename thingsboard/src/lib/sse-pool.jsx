@@ -34,6 +34,10 @@ class SSEPoolManager {
     this.reconnectTimer = null;
     this.connected = false;
     this._connectedListeners = new Set(); // React state sync
+    this._retryCount = 0;
+    this._maxRetries = 15;
+    this._baseDelay = 5000; // 5 saniye
+    this._maxDelay = 60000; // 60 saniye
   }
 
   connect(url = "/api/sse") {
@@ -42,6 +46,7 @@ class SSEPoolManager {
     this.eventSource = new EventSource(url);
 
     this.eventSource.onopen = () => {
+      this._retryCount = 0; // Başarılı bağlantı → retry sıfırla
       this._setConnected(true);
     };
 
@@ -82,13 +87,27 @@ class SSEPoolManager {
       this.eventSource?.close();
       this.eventSource = null;
 
-      // Reconnect (5 saniye sonra)
+      // Max retry aşıldıysa dur
+      if (this._retryCount >= this._maxRetries) {
+        logger.warn("SSE max retry aşıldı (%d), yeniden bağlanma durduruluyor", this._maxRetries);
+        return;
+      }
+
+      // Exponential backoff: 5s → 10s → 20s → 40s → 60s (max)
+      const delay = Math.min(
+        this._baseDelay * Math.pow(2, this._retryCount),
+        this._maxDelay
+      );
+      this._retryCount++;
+
+      logger.info("SSE yeniden bağlanma %ds sonra (deneme %d/%d)", delay / 1000, this._retryCount, this._maxRetries);
+
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = setTimeout(() => {
         if (this._hasSubscribers()) {
           this.connect(url);
         }
-      }, 5000);
+      }, delay);
     };
   }
 
@@ -312,4 +331,19 @@ export function useAlarmSSE(callback, deviceId) {
     const subId = subscribe("alarm", callback, filter);
     return () => unsubscribe("alarm", subId);
   }, [callback, deviceId, subscribe, unsubscribe]);
+}
+
+/**
+ * Denetim günlüklerini dinle.
+ * @param {Function} callback - Audit-log geldiğinde çağrılır: (log) => void
+ */
+export function useAuditLogSSE(callback) {
+  const { subscribe, unsubscribe } = useSSEPool();
+
+  useEffect(() => {
+    if (!callback) return;
+
+    const subId = subscribe("audit-log", callback);
+    return () => unsubscribe("audit-log", subId);
+  }, [callback, subscribe, unsubscribe]);
 }
