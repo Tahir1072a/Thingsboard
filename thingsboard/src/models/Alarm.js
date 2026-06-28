@@ -116,6 +116,11 @@ AlarmSchema.virtual("duration").get(function () {
   return remainHr > 0 ? `${days} gün ${remainHr} saat` : `${days} gün`;
 });
 
+// Compound indexes for common query patterns
+AlarmSchema.index({ tenantId: 1, status: 1, createdAt: -1 });
+AlarmSchema.index({ tenantId: 1, deviceId: 1, status: 1 });
+AlarmSchema.index({ tenantId: 1, severity: 1, status: 1 });
+
 const Alarm =
   mongoose.models.Alarm || mongoose.model("Alarm", AlarmSchema);
 

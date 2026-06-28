@@ -15,15 +15,25 @@
 import emitter from "@/lib/event-emitter";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 // Next.js SSE için dynamic zorunlu
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request) {
-  // Session'dan userId al — SSE bağlantısı sadece auth kullanıcılara açık
+  // Rate limit kontrolü
+  const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+  if (rateLimitResponse) return rateLimitResponse;
+
+  // Session'dan tenantId al — SSE bağlantısı sadece auth kullanıcılara açık
   const session = await getServerSession(authOptions);
   const userId = session?.user?.id ?? null;
+  const tenantId = session?.user?.tenantId ?? null;
+
+  if (!tenantId) {
+    return new Response("Unauthorized", { status: 401 });
+  }
 
   const { searchParams } = new URL(request.url);
   const deviceIdFilter = searchParams.get("deviceId") ?? null;
@@ -38,9 +48,7 @@ export async function GET(request) {
 
       const onTelemetry = (doc) => {
         if (closed) return;
-
-        // User filtresi — sadece kendi cihazlarının verisini gör
-        if (userId && doc.userId && String(doc.userId) !== userId) return;
+        if (String(doc.tenantId) !== tenantId) return;
 
         // Belirli cihaz filtresi varsa diğerlerini atla
         if (deviceIdFilter && String(doc.deviceId) !== deviceIdFilter) return;
@@ -65,8 +73,7 @@ export async function GET(request) {
       // ── Audit log event listener ──
       const onAuditLog = (log) => {
         if (closed) return;
-        // User filtresi — sadece kendi loglarını gör
-        if (userId && log.userId && String(log.userId) !== userId) return;
+        if (String(log.tenantId) !== tenantId) return;
 
         try {
           const payload = JSON.stringify(log);
@@ -81,8 +88,7 @@ export async function GET(request) {
       // ── Alarm event listener ──
       const onAlarm = (alarm) => {
         if (closed) return;
-        // User filtresi — sadece kendi alarmlarını gör
-        if (userId && alarm.userId && String(alarm.userId) !== userId) return;
+        if (String(alarm.tenantId) !== tenantId) return;
 
         // Belirli cihaz filtresi varsa diğerlerini atla
         if (deviceIdFilter && String(alarm.deviceId) !== deviceIdFilter) return;

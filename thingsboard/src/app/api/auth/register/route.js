@@ -15,11 +15,14 @@
  * }
  */
 
+import mongoose from "mongoose";
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/models/User";
 import Tenant from "@/models/Tenant";
 import { hashPassword } from "@/lib/security";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import logger from "@/lib/logger";
 
 /**
  * organizationName'den URL-safe slug oluştur
@@ -39,6 +42,9 @@ function createSlug(name) {
 
 export async function POST(request) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.auth);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await request.json();
     const { email, password, firstName, lastName, phone, organizationName } = body;
 
@@ -83,34 +89,58 @@ export async function POST(request) {
       slug = `${slug}-${Date.now().toString(36)}`;
     }
 
-    // 1. Tenant oluştur
-    const tenant = await Tenant.create({
-      name: organizationName.trim(),
-      slug,
-      plan: "FREE",
-      isActive: true,
-    });
+    // Transactional: Tenant + User oluştur (atomik)
+    const session = await mongoose.startSession();
+    let tenant;
+    let user;
 
-    // 2. Şifreyi hash'le
-    const hashedPassword = await hashPassword(password);
+    try {
+      await session.withTransaction(async () => {
+        // 1. Tenant oluştur (session ile)
+        const [createdTenant] = await Tenant.create(
+          [
+            {
+              name: organizationName.trim(),
+              slug,
+              plan: "FREE",
+              isActive: true,
+            },
+          ],
+          { session }
+        );
 
-    // 3. TENANT_ADMIN kullanıcı oluştur
-    const user = await User.create({
-      email: email.toLowerCase(),
-      password: hashedPassword,
-      firstName: firstName ?? "",
-      lastName: lastName ?? "",
-      phone: phone ?? "",
-      organizationName: organizationName.trim(),
-      provider: "credentials",
-      role: "TENANT_ADMIN",
-      tenantId: tenant._id,
-      isActive: true,
-    });
+        // 2. Şifreyi hash'le
+        const hashedPassword = await hashPassword(password);
 
-    // Tenant'ın createdBy alanını güncelle
-    tenant.createdBy = user._id;
-    await tenant.save();
+        // 3. TENANT_ADMIN kullanıcı oluştur (session ile)
+        const [createdUser] = await User.create(
+          [
+            {
+              email: email.toLowerCase(),
+              password: hashedPassword,
+              firstName: firstName ?? "",
+              lastName: lastName ?? "",
+              phone: phone ?? "",
+              organizationName: organizationName.trim(),
+              provider: "credentials",
+              role: "TENANT_ADMIN",
+              tenantId: createdTenant._id,
+              isActive: true,
+            },
+          ],
+          { session }
+        );
+
+        // Tenant'ın createdBy alanını güncelle (session ile)
+        createdTenant.createdBy = createdUser._id;
+        await createdTenant.save({ session });
+
+        tenant = createdTenant;
+        user = createdUser;
+      });
+    } finally {
+      await session.endSession();
+    }
 
     return NextResponse.json(
       {
@@ -132,7 +162,7 @@ export async function POST(request) {
       { status: 201 }
     );
   } catch (error) {
-    console.error("[POST /api/auth/register]", error);
+    logger.error({ err: error }, "[POST /api/auth/register]");
     return NextResponse.json(
       { ok: false, error: "Kayıt sırasında bir hata oluştu." },
       { status: 500 }

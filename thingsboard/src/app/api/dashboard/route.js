@@ -10,12 +10,16 @@ import connectDB from "@/lib/db";
 import Dashboard from "@/models/Dashboard";
 import { getSessionUser } from "@/lib/getSessionUser";
 import { auditDashboardAction } from "@/lib/audit-service";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 // ------------------------------------------------------------------ //
 // GET — Kullanıcının panolarını listele
 // ------------------------------------------------------------------ //
-export async function GET() {
+export async function GET(request) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { userId, tenantId } = await getSessionUser();
 
     await connectDB();
@@ -43,7 +47,13 @@ export async function GET() {
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
 
     const body = await request.json();
     const { name, description } = body;

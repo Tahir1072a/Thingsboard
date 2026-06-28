@@ -35,7 +35,10 @@ export async function GET(request, { params }) {
 // PUT — Güncelle
 export async function PUT(request, { params }) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });
@@ -87,7 +90,10 @@ export async function PUT(request, { params }) {
 // DELETE — Sil
 export async function DELETE(request, { params }) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     const { id } = await params;
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return NextResponse.json({ ok: false, message: "Geçersiz ID." }, { status: 400 });

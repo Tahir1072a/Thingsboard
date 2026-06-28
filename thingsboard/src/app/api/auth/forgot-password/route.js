@@ -13,12 +13,16 @@ import connectDB from "@/lib/db";
 import User from "@/models/User";
 import { genToken } from "@/lib/security";
 import { sendEmail } from "@/lib/email";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 // Sıfırlama token'ı geçerlilik süresi: 1 saat (ms)
 const RESET_TOKEN_TTL = 60 * 60 * 1000;
 
 export async function POST(request) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.auth);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const body = await request.json();
     const { email } = body;
 

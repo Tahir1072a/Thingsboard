@@ -46,7 +46,10 @@ export async function GET(request, { params }) {
 // ------------------------------------------------------------------ //
 export async function PUT(request, { params }) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     const { id } = await params;
     const body = await request.json();
 
@@ -87,7 +90,10 @@ export async function PUT(request, { params }) {
 // ------------------------------------------------------------------ //
 export async function DELETE(request, { params }) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     const { id } = await params;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {

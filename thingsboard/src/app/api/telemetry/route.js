@@ -18,12 +18,16 @@ import connectDB from "@/lib/db";
 import Telemetry from "@/models/Telemetry";
 import Device from "@/models/Device";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 // ------------------------------------------------------------------ //
 // POST — Veri alımı (access token zorunlu)
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
     // Access token'ı header'dan oku
     const accessToken = request.headers.get("x-access-token");
 
@@ -95,6 +99,9 @@ export async function POST(request) {
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { userId, tenantId } = await getSessionUser();
 
     const { searchParams } = new URL(request.url);

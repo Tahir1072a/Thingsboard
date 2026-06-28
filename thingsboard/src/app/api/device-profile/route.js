@@ -7,6 +7,7 @@ import connectDB from "@/lib/db";
 import DeviceProfile from "@/models/DeviceProfile";
 import { getSessionUser } from "@/lib/getSessionUser";
 import { auditProfileAction } from "@/lib/audit-service";
+import { escapeRegex } from "@/lib/utils/escapeRegex";
 
 // GET — Listele (search + pagination)
 export async function GET(request) {
@@ -22,7 +23,7 @@ export async function GET(request) {
 
     const filter = { tenantId };
     if (search) {
-      filter.name = { $regex: search, $options: "i" };
+      filter.name = { $regex: escapeRegex(search), $options: "i" };
     }
     if (transportType) {
       filter.transportType = transportType;
@@ -56,7 +57,10 @@ export async function GET(request) {
 // POST — Oluştur
 export async function POST(request) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     await connectDB();
     const body = await request.json();
 

@@ -8,10 +8,15 @@ import Alarm from "@/models/Alarm";
 import Device from "@/models/Device";
 import { getSessionUser } from "@/lib/getSessionUser";
 import { createAuditLog } from "@/lib/audit-service";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { escapeRegex } from "@/lib/utils/escapeRegex";
 
 // GET — Alarmları listele (user-scoped)
 export async function GET(request) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { userId, tenantId } = await getSessionUser();
     await connectDB();
 
@@ -30,11 +35,11 @@ export async function GET(request) {
     
     if (search) {
       filter.$or = [
-        { type: { $regex: search, $options: "i" } },
-        { status: { $regex: search, $options: "i" } },
-        { severity: { $regex: search, $options: "i" } },
-        { "details.key": { $regex: search, $options: "i" } },
-        { "details.threshold": { $regex: search, $options: "i" } }
+        { type: { $regex: escapeRegex(search), $options: "i" } },
+        { status: { $regex: escapeRegex(search), $options: "i" } },
+        { severity: { $regex: escapeRegex(search), $options: "i" } },
+        { "details.key": { $regex: escapeRegex(search), $options: "i" } },
+        { "details.threshold": { $regex: escapeRegex(search), $options: "i" } }
       ];
     }
 
@@ -70,7 +75,13 @@ export async function GET(request) {
 // PUT — Alarm durumunu güncelle (acknowledge / clear)
 export async function PUT(request) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     await connectDB();
     const body = await request.json();
     const { alarmId, action } = body; // action: "acknowledge" | "clear"
@@ -153,7 +164,13 @@ export async function PUT(request) {
 // DELETE — Alarm(lar)ı sil (Hard Delete)
 export async function DELETE(request) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     await connectDB();
     
     // Extract body. We support both single `alarmId` and multiple `alarmIds`

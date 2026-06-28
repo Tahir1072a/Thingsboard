@@ -9,6 +9,7 @@ import connectDB from "@/lib/db";
 import AuditLog from "@/models/AuditLog";
 import { getSessionUser } from "@/lib/getSessionUser";
 import { canViewAuditLogs } from "@/lib/rbac";
+import { escapeRegex } from "@/lib/utils/escapeRegex";
 
 export async function GET(request) {
   try {
@@ -76,11 +77,11 @@ export async function GET(request) {
     const search = searchParams.get("search");
     if (search) {
       filter.$or = [
-        { entityName: { $regex: search, $options: "i" } },
-        { action: { $regex: search, $options: "i" } },
-        { status: { $regex: search, $options: "i" } },
-        { "details.ip": { $regex: search, $options: "i" } },
-        { "details.reason": { $regex: search, $options: "i" } }
+        { entityName: { $regex: escapeRegex(search), $options: "i" } },
+        { action: { $regex: escapeRegex(search), $options: "i" } },
+        { status: { $regex: escapeRegex(search), $options: "i" } },
+        { "details.ip": { $regex: escapeRegex(search), $options: "i" } },
+        { "details.reason": { $regex: escapeRegex(search), $options: "i" } }
       ];
     }
 

@@ -9,9 +9,14 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Asset from "@/models/Asset";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { escapeRegex } from "@/lib/utils/escapeRegex";
 
 export async function GET(request) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { tenantId } = await getSessionUser();
     const { searchParams } = new URL(request.url);
     const type = searchParams.get("type");
@@ -23,7 +28,7 @@ export async function GET(request) {
 
     const filter = { tenantId };
     if (type) filter.type = type;
-    if (search) filter.name = { $regex: search, $options: "i" };
+    if (search) filter.name = { $regex: escapeRegex(search), $options: "i" };
 
     const total = await Asset.countDocuments(filter);
     const totalPages = Math.ceil(total / limit) || 1;
@@ -51,7 +56,13 @@ export async function GET(request) {
 
 export async function POST(request) {
   try {
-    const { tenantId } = await getSessionUser();
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const { tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     const body = await request.json();
 
     if (!body.name) {

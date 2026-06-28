@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import RuleChain from "@/models/RuleChain";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { escapeRegex } from "@/lib/utils/escapeRegex";
 
 export async function GET(request) {
   try {
@@ -22,7 +23,7 @@ export async function GET(request) {
 
     const filter = { tenantId };
     if (search) {
-      filter.name = { $regex: search, $options: "i" };
+      filter.name = { $regex: escapeRegex(search), $options: "i" };
     }
 
     const [data, total] = await Promise.all([

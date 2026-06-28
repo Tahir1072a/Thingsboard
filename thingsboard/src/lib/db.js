@@ -1,4 +1,6 @@
 import mongoose from "mongoose";
+import logger from "./logger.js";
+import { initTimeSeriesCollection } from "./init-timeseries.js";
 
 const MONGODB_URI = process.env.MONGODB_URI;
 
@@ -16,7 +18,6 @@ if (!cached) {
 
 async function connectDB() {
   if (cached.conn) {
-    console.log("Mevcut veritabanı bağlantısı kullanılıyor.");
     return cached.conn;
   }
 
@@ -27,8 +28,10 @@ async function connectDB() {
       bufferCommands: false,
     };
 
-    console.log("Yeni bir veritabanı bağlantısı oluşturuluyor.");
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
+    logger.info("Yeni bir veritabanı bağlantısı oluşturuluyor.");
+    cached.promise = mongoose.connect(MONGODB_URI, opts).then(async (mongoose) => {
+      // Time-Series koleksiyonunu başlat (ilk bağlantıda)
+      await initTimeSeriesCollection();
       return mongoose;
     });
   }
@@ -37,7 +40,7 @@ async function connectDB() {
     cached.conn = await cached.promise;
   } catch (error) {
     cached.promise = null;
-    console.error("[connectDB] MongoDB bağlantı hatası:", error.message);
+    logger.error("[connectDB] MongoDB bağlantı hatası:", error.message);
     throw error;
   }
 

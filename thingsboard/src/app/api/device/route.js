@@ -1,16 +1,22 @@
 import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import Device from "@/models/Device";
+import Tenant from "@/models/Tenant";
 import DeviceProfile from "@/models/DeviceProfile";
 import { getSessionUser } from "@/lib/getSessionUser";
 import { generateDeviceCertificate } from "@/lib/certificate";
 import { auditDeviceAction } from "@/lib/audit-service";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { escapeRegex } from "@/lib/utils/escapeRegex";
 
 // ------------------------------------------------------------------ //
 // GET — Listeleme
 // ------------------------------------------------------------------ //
 export async function GET(request) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { userId, tenantId } = await getSessionUser();
 
     const { searchParams } = new URL(request.url);
@@ -27,8 +33,8 @@ export async function GET(request) {
     // Metin araması
     if (search) {
       filter.$or = [
-        { name: { $regex: search, $options: "i" } },
-        { tag: { $regex: search, $options: "i" } },
+        { name: { $regex: escapeRegex(search), $options: "i" } },
+        { tag: { $regex: escapeRegex(search), $options: "i" } },
       ];
     }
 
@@ -63,7 +69,28 @@ export async function GET(request) {
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.api);
+    if (rateLimitResponse) return rateLimitResponse;
+
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
+
+    await connectDB();
+
+    // Tenant kota kontrolü
+    const tenant = await Tenant.findById(tenantId).lean();
+    if (tenant?.settings?.maxDevices) {
+      const deviceCount = await Device.countDocuments({ tenantId });
+      if (deviceCount >= tenant.settings.maxDevices) {
+        return NextResponse.json(
+          { ok: false, message: `Cihaz limiti aşıldı. Maksimum: ${tenant.settings.maxDevices}` },
+          { status: 403 }
+        );
+      }
+    }
+
     const body = await request.json();
 
     const { name, profile, tag, description, isGateway, isPublic, accessToken, authType } = body;
@@ -75,7 +102,7 @@ export async function POST(request) {
       );
     }
 
-    await connectDB();
+    // connectDB zaten yukarıda çağrıldı
 
     // Profile belirtilmemişse kullanıcının default profile'ını ata
     let assignedProfile = profile || null;

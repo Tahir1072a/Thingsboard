@@ -137,6 +137,8 @@ DashboardSchema.virtual("id").get(function () {
   return this._id.toHexString();
 });
 
+DashboardSchema.index({ tenantId: 1, createdAt: -1 });
+
 const Dashboard =
   mongoose.models.Dashboard || mongoose.model("Dashboard", DashboardSchema);
 

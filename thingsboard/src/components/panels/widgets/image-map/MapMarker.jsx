@@ -77,7 +77,7 @@ export default function MapMarker({
 
   return (
     <motion.div
-      className="absolute z-10"
+      className="absolute z-10 cancel"
       style={{
         left: `${marker.xPos}%`,
         top: `${marker.yPos}%`,
@@ -89,6 +89,8 @@ export default function MapMarker({
       dragMomentum={false}
       dragElastic={0}
       onDragEnd={isEditMode ? handleDragEnd : undefined}
+      onPointerDown={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       /* ── Hover olayları ── */
       onHoverStart={() => setHovered(true)}
       onHoverEnd={() => setHovered(false)}

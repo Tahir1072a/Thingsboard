@@ -13,12 +13,16 @@
 
 import { NextResponse } from "next/server";
 import { handleTelemetry, authenticateDevice } from "@/lib/telemetry-handler";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 // ------------------------------------------------------------------ //
 // POST — Standart telemetri formatı
 // ------------------------------------------------------------------ //
 export async function POST(request, { params }) {
   try {
+    const rateLimitResponse = await rateLimit(request, RATE_LIMITS.telemetry);
+    if (rateLimitResponse) return rateLimitResponse;
+
     const { accessToken } = await params;
 
     // Cihaz doğrulama — token geçersizse hata fırlatır

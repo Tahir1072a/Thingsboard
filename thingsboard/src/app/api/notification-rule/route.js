@@ -9,6 +9,7 @@ import { NextResponse } from "next/server";
 import connectDB from "@/lib/db";
 import NotificationRule from "@/models/NotificationRule";
 import { getSessionUser } from "@/lib/getSessionUser";
+import { escapeRegex } from "@/lib/utils/escapeRegex";
 
 // ------------------------------------------------------------------ //
 // GET — Kuralları listele
@@ -26,7 +27,7 @@ export async function GET(request) {
 
     const filter = { tenantId };
     if (search) {
-      filter.name = { $regex: search, $options: "i" };
+      filter.name = { $regex: escapeRegex(search), $options: "i" };
     }
 
     const [data, total] = await Promise.all([
@@ -62,7 +63,10 @@ export async function GET(request) {
 // ------------------------------------------------------------------ //
 export async function POST(request) {
   try {
-    const { userId, tenantId } = await getSessionUser();
+    const { userId, tenantId, canWrite } = await getSessionUser();
+    if (!canWrite) {
+      return NextResponse.json({ ok: false, message: "Bu işlem için yetkiniz yok." }, { status: 403 });
+    }
     const body = await request.json();
 
     if (!body.name) {
