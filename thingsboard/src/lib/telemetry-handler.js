@@ -13,6 +13,7 @@ import emitter from "./event-emitter.js";
 import { checkAlarms, updateTelemetryContext } from "./alarm-engine.js";
 import { createRuleMessage, MSG_TYPES } from "./rule-engine/rule-message.js";
 import { processRuleChain } from "./rule-engine/processor.js";
+import logger from "./logger.js";
 
 /**
  * Access token ile cihazı doğrula.
@@ -113,7 +114,7 @@ export async function handleTelemetry(payload) {
       },
     });
     processRuleChain(String(tenantId), ruleMsg).catch((err) =>
-      console.error("[rule-engine] Telemetri işleme hatası:", err.message)
+      logger.error({ err: err.message }, "[rule-engine] Telemetri işleme hatası")
     );
   }
 

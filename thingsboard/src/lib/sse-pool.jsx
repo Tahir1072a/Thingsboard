@@ -23,6 +23,7 @@
  */
 
 import { createContext, useContext, useEffect, useRef, useCallback, useState, useSyncExternalStore } from "react";
+import logger from "@/lib/logger";
 
 // ── Singleton SSE Manager ──
 class SSEPoolManager {
@@ -122,7 +123,7 @@ class SSEPoolManager {
       try {
         sub.callback(data);
       } catch (err) {
-        console.error("[sse-pool] Subscriber hatası:", err);
+        logger.error({ err }, "[sse-pool] Subscriber hatası");
       }
     }
   }

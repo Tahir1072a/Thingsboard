@@ -3,6 +3,7 @@
  * Config: { method: "setValue", params: { pin: 1 }, timeout: 10000, oneWay: false }
  */
 import connectDB from "../../../db.js";
+import logger from "../../../logger.js";
 // NOTE: Use relative imports, NOT @/ aliases (this runs in server.mjs context)
 
 export async function rpcCallRequest(msg, config) {
@@ -49,10 +50,10 @@ export async function rpcCallRequest(msg, config) {
       }, config.timeout || 10000);
     }
     
-    console.log(`[rpc-call-request] ${config.method} → ${msg.originatorId}`);
+    logger.info("[rpc-call-request] %s → %s", config.method, msg.originatorId);
     return { success: true, msg: { ...msg, metadata: { ...msg.metadata, rpcRequestId: rpc.requestId } } };
   } catch (err) {
-    console.error("[rpc-call-request] Hata:", err.message);
+    logger.error({ err: err.message }, "[rpc-call-request] Hata");
     return { success: false, msg };
   }
 }

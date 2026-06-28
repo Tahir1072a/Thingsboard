@@ -10,6 +10,7 @@ import GoogleProvider from "next-auth/providers/google";
 import connectDB from "./db.js";
 import User from "../models/User.js";
 import { verifyPassword } from "./security.js";
+import logger from "./logger.js";
 
 /** @type {import("next-auth").AuthOptions} */
 export const authOptions = {
@@ -141,7 +142,7 @@ export const authOptions = {
 
           return true;
         } catch (error) {
-          console.error("[NextAuth] Google signIn hatası:", error);
+          logger.error({ err: error }, "[NextAuth] Google signIn hatası");
           return false;
         }
       }

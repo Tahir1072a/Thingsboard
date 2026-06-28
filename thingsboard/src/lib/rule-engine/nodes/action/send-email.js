@@ -1,4 +1,5 @@
 import { sendEmail } from "../../../email.js";
+import logger from "../../../logger.js";
 
 export async function sendEmailNode(msg, config) {
   try {
@@ -7,10 +8,10 @@ export async function sendEmailNode(msg, config) {
     const subject = renderTemplate(config.subject || "Almira Things Bildirimi", msg);
     const body = renderTemplate(config.body || JSON.stringify(msg.msg), msg);
     await sendEmail({ to, subject, html: `<div style="font-family:sans-serif;padding:16px">${body.replace(/\n/g, '<br>')}</div>` });
-    console.log(`[send-email] → ${to}`);
+    logger.info("[send-email] → %s", to);
     return { success: true, msg };
   } catch (err) {
-    console.error("[send-email] Hata:", err.message);
+    logger.error({ err: err.message }, "[send-email] Hata");
     return { success: false, msg };
   }
 }

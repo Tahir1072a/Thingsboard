@@ -1,9 +1,11 @@
+import logger from "../../../logger.js";
+
 export async function logNode(msg, config) {
   const level = config.level || "info";
   const prefix = config.prefix || "[rule-engine-log]";
   const logMsg = `${prefix} [${msg.msgType}] originator=${msg.originatorId} data=${JSON.stringify(msg.msg)}`;
-  if (level === "error") console.error(logMsg);
-  else if (level === "warn") console.warn(logMsg);
-  else console.log(logMsg);
+  if (level === "error") logger.error(logMsg);
+  else if (level === "warn") logger.warn(logMsg);
+  else logger.info(logMsg);
   return { success: true, msg };
 }

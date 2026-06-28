@@ -16,6 +16,7 @@ import connectDB from "./db.js";
 import Device from "../models/Device.js";
 import Asset from "../models/Asset.js";
 import DeviceProfile from "../models/DeviceProfile.js";
+import logger from "./logger.js";
 
 /**
  * Tek bir alias'ı çözümle → cihaz listesi döndür.
@@ -49,11 +50,11 @@ export async function resolveAlias(alias, tenantId) {
         return await resolveAssetChildrenByProfile(alias.config, tenantId);
 
       default:
-        console.warn(`[alias-resolver] Bilinmeyen alias tipi: ${alias.type}`);
+        logger.warn("[alias-resolver] Bilinmeyen alias tipi: %s", alias.type);
         return [];
     }
   } catch (err) {
-    console.error(`[alias-resolver] Alias çözümleme hatası (${alias.id}):`, err);
+    logger.error({ err }, "[alias-resolver] Alias çözümleme hatası (%s)", alias.id);
     return [];
   }
 }

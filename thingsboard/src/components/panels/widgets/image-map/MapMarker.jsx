@@ -1,14 +1,4 @@
-"use client";
-
-/**
- * MapMarker — Kat planı üzerinde tek bir cihaz marker'ı
- *
- * Hover'da tooltip gösterir (cihaz adı + değer + birim).
- * Edit modda sürüklenebilir (drag) ve kaldırılabilir (remove).
- * Alert durumunda pulse animasyonu oynar.
- */
-
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Thermometer,
@@ -35,6 +25,7 @@ export default function MapMarker({
   isEditMode = false,
   isAlert = false,
   containerRef,
+  imageRenderArea,
   onDragEnd,
   onRemove,
   markerSize = 24,
@@ -46,6 +37,35 @@ export default function MapMarker({
 
   const Icon = ICON_MAP[marker.iconType] || CircleDot;
 
+  /* ── Drag başlangıcında pointer-marker offset'ini kaydet ── */
+  const dragStartOffset = useRef({ x: 0, y: 0 });
+
+  const handleDragStart = useCallback(
+    (event) => {
+      if (!containerRef?.current) return;
+      const rect = containerRef.current.getBoundingClientRect();
+
+      if (imageRenderArea) {
+        // Resme göre marker merkezi (viewport koordinatları)
+        const { renderW, renderH, offsetX, offsetY } = imageRenderArea;
+        const markerCenterX = rect.left + offsetX + (marker.xPos / 100) * renderW;
+        const markerCenterY = rect.top + offsetY + (marker.yPos / 100) * renderH;
+        dragStartOffset.current = {
+          x: event.clientX - markerCenterX,
+          y: event.clientY - markerCenterY,
+        };
+      } else {
+        const markerCenterX = rect.left + (marker.xPos / 100) * rect.width;
+        const markerCenterY = rect.top + (marker.yPos / 100) * rect.height;
+        dragStartOffset.current = {
+          x: event.clientX - markerCenterX,
+          y: event.clientY - markerCenterY,
+        };
+      }
+    },
+    [containerRef, marker.xPos, marker.yPos, imageRenderArea]
+  );
+
   /* ── Drag bittiğinde yeni yüzdesel pozisyonu hesapla ── */
   const handleDragEnd = useCallback(
     (_event, info) => {
@@ -53,9 +73,21 @@ export default function MapMarker({
 
       const rect = containerRef.current.getBoundingClientRect();
 
-      // info.point: viewport koordinatları
-      const rawX = ((info.point.x - rect.left) / rect.width) * 100;
-      const rawY = ((info.point.y - rect.top) / rect.height) * 100;
+      // Pointer pozisyonundan başlangıç offset'ini çıkar → gerçek merkez
+      const correctedX = info.point.x - dragStartOffset.current.x;
+      const correctedY = info.point.y - dragStartOffset.current.y;
+
+      let rawX, rawY;
+
+      if (imageRenderArea) {
+        // Resmin gerçek render alanına göre % hesapla
+        const { renderW, renderH, offsetX, offsetY } = imageRenderArea;
+        rawX = ((correctedX - rect.left - offsetX) / renderW) * 100;
+        rawY = ((correctedY - rect.top - offsetY) / renderH) * 100;
+      } else {
+        rawX = ((correctedX - rect.left) / rect.width) * 100;
+        rawY = ((correctedY - rect.top) / rect.height) * 100;
+      }
 
       // Sınırları 0-100 arasında tut
       const xPos = Math.max(0, Math.min(100, rawX));
@@ -63,7 +95,7 @@ export default function MapMarker({
 
       onDragEnd(marker.id, xPos, yPos);
     },
-    [containerRef, onDragEnd, marker.id]
+    [containerRef, onDragEnd, marker.id, imageRenderArea]
   );
 
   /* ── Alert pulse animasyonu ── */
@@ -75,19 +107,33 @@ export default function MapMarker({
     ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
     : {};
 
+  /* ── Marker pozisyon hesaplama (resme göre) ── */
+  const markerStyle = (() => {
+    if (imageRenderArea) {
+      const { renderW, renderH, offsetX, offsetY } = imageRenderArea;
+      return {
+        left: `${offsetX + (marker.xPos / 100) * renderW}px`,
+        top: `${offsetY + (marker.yPos / 100) * renderH}px`,
+        transform: "translate(-50%, -50%)",
+      };
+    }
+    return {
+      left: `${marker.xPos}%`,
+      top: `${marker.yPos}%`,
+      transform: "translate(-50%, -50%)",
+    };
+  })();
+
   return (
     <motion.div
       className="absolute z-10 cancel"
-      style={{
-        left: `${marker.xPos}%`,
-        top: `${marker.yPos}%`,
-        transform: "translate(-50%, -50%)",
-      }}
+      style={markerStyle}
       /* ── Drag (sadece edit modda) ── */
       drag={isEditMode}
       dragConstraints={containerRef}
       dragMomentum={false}
       dragElastic={0}
+      onDragStart={isEditMode ? handleDragStart : undefined}
       onDragEnd={isEditMode ? handleDragEnd : undefined}
       onPointerDown={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}

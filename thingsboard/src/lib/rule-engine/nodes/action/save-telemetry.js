@@ -5,6 +5,7 @@
  */
 import connectDB from "../../../db.js";
 import Telemetry from "../../../../models/Telemetry.js";
+import logger from "../../../logger.js";
 
 export async function saveTelemetry(msg, config) {
   try {
@@ -24,7 +25,7 @@ export async function saveTelemetry(msg, config) {
     }
     return { success: true, msg };
   } catch (err) {
-    console.error("[save-telemetry] Hata:", err.message);
+    logger.error({ err: err.message }, "[save-telemetry] Hata");
     return { success: false, msg };
   }
 }

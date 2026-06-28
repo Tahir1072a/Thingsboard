@@ -4,6 +4,7 @@
  *
  * Güvenlik: Tehlikeli global'ler shadow edilerek izole edilir.
  */
+import logger from "../../../logger.js";
 
 const BLOCKED_GLOBALS = [
   "process", "require", "global", "globalThis",
@@ -29,7 +30,7 @@ export async function scriptTransform(msg, config) {
     }
     return { success: true, msg: transformed };
   } catch (err) {
-    console.error("[script-transform] Hata:", err.message);
+    logger.error({ err: err.message }, "[script-transform] Hata");
     return { success: false, msg };
   }
 }

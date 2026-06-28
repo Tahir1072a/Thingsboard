@@ -6,6 +6,7 @@
  * Güvenlik: Tehlikeli global'ler (process, require, global, import, eval)
  * shadow edilerek kullanıcı scriptinin erişimi engellenir.
  */
+import logger from "../../../logger.js";
 
 const BLOCKED_GLOBALS = [
   "process", "require", "global", "globalThis",
@@ -26,7 +27,7 @@ export async function scriptFilter(msg, config) {
     const result = fn({ ...msg.msg }, { ...msg.metadata }, msg.msgType);
     return { success: true, relationType: result ? "TRUE" : "FALSE", msg };
   } catch (err) {
-    console.error("[script-filter] Hata:", err.message);
+    logger.error({ err: err.message }, "[script-filter] Hata");
     return { success: false, msg };
   }
 }

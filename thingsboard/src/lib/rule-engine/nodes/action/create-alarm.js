@@ -7,6 +7,7 @@ import connectDB from "../../../db.js";
 import Alarm from "../../../../models/Alarm.js";
 import emitter from "../../../event-emitter.js";
 import { processNotifications } from "../../../notification-service.js";
+import logger from "../../../logger.js";
 
 export async function createAlarm(msg, config) {
   try {
@@ -57,10 +58,10 @@ export async function createAlarm(msg, config) {
       timestamp: new Date().toISOString(),
     }).catch(() => {});
     
-    console.log(`[create-alarm] ${config.alarmType} (${config.severity})`);
+    logger.info("[create-alarm] %s (%s)", config.alarmType, config.severity);
     return { success: true, msg };
   } catch (err) {
-    console.error("[create-alarm] Hata:", err.message);
+    logger.error({ err: err.message }, "[create-alarm] Hata");
     return { success: false, msg };
   }
 }

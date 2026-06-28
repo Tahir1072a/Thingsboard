@@ -17,6 +17,7 @@ import Alarm from "../models/Alarm.js";
 import emitter from "./event-emitter.js";
 import { getCachedDevice, getCachedProfile } from "./cache.js";
 import { processNotifications } from "./notification-service.js";
+import logger from "./logger.js";
 
 // ────────────────────────────────────────────────────────────────────
 // 1. Koşul Değerlendirici
@@ -267,7 +268,7 @@ export async function checkAlarms(deviceId, key, value, ownerInfo = {}) {
             },
           });
 
-          console.log(
+          logger.info(
             `🚨 ALARM: ${device.name} → ${rule.alarmType} (${rule.severity}) [${rule._source}]`
           );
           emitter.emit("alarm", alarm.toObject());
@@ -282,7 +283,7 @@ export async function checkAlarms(deviceId, key, value, ownerInfo = {}) {
             status: "ACTIVE",
             details: alarm.details,
             timestamp: new Date().toISOString(),
-          }).catch((err) => console.error("[alarm-engine] Bildirim hatası:", err.message));
+          }).catch((err) => logger.error({ err: err.message }, "[alarm-engine] Bildirim hatası"));
         }
       }
 
@@ -306,7 +307,7 @@ export async function checkAlarms(deviceId, key, value, ownerInfo = {}) {
             activeAlarm.clearedAt = new Date();
             await activeAlarm.save();
 
-            console.log(
+            logger.info(
               `✅ ALARM TEMİZLENDİ: ${device.name} → ${rule.alarmType}`
             );
             emitter.emit("alarm", activeAlarm.toObject());
@@ -321,12 +322,12 @@ export async function checkAlarms(deviceId, key, value, ownerInfo = {}) {
               status: "CLEARED",
               details: { clearedAt: activeAlarm.clearedAt },
               timestamp: new Date().toISOString(),
-            }).catch((err) => console.error("[alarm-engine] Bildirim hatası:", err.message));
+            }).catch((err) => logger.error({ err: err.message }, "[alarm-engine] Bildirim hatası"));
           }
         }
       }
     }
   } catch (err) {
-    console.error("[alarm-engine] Hata:", err.message);
+    logger.error({ err: err.message }, "[alarm-engine] Hata");
   }
 }

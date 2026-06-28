@@ -1,5 +1,6 @@
 import connectDB from "../../../db.js";
 import Attribute from "../../../../models/Attribute.js";
+import logger from "../../../logger.js";
 
 export async function deviceAttributes(msg, config) {
   try {
@@ -13,7 +14,7 @@ export async function deviceAttributes(msg, config) {
     });
     return { success: true, msg: enriched };
   } catch (err) {
-    console.error("[device-attributes] Hata:", err.message);
+    logger.error({ err: err.message }, "[device-attributes] Hata");
     return { success: false, msg };
   }
 }

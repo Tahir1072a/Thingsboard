@@ -3,12 +3,13 @@
  * Config: { responseBody: { result: "ok" } } — veya msg.msg'den alır
  */
 import connectDB from "../../../db.js";
+import logger from "../../../logger.js";
 
 export async function rpcCallReply(msg, config) {
   try {
     const requestId = msg.metadata?.rpcRequestId;
     if (!requestId) {
-      console.warn("[rpc-call-reply] rpcRequestId metadata'da bulunamadı");
+      logger.warn("[rpc-call-reply] rpcRequestId metadata'da bulunamadı");
       return { success: false, msg };
     }
     
@@ -33,10 +34,10 @@ export async function rpcCallReply(msg, config) {
       response: responseBody,
     });
     
-    console.log(`[rpc-call-reply] Yanıt gönderildi: ${requestId}`);
+    logger.info("[rpc-call-reply] Yanıt gönderildi: %s", requestId);
     return { success: true, msg };
   } catch (err) {
-    console.error("[rpc-call-reply] Hata:", err.message);
+    logger.error({ err: err.message }, "[rpc-call-reply] Hata");
     return { success: false, msg };
   }
 }

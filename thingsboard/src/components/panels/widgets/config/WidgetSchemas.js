@@ -14,6 +14,7 @@ export const WIDGET_CATEGORIES = [
   { id: "maps", label: "Haritalar", icon: "MapPin" },
   { id: "control", label: "Kontrol", icon: "Zap" },
   { id: "alarms", label: "Alarm", icon: "Bell" },
+  { id: "scada", label: "SCADA", icon: "Factory" },
 ];
 
 // Her widget tipi için config şemaları
@@ -998,3 +999,94 @@ export function getDatasourceConstraints(widgetType) {
   if (!schema) return { maxDevices: null, maxKeys: null, requireDevice: true, requireKey: true };
   return schema.datasource;
 }
+
+// ─── SCADA Widget Schemas ───
+Object.assign(WIDGET_SCHEMAS, {
+  scada_valve: {
+    category: "scada",
+    datasource: { maxDevices: 1, maxKeys: 1, requireDevice: true, requireKey: true },
+    basicFields: [
+      { key: "label", label: "Etiket", type: "text", defaultValue: "Vana", placeholder: "Vana 1" },
+      { key: "rpcMethod", label: "RPC Metodu (opsiyonel)", type: "text", defaultValue: "", placeholder: "setValve" },
+    ],
+    advancedFields: [
+      { key: "openColor", label: "Açık Renk", type: "color", defaultValue: "#22c55e" },
+      { key: "closedColor", label: "Kapalı Renk", type: "color", defaultValue: "#ef4444" },
+    ],
+  },
+  scada_pump: {
+    category: "scada",
+    datasource: { maxDevices: 1, maxKeys: 1, requireDevice: true, requireKey: true },
+    basicFields: [
+      { key: "label", label: "Etiket", type: "text", defaultValue: "Pompa", placeholder: "Pompa 1" },
+    ],
+    advancedFields: [
+      { key: "runningColor", label: "Çalışıyor Rengi", type: "color", defaultValue: "#22c55e" },
+      { key: "stoppedColor", label: "Durdu Rengi", type: "color", defaultValue: "#94a3b8" },
+    ],
+  },
+  scada_tank: {
+    category: "scada",
+    datasource: { maxDevices: 1, maxKeys: 1, requireDevice: true, requireKey: true },
+    basicFields: [
+      { key: "label", label: "Etiket", type: "text", defaultValue: "Tank", placeholder: "Tank 1" },
+      { key: "capacity", label: "Kapasite", type: "number", defaultValue: 10000 },
+      { key: "unit", label: "Birim", type: "text", defaultValue: "L", placeholder: "L" },
+    ],
+    advancedFields: [
+      { key: "lowThreshold", label: "Düşük Eşik (%)", type: "number", defaultValue: 20, min: 0, max: 100 },
+      { key: "highThreshold", label: "Yüksek Eşik (%)", type: "number", defaultValue: 80, min: 0, max: 100 },
+    ],
+  },
+  scada_pipe: {
+    category: "scada",
+    datasource: { maxDevices: null, maxKeys: null, requireDevice: false, requireKey: false },
+    basicFields: [
+      { key: "direction", label: "Yön", type: "select", defaultValue: "horizontal", options: [
+        { value: "horizontal", label: "Yatay" },
+        { value: "vertical", label: "Dikey" },
+        { value: "elbow-tr", label: "Dirsek (Sağ-Üst)" },
+        { value: "elbow-tl", label: "Dirsek (Sol-Üst)" },
+        { value: "elbow-br", label: "Dirsek (Sağ-Alt)" },
+        { value: "elbow-bl", label: "Dirsek (Sol-Alt)" },
+      ] },
+      { key: "flowing", label: "Akış Animasyonu", type: "toggle", defaultValue: true },
+    ],
+    advancedFields: [
+      { key: "flowColor", label: "Akış Rengi", type: "color", defaultValue: "#3b82f6" },
+    ],
+  },
+  scada_motor: {
+    category: "scada",
+    datasource: { maxDevices: 1, maxKeys: 1, requireDevice: true, requireKey: true },
+    basicFields: [
+      { key: "label", label: "Etiket", type: "text", defaultValue: "Motor", placeholder: "Motor 1" },
+    ],
+    advancedFields: [
+      { key: "powerKey", label: "Güç Telemetri Anahtarı", type: "text", defaultValue: "", placeholder: "power" },
+    ],
+  },
+  scada_sensor: {
+    category: "scada",
+    datasource: { maxDevices: 1, maxKeys: 1, requireDevice: true, requireKey: true },
+    basicFields: [
+      { key: "label", label: "Etiket", type: "text", defaultValue: "Sensör", placeholder: "Sıcaklık" },
+      { key: "unit", label: "Birim", type: "text", defaultValue: "°C", placeholder: "°C" },
+    ],
+    advancedFields: [
+      { key: "warningThreshold", label: "Uyarı Eşiği", type: "number", defaultValue: 70 },
+      { key: "criticalThreshold", label: "Kritik Eşik", type: "number", defaultValue: 90 },
+    ],
+  },
+  scada_gauge: {
+    category: "scada",
+    datasource: { maxDevices: 1, maxKeys: 1, requireDevice: true, requireKey: true },
+    basicFields: [
+      { key: "label", label: "Etiket", type: "text", defaultValue: "Basınç", placeholder: "Basınç" },
+      { key: "unit", label: "Birim", type: "text", defaultValue: "bar", placeholder: "bar" },
+      { key: "min", label: "Minimum", type: "number", defaultValue: 0 },
+      { key: "max", label: "Maksimum", type: "number", defaultValue: 100 },
+    ],
+    advancedFields: [],
+  },
+});

@@ -2,6 +2,7 @@
  * redis.js — Singleton Redis Bağlantı Yöneticisi
  */
 import Redis from "ioredis";
+import logger from "./logger.js";
 
 const REDIS_URL = process.env.REDIS_URL || "redis://localhost:6379";
 
@@ -20,15 +21,15 @@ const redis = globalForRedis.__redis_client__ ?? new Redis(REDIS_URL, {
 // Event listener'ların her seferinde üst üste binmesini engellemek için kontrol
 if (!globalForRedis.__redis_listeners_added__) {
   redis.on("connect", () => {
-    console.log("✅ Redis bağlantısı kuruldu");
+    logger.info("Redis bağlantısı kuruldu");
   });
 
   redis.on("error", (err) => {
-    console.error("[Redis] Bağlantı hatası:", err.message);
+    logger.error({ err: err.message }, "[Redis] Bağlantı hatası");
   });
 
   redis.on("reconnecting", () => {
-    console.warn("⚠️ Redis yeniden bağlanıyor...");
+    logger.warn("Redis yeniden bağlanıyor...");
   });
 
   globalForRedis.__redis_listeners_added__ = true;

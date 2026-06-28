@@ -12,6 +12,7 @@ import redis from "./redis.js";
 import connectDB from "./db.js";
 import Device from "../models/Device.js";
 import DeviceProfile from "../models/DeviceProfile.js";
+import logger from "./logger.js";
 
 const CACHE_TTL = 600;
 
@@ -28,12 +29,12 @@ export async function getCachedDevice(deviceId) {
     // 1. Önce Redis'e bak
     const cached = await redis.get(cacheKey);
     if (cached) {
-      console.log("Cache'den device verisi çekildi");
+      logger.info("Cache'den device verisi çekildi");
       return JSON.parse(cached);
     }
   } catch (err) {
     // Redis erişilemezse MongoDB'ye düş (graceful degradation)
-    console.warn("[cache] Redis okuma hatası, MongoDB'ye düşülüyor:", err.message);
+    logger.warn({ err: err.message }, "[cache] Redis okuma hatası, MongoDB'ye düşülüyor");
   }
 
   // 2. Redis'te yoksa MongoDB'den çek
@@ -45,7 +46,7 @@ export async function getCachedDevice(deviceId) {
   try {
     await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(device));
   } catch (err) {
-    console.warn("[cache] Redis yazma hatası:", err.message);
+    logger.warn({ err: err.message }, "[cache] Redis yazma hatası");
   }
 
   return device;
@@ -66,7 +67,7 @@ export async function getCachedProfile(profileId) {
       return JSON.parse(cached);
     }
   } catch (err) {
-    console.warn("[cache] Redis okuma hatası, MongoDB'ye düşülüyor:", err.message);
+    logger.warn({ err: err.message }, "[cache] Redis okuma hatası, MongoDB'ye düşülüyor");
   }
 
   await connectDB();
@@ -76,7 +77,7 @@ export async function getCachedProfile(profileId) {
   try {
     await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(profile));
   } catch (err) {
-    console.warn("[cache] Redis yazma hatası:", err.message);
+    logger.warn({ err: err.message }, "[cache] Redis yazma hatası");
   }
 
   return profile;
@@ -89,7 +90,7 @@ export async function invalidateDevice(deviceId) {
   try {
     await redis.del(`device:${deviceId}`);
   } catch (err) {
-    console.warn("[cache] Device invalidation hatası:", err.message);
+    logger.warn({ err: err.message }, "[cache] Device invalidation hatası");
   }
 }
 
@@ -100,6 +101,6 @@ export async function invalidateProfile(profileId) {
   try {
     await redis.del(`profile:${profileId}`);
   } catch (err) {
-    console.warn("[cache] Profile invalidation hatası:", err.message);
+    logger.warn({ err: err.message }, "[cache] Profile invalidation hatası");
   }
 }

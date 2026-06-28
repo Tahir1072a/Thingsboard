@@ -8,10 +8,11 @@
  *   password: ""
  * }
  */
+import logger from "../../../logger.js";
 
 export async function mqttPublish(msg, config) {
   if (!config.brokerUrl || !config.topic) {
-    console.warn("[mqtt-publish] brokerUrl veya topic eksik.");
+    logger.warn("[mqtt-publish] brokerUrl veya topic eksik.");
     return { success: false, msg };
   }
 
@@ -30,7 +31,7 @@ export async function mqttPublish(msg, config) {
     try {
       mqtt = await import("mqtt");
     } catch {
-      console.error("[mqtt-publish] 'mqtt' paketi bulunamadı. npm install mqtt gerekli.");
+      logger.error("[mqtt-publish] 'mqtt' paketi bulunamadı. npm install mqtt gerekli.");
       return { success: false, msg };
     }
 
@@ -67,10 +68,10 @@ export async function mqttPublish(msg, config) {
       });
     });
 
-    console.log(`[mqtt-publish] → ${config.brokerUrl} topic:${topic}`);
+    logger.info("[mqtt-publish] → %s topic:%s", config.brokerUrl, topic);
     return { success: true, msg };
   } catch (err) {
-    console.error("[mqtt-publish] Hata:", err.message);
+    logger.error({ err: err.message }, "[mqtt-publish] Hata");
     return { success: false, msg };
   }
 }

@@ -46,6 +46,10 @@ export default function ImageMapWidget({
   /* ── Container ref (drag sınırları + yüzde hesaplama) ── */
   const containerRef = useRef(null);
   const fileInputRef = useRef(null);
+  const imgRef = useRef(null);
+
+  /* ── Resmin container içindeki gerçek render alanı (object-contain offset) ── */
+  const [imageRenderArea, setImageRenderArea] = useState(null);
 
   /* ── Benzersiz cihaz ID'leri ── */
   const uniqueDeviceIds = useMemo(
@@ -104,6 +108,53 @@ export default function ImageMapWidget({
       clearInterval(pollInterval);
     };
   }, [uniqueDeviceIds, publicToken]);
+
+  /* ──────────────────────────────────────────────
+   * Resmin gerçek render alanını hesapla (object-contain offset)
+   * ────────────────────────────────────────────── */
+  const calculateImageRenderArea = useCallback(() => {
+    const container = containerRef.current;
+    const img = imgRef.current;
+    if (!container || !img || !img.naturalWidth || !img.naturalHeight) {
+      setImageRenderArea(null);
+      return;
+    }
+
+    const containerRect = container.getBoundingClientRect();
+    const containerW = containerRect.width;
+    const containerH = containerRect.height;
+    const imageAR = img.naturalWidth / img.naturalHeight;
+    const containerAR = containerW / containerH;
+
+    let renderW, renderH, offsetX, offsetY;
+
+    if (imageAR > containerAR) {
+      // Resim daha geniş → üst-alt boşluk
+      renderW = containerW;
+      renderH = containerW / imageAR;
+      offsetX = 0;
+      offsetY = (containerH - renderH) / 2;
+    } else {
+      // Resim daha uzun → sol-sağ boşluk
+      renderH = containerH;
+      renderW = containerH * imageAR;
+      offsetX = (containerW - renderW) / 2;
+      offsetY = 0;
+    }
+
+    setImageRenderArea({ renderW, renderH, offsetX, offsetY });
+  }, []);
+
+  // Resim yüklendiğinde ve container boyutu değiştiğinde yeniden hesapla
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const resizeObserver = new ResizeObserver(() => calculateImageRenderArea());
+    resizeObserver.observe(container);
+
+    return () => resizeObserver.disconnect();
+  }, [calculateImageRenderArea]);
 
   /* ──────────────────────────────────────────────
    * Config güncelleme yardımcıları
@@ -280,10 +331,12 @@ export default function ImageMapWidget({
           <>
             {/* Kat planı görüntüsü */}
             <img
+              ref={imgRef}
               src={imageSrc}
               alt={title}
               className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
               draggable={false}
+              onLoad={calculateImageRenderArea}
             />
 
             {/* Marker'lar */}
@@ -313,6 +366,7 @@ export default function ImageMapWidget({
                   isEditMode={isEditMode}
                   isAlert={isAlert}
                   containerRef={containerRef}
+                  imageRenderArea={imageRenderArea}
                   onDragEnd={handleMarkerDragEnd}
                   onRemove={handleRemoveMarker}
                   markerSize={markerSize}

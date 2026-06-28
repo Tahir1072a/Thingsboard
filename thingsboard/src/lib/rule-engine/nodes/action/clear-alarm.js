@@ -2,6 +2,7 @@ import connectDB from "../../../db.js";
 import Alarm from "../../../../models/Alarm.js";
 import emitter from "../../../event-emitter.js";
 import { processNotifications } from "../../../notification-service.js";
+import logger from "../../../logger.js";
 
 export async function clearAlarm(msg, config) {
   try {
@@ -27,10 +28,10 @@ export async function clearAlarm(msg, config) {
       details: { clearedAt: alarm.clearedAt },
       timestamp: new Date().toISOString(),
     }).catch(() => {});
-    console.log(`[clear-alarm] ${config.alarmType} temizlendi`);
+    logger.info("[clear-alarm] %s temizlendi", config.alarmType);
     return { success: true, msg };
   } catch (err) {
-    console.error("[clear-alarm] Hata:", err.message);
+    logger.error({ err: err.message }, "[clear-alarm] Hata");
     return { success: false, msg };
   }
 }

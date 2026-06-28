@@ -1,3 +1,5 @@
+import logger from "../../../logger.js";
+
 export async function restApiCall(msg, config) {
   if (!config.url) return { success: false, msg };
   try {
@@ -11,10 +13,10 @@ export async function restApiCall(msg, config) {
     const res = await fetch(url, fetchOpts);
     const responseBody = await res.text();
     const enriched = { ...msg, metadata: { ...msg.metadata, responseStatus: res.status, responseBody } };
-    console.log(`[rest-api-call] ${method} ${url} → ${res.status}`);
+    logger.info("[rest-api-call] %s %s → %d", method, url, res.status);
     return { success: res.ok, msg: enriched };
   } catch (err) {
-    console.error("[rest-api-call] Hata:", err.message);
+    logger.error({ err: err.message }, "[rest-api-call] Hata");
     return { success: false, msg };
   }
 }

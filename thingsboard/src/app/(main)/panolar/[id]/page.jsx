@@ -27,6 +27,16 @@ import { AnimatePresence } from "framer-motion";
 import "react-grid-layout/css/styles.css";
 import "react-resizable/css/styles.css";
 
+/** 12-kolon layout'u 24-kolona migrate eder */
+function migrateLayoutTo24Cols(widgets, gridCols) {
+  if (gridCols === 24) return widgets;
+  return widgets.map(w => ({
+    ...w,
+    x: Math.min((w.x ?? 0) * 2, 23),
+    w: Math.min((w.w ?? 4) * 2, 24),
+  }));
+}
+
 export default function DashboardEditorPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -48,11 +58,8 @@ export default function DashboardEditorPage() {
   // Container width ölçümü (react-grid-layout v2 hook)
   const { width: containerWidth, containerRef } = useContainerWidth({ initialWidth: 1200 });
 
-  // Calculate dynamic rowHeight based on container width
-  // Grid has 12 columns with 12px margin, so each column width is:
-  // (containerWidth - 13*12) / 12
-  // rowHeight should be proportional for square-ish cells
-  const dynamicRowHeight = Math.max(30, Math.floor((containerWidth - 13 * 12) / 12));
+  // Fixed row height for consistent layout across screen sizes
+  const ROW_HEIGHT = 50;
 
   // Widget ekleme/düzenleme modalı
   const [widgetModal, setWidgetModal] = useState({ open: false, mode: "add", widget: null });
@@ -70,14 +77,17 @@ export default function DashboardEditorPage() {
       const res = await fetch(`/api/dashboard/${id}`);
       const data = await res.json();
       if (data.ok) {
+        // 12-kolon layout'u 24-kolona migrate eder
+        const migratedWidgets = migrateLayoutTo24Cols(data.data.widgets || [], data.data.gridCols);
+
         // Widget pozisyonlarını sanitize et (mevcut veritabanı verisinde null/undefined olabilir)
         const sanitized = {
           ...data.data,
-          widgets: (data.data.widgets || []).map((w, idx) => ({
+          widgets: migratedWidgets.map((w, idx) => ({
             ...w,
-            x: Number.isFinite(w.x) && w.x !== null ? w.x : (idx % 12),
+            x: Number.isFinite(w.x) && w.x !== null ? w.x : (idx % 24),
             y: Number.isFinite(w.y) && w.y !== null ? w.y : (idx * 10),
-            w: Number.isFinite(w.w) && w.w !== null ? w.w : 4,
+            w: Number.isFinite(w.w) && w.w !== null ? w.w : 6,
             h: Number.isFinite(w.h) && w.h !== null ? w.h : 3,
           })),
         };
@@ -195,9 +205,9 @@ export default function DashboardEditorPage() {
       // Widget verilerini sanitize et
       const sanitizedWidgets = (dashboard.widgets || []).map((w, idx) => ({
         ...w,
-        x: Number.isFinite(w.x) ? w.x : (idx % 12),
+        x: Number.isFinite(w.x) ? w.x : (idx % 24),
         y: Number.isFinite(w.y) ? w.y : (idx * 10),
-        w: Number.isFinite(w.w) ? w.w : 4,
+        w: Number.isFinite(w.w) ? w.w : 6,
         h: Number.isFinite(w.h) ? w.h : 3,
       }));
 
@@ -213,6 +223,7 @@ export default function DashboardEditorPage() {
           description: dashboard.description,
           widgets: sanitizedWidgets,
           entityAliases: dashboard.entityAliases || [],
+          gridCols: 24,
         }),
         signal: controller.signal,
       });
@@ -321,8 +332,10 @@ export default function DashboardEditorPage() {
     y: w.y,
     w: w.w,
     h: w.h,
-    minW: 2,
+    minW: 3,
     minH: 2,
+    maxW: 24,
+    maxH: 16,
     static: !editMode,
   }));
 
@@ -457,8 +470,8 @@ export default function DashboardEditorPage() {
             width={containerWidth}
             layouts={{ lg: layoutData }}
             breakpoints={{ lg: 1200, md: 996, sm: 768, xs: 480, xxs: 0 }}
-            cols={{ lg: 12, md: 10, sm: 6, xs: 4, xxs: 1 }}
-            rowHeight={dynamicRowHeight}
+            cols={{ lg: 24, md: 20, sm: 12, xs: 8, xxs: 4 }}
+            rowHeight={ROW_HEIGHT}
             isDraggable={editMode}
             isResizable={editMode}
             onLayoutChange={handleLayoutChange}

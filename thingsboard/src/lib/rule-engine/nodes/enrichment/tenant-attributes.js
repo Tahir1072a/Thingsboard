@@ -6,6 +6,7 @@
  * Şimdilik Tenant modelindeki alanları metadata'ya ekler.
  */
 import connectDB from "../../../db.js";
+import logger from "../../../logger.js";
 
 export async function tenantAttributes(msg, config) {
   try {
@@ -33,7 +34,7 @@ export async function tenantAttributes(msg, config) {
 
     return { success: true, msg: enriched };
   } catch (err) {
-    console.error("[tenant-attributes] Hata:", err.message);
+    logger.error({ err: err.message }, "[tenant-attributes] Hata");
     return { success: false, msg };
   }
 }

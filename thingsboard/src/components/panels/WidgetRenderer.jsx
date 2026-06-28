@@ -23,8 +23,15 @@ import AlarmWidget from "./widgets/AlarmWidget";
 import RpcSwitchWidget from "./widgets/RpcSwitchWidget";
 import RpcSliderWidget from "./widgets/RpcSliderWidget";
 import RpcButtonWidget from "./widgets/RpcButtonWidget";
+import ScadaValveWidget from "./widgets/scada/ScadaValveWidget";
+import ScadaPumpWidget from "./widgets/scada/ScadaPumpWidget";
+import ScadaTankWidget from "./widgets/scada/ScadaTankWidget";
+import ScadaPipeWidget from "./widgets/scada/ScadaPipeWidget";
+import ScadaMotorWidget from "./widgets/scada/ScadaMotorWidget";
+import ScadaSensorWidget from "./widgets/scada/ScadaSensorWidget";
+import ScadaGaugeWidget from "./widgets/scada/ScadaGaugeWidget";
 import BaseWidgetCard from "./BaseWidgetCard";
-import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell, MapPin, Power, SlidersHorizontal, Zap } from "lucide-react";
+import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell, MapPin, Power, SlidersHorizontal, Zap, Factory, Droplets, Thermometer, Activity, CircleDot } from "lucide-react";
 import dynamic from "next/dynamic";
 
 // Leaflet requires browser window — must use dynamic import with ssr: false
@@ -44,6 +51,13 @@ const WIDGET_MAP = {
   rpc_switch: RpcSwitchWidget,
   rpc_slider: RpcSliderWidget,
   rpc_button: RpcButtonWidget,
+  scada_valve: ScadaValveWidget,
+  scada_pump: ScadaPumpWidget,
+  scada_tank: ScadaTankWidget,
+  scada_pipe: ScadaPipeWidget,
+  scada_motor: ScadaMotorWidget,
+  scada_sensor: ScadaSensorWidget,
+  scada_gauge: ScadaGaugeWidget,
 };
 
 export const WIDGET_TYPES = [
@@ -137,6 +151,56 @@ export const WIDGET_TYPES = [
     icon: Zap,
     description: "Tek tıkla özel RPC komutu",
     defaultSize: { w: 3, h: 3 },
+  },
+  // ─── SCADA ───
+  {
+    type: "scada_valve",
+    label: "SCADA Vana",
+    icon: CircleDot,
+    description: "Açık/kapalı vana gösterimi",
+    defaultSize: { w: 4, h: 4 },
+  },
+  {
+    type: "scada_pump",
+    label: "SCADA Pompa",
+    icon: Activity,
+    description: "Santrifüj pompa gösterimi",
+    defaultSize: { w: 4, h: 4 },
+  },
+  {
+    type: "scada_tank",
+    label: "SCADA Tank",
+    icon: Droplets,
+    description: "Doluluk seviyeli tank",
+    defaultSize: { w: 4, h: 6 },
+  },
+  {
+    type: "scada_pipe",
+    label: "SCADA Boru",
+    icon: Factory,
+    description: "Boru bağlantısı (dekoratif)",
+    defaultSize: { w: 6, h: 2 },
+  },
+  {
+    type: "scada_motor",
+    label: "SCADA Motor",
+    icon: Zap,
+    description: "Elektrik motoru gösterimi",
+    defaultSize: { w: 4, h: 4 },
+  },
+  {
+    type: "scada_sensor",
+    label: "SCADA Sensör",
+    icon: Thermometer,
+    description: "Eşik değerli sensör göstergesi",
+    defaultSize: { w: 4, h: 4 },
+  },
+  {
+    type: "scada_gauge",
+    label: "SCADA Gösterge",
+    icon: Gauge,
+    description: "Endüstriyel analog gösterge",
+    defaultSize: { w: 4, h: 4 },
   },
 ];
 

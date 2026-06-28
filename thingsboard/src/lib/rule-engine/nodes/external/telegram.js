@@ -1,3 +1,5 @@
+import logger from "../../../logger.js";
+
 export async function telegramNode(msg, config) {
   if (!config.botToken || !config.chatId) return { success: false, msg };
   try {
@@ -9,10 +11,10 @@ export async function telegramNode(msg, config) {
     });
     const result = await res.json();
     if (!result.ok) throw new Error(result.description);
-    console.log(`[telegram] → chat:${config.chatId}`);
+    logger.info("[telegram] → chat:%s", config.chatId);
     return { success: true, msg };
   } catch (err) {
-    console.error("[telegram] Hata:", err.message);
+    logger.error({ err: err.message }, "[telegram] Hata");
     return { success: false, msg };
   }
 }

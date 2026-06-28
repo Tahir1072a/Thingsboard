@@ -1,4 +1,5 @@
 import nodemailer from "nodemailer";
+import logger from "./logger.js";
 
 export const sendEmail = async ({ to, subject, html }) => {
   const transporter = nodemailer.createTransport({
@@ -20,10 +21,10 @@ export const sendEmail = async ({ to, subject, html }) => {
 
   try {
     const info = await transporter.sendMail(mailOptions);
-    console.log("Message sent: %s", info.messageId);
+    logger.info("Message sent: %s", info.messageId);
     return info;
   } catch (err) {
-    console.error("Error sending mail:", err);
+    logger.error({ err }, "Error sending mail");
     throw new Error("E-posta gönderimi sırasında bir hata oluştu.");
   }
 };

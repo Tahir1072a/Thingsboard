@@ -12,6 +12,7 @@
 import connectDB from "./db.js";
 import NotificationRule from "../models/NotificationRule.js";
 import { sendEmail } from "./email.js";
+import logger from "./logger.js";
 
 /**
  * Alarm olayını işle — eşleşen kuralları bul ve bildirimleri gönder.
@@ -52,15 +53,12 @@ export async function processNotifications(triggerType, context) {
               break;
           }
         } catch (err) {
-          console.error(
-            `[notification-service] ${channel.type} gönderim hatası:`,
-            err.message
-          );
+          logger.error({ err: err.message }, `[notification-service] ${channel.type} gönderim hatası`);
         }
       }
     }
   } catch (err) {
-    console.error("[notification-service] processNotifications hatası:", err.message);
+    logger.error({ err: err.message }, "[notification-service] processNotifications hatası");
   }
 }
 
@@ -73,7 +71,7 @@ export async function processNotifications(triggerType, context) {
  */
 async function sendEmailNotification(config, subject, body) {
   if (!config?.to) {
-    console.warn("[notification] EMAIL: 'to' adresi belirtilmemiş.");
+    logger.warn("[notification] EMAIL: 'to' adresi belirtilmemiş.");
     return;
   }
 
@@ -100,7 +98,7 @@ async function sendEmailNotification(config, subject, body) {
     `,
   });
 
-  console.log(`[notification] EMAIL → ${config.to}`);
+  logger.info("[notification] EMAIL → %s", config.to);
 }
 
 /**
@@ -108,7 +106,7 @@ async function sendEmailNotification(config, subject, body) {
  */
 async function sendWebhookNotification(config, subject, body, context) {
   if (!config?.url) {
-    console.warn("[notification] WEBHOOK: URL belirtilmemiş.");
+    logger.warn("[notification] WEBHOOK: URL belirtilmemiş.");
     return;
   }
 
@@ -140,9 +138,7 @@ async function sendWebhookNotification(config, subject, body, context) {
 
   const response = await fetch(config.url, fetchOptions);
 
-  console.log(
-    `[notification] WEBHOOK → ${config.url} (${response.status})`
-  );
+  logger.info("[notification] WEBHOOK → %s (%d)", config.url, response.status);
 }
 
 /**
@@ -150,7 +146,7 @@ async function sendWebhookNotification(config, subject, body, context) {
  */
 async function sendTelegramNotification(config, subject, body) {
   if (!config?.botToken || !config?.chatId) {
-    console.warn("[notification] TELEGRAM: botToken veya chatId eksik.");
+    logger.warn("[notification] TELEGRAM: botToken veya chatId eksik.");
     return;
   }
 
@@ -175,7 +171,7 @@ async function sendTelegramNotification(config, subject, body) {
     throw new Error(`Telegram API hatası: ${result.description}`);
   }
 
-  console.log(`[notification] TELEGRAM → chat:${config.chatId}`);
+  logger.info("[notification] TELEGRAM → chat:%s", config.chatId);
 }
 
 // ────────────────────────────────────────────────────────────────────

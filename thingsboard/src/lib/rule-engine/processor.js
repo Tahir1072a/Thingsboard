@@ -27,6 +27,7 @@ import { telegramNode } from "./nodes/external/telegram.js";
 import { mqttPublish } from "./nodes/external/mqtt-publish.js";
 import { rpcCallRequest } from "./nodes/action/rpc-call-request.js";
 import { rpcCallReply } from "./nodes/action/rpc-call-reply.js";
+import logger from "../logger.js";
 
 // Node tipi → işleyici eşlemesi
 const NODE_HANDLERS = {
@@ -107,7 +108,7 @@ export async function processRuleChain(tenantId, ruleMessage, chainId) {
 
       const handler = NODE_HANDLERS[node.type];
       if (!handler) {
-        console.warn(`[rule-engine] Bilinmeyen node tipi: ${node.type}`);
+        logger.warn("[rule-engine] Bilinmeyen node tipi: %s", node.type);
         continue;
       }
 
@@ -138,10 +139,7 @@ export async function processRuleChain(tenantId, ruleMessage, chainId) {
           }
         }
       } catch (err) {
-        console.error(
-          `[rule-engine] Node hatası: ${node.name} (${node.type})`,
-          err.message
-        );
+        logger.error({ err: err.message }, "[rule-engine] Node hatası: %s (%s)", node.name, node.type);
 
         // Hata durumunda FAILURE bağlantılarını takip et
         const connections = connMap.get(nodeId) || [];
@@ -154,9 +152,9 @@ export async function processRuleChain(tenantId, ruleMessage, chainId) {
     }
 
     if (steps >= MAX_STEPS) {
-      console.warn(`[rule-engine] Max adım limiti aşıldı (${MAX_STEPS}), chain: ${chain.name}`);
+      logger.warn("[rule-engine] Max adım limiti aşıldı (%d), chain: %s", MAX_STEPS, chain.name);
     }
   } catch (err) {
-    console.error("[rule-engine] processRuleChain hatası:", err.message);
+    logger.error({ err: err.message }, "[rule-engine] processRuleChain hatası");
   }
 }
