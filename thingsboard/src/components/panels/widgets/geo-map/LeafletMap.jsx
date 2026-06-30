@@ -5,18 +5,18 @@
  *
  * Bu dosya SADECE client-side'da çalışır (dynamic import ile ssr: false).
  * Leaflet CSS'i burada import edilir.
- * Zone/Polygon desteği: Edit modunda çizim, okuma modunda render.
- * Marker desteği: Edit modunda tek nokta marker ekleme.
+ * Zone/Polygon desteği: Geoman eklentisi kullanılarak çizim.
+ * Marker desteği: MarkerClusterGroup ve leaflet.marker.slideto ile.
  */
 
 import { useEffect, useRef, useImperativeHandle, forwardRef, useState } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polygon, Tooltip as LeafletTooltip, useMap } from "react-leaflet";
+import MarkerClusterGroup from "react-leaflet-cluster";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import "leaflet-defaulticon-compatibility/dist/leaflet-defaulticon-compatibility.css";
-import "leaflet-defaulticon-compatibility";
-import "leaflet-draw/dist/leaflet.draw.css";
-import "leaflet-draw";
+import "@geoman-io/leaflet-geoman-free/dist/leaflet-geoman.css";
+import "@geoman-io/leaflet-geoman-free";
+import "leaflet.marker.slideto";
 
 // ── Harita katmanı (tile) yapılandırmaları ──
 const TILE_CONFIGS = {
@@ -34,28 +34,46 @@ const TILE_CONFIGS = {
   },
 };
 
-// ── Özel marker ikonu (cihaz telemetri marker'ları) ──
-const deviceIcon = new L.Icon({
-  iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  iconSize: [25, 41],
-  iconAnchor: [12, 41],
-  popupAnchor: [1, -34],
-  shadowSize: [41, 41],
-});
+// ── Özel divIcon oluşturucular (ThingsBoard Stili) ──
+function createDeviceIcon(name, telVal) {
+  const html = `
+    <div class="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-gray-200/80 shadow-lg rounded-full px-2 py-1 transform -translate-x-1/2 -translate-y-full hover:scale-105 transition-transform cursor-pointer hover:shadow-xl hover:bg-white z-50 relative">
+      <div class="w-5 h-5 rounded-full bg-indigo-500 flex items-center justify-center shadow-inner flex-shrink-0 border border-indigo-600/20">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" class="w-3 h-3"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+      </div>
+      <div class="flex flex-col pr-1">
+        <span class="text-[10px] font-bold text-gray-800 leading-tight whitespace-nowrap">${name}</span>
+        ${telVal ? `<span class="text-[9px] text-gray-500 font-mono leading-tight whitespace-nowrap">${telVal.key}: <strong class="text-indigo-600">${telVal.value}</strong></span>` : ''}
+      </div>
+    </div>
+  `;
+  return new L.divIcon({
+    html,
+    className: 'bg-transparent border-0',
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -32],
+  });
+}
 
-// ── Renkli marker ikonu oluşturucu (manuel marker'lar için) ──
-function createColoredIcon(color = "#ef4444") {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 36" width="28" height="42">
-    <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24C24 5.4 18.6 0 12 0z" fill="${color}" stroke="#fff" stroke-width="1.5"/>
-    <circle cx="12" cy="12" r="5" fill="#fff"/>
-  </svg>`;
-  return new L.Icon({
-    iconUrl: `data:image/svg+xml;base64,${btoa(svg)}`,
-    iconSize: [28, 42],
-    iconAnchor: [14, 42],
-    popupAnchor: [0, -36],
+function createColoredIcon(name, color = "#ef4444", telVal) {
+  const html = `
+    <div class="flex items-center gap-1.5 bg-white/95 backdrop-blur-md border border-gray-200/80 shadow-md rounded-full px-2 py-1 transform -translate-x-1/2 -translate-y-full cursor-pointer hover:scale-105 transition-transform hover:shadow-lg relative z-40">
+      <div class="w-4 h-4 rounded-full flex items-center justify-center shadow-inner flex-shrink-0" style="background-color: ${color}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" class="w-2.5 h-2.5"><circle cx="12" cy="12" r="10"></circle></svg>
+      </div>
+      <div class="flex flex-col pr-1">
+        <span class="text-[9px] font-bold text-gray-700 leading-tight whitespace-nowrap">${name || ''}</span>
+        ${telVal ? `<span class="text-[8px] text-gray-500 font-mono leading-tight whitespace-nowrap">${telVal.key}: <strong>${telVal.value}</strong></span>` : ''}
+      </div>
+    </div>
+  `;
+  return new L.divIcon({
+    html,
+    className: 'bg-transparent border-0',
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+    popupAnchor: [0, -28],
   });
 }
 
@@ -77,112 +95,138 @@ function FitBoundsHelper({ markers }) {
   return null;
 }
 
-// ── DrawControl — Edit modunda polygon + marker çizim aracı ──
-const DrawControl = forwardRef(function DrawControl({ onCreated, onMarkerCreated }, ref) {
+// ── Resize & Intersection Observer Helper ──
+function ResizeObserverHelper() {
   const map = useMap();
-  const controlRef = useRef(null);
-  const drawnRef = useRef(null);
+  
+  useEffect(() => {
+    const container = map.getContainer();
+    if (!container) return;
 
-  // DrawControl ref'ini dışarıya expose et (programatik aktivasyon için)
+    // IntersectionObserver for detecting when map becomes visible
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          map.invalidateSize();
+        }
+      });
+    });
+    
+    // ResizeObserver for tracking dimension changes safely
+    let rafId;
+    let timeoutId;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(timeoutId);
+      // Debounce the invalidateSize to prevent "Loop limit exceeded"
+      timeoutId = setTimeout(() => {
+        rafId = requestAnimationFrame(() => {
+          map.invalidateSize();
+        });
+      }, 50);
+    });
+
+    io.observe(container);
+    ro.observe(container);
+    
+    // Fallback safe trigger
+    setTimeout(() => map.invalidateSize(), 150);
+
+    return () => {
+      io.disconnect();
+      ro.disconnect();
+      clearTimeout(timeoutId);
+      if (rafId) cancelAnimationFrame(rafId);
+    };
+  }, [map]);
+
+  return null;
+}
+
+// ── Geoman Control (Çizim Araçları) ──
+const GeomanControl = forwardRef(function GeomanControl({ onCreated, onMarkerCreated }, ref) {
+  const map = useMap();
+
   useImperativeHandle(ref, () => ({
-    activateRectangle: () => {
-      if (controlRef.current) {
-        new L.Draw.Rectangle(map, controlRef.current.options.draw.rectangle).enable();
-      }
-    },
-    activateMarker: () => {
-      if (controlRef.current) {
-        new L.Draw.Marker(map, controlRef.current.options.draw.marker).enable();
-      }
-    },
-    activatePolygon: () => {
-      if (controlRef.current) {
-        new L.Draw.Polygon(map, controlRef.current.options.draw.polygon).enable();
-      }
-    },
+    activateRectangle: () => map.pm.enableDraw('Rectangle'),
+    activateMarker: () => map.pm.enableDraw('Marker'),
+    activatePolygon: () => map.pm.enableDraw('Polygon'),
   }));
 
   useEffect(() => {
-    if (controlRef.current) return; // zaten eklendi
+    // Geoman ayarları
+    map.pm.addControls({
+      position: 'topright',
+      drawPolygon: true,
+      drawRectangle: true,
+      drawMarker: true,
+      drawCircle: false,
+      drawCircleMarker: false,
+      drawPolyline: false,
+      drawText: false,
+      editMode: true,
+      dragMode: true,
+      cutPolygon: false,
+      removalMode: true,
+    });
 
-    const drawnItems = new L.FeatureGroup();
-    map.addLayer(drawnItems);
-    drawnRef.current = drawnItems;
-
-    const drawControl = new L.Control.Draw({
-      position: "topright",
-      draw: {
-        polygon: {
-          allowIntersection: false,
-          shapeOptions: {
-            color: "#6941c6",
-            fillColor: "#6941c6",
-            fillOpacity: 0.25,
-            weight: 2,
-          },
-        },
-        rectangle: {
-          shapeOptions: {
-            color: "#22c55e",
-            fillColor: "#22c55e",
-            fillOpacity: 0.2,
-            weight: 2,
-          },
-        },
-        polyline: false,
-        circle: false,
-        marker: {
-          icon: createColoredIcon("#6366f1"),
-        },
-        circlemarker: false,
-      },
-      edit: {
-        featureGroup: drawnItems,
-        remove: true,
+    map.pm.setGlobalOptions({
+      pathOptions: {
+        color: '#22c55e',
+        fillColor: '#22c55e',
+        fillOpacity: 0.2,
+        weight: 2,
       },
     });
 
-    map.addControl(drawControl);
-    controlRef.current = drawControl;
-
-    map.on(L.Draw.Event.CREATED, (e) => {
-      const layer = e.layer;
-      drawnItems.addLayer(layer);
-
-      if (e.layerType === "marker") {
-        // Marker oluşturuldu
+    const handleCreate = (e) => {
+      const { shape, layer } = e;
+      if (shape === 'Marker') {
         const latlng = layer.getLatLng();
         onMarkerCreated?.({ lat: latlng.lat, lng: latlng.lng });
-      } else {
-        // Polygon veya rectangle oluşturuldu
+      } else if (shape === 'Polygon' || shape === 'Rectangle') {
         const latLngs = layer.getLatLngs()[0] || layer.getLatLngs();
         const coords = latLngs.map((ll) => ({ lat: ll.lat, lng: ll.lng }));
         onCreated?.(coords);
       }
-    });
+      // Çizilen şekli haritadan sil, çünkü React state'i güncellenince <Polygon> olarak geri eklenecek
+      map.removeLayer(layer);
+    };
+
+    map.on('pm:create', handleCreate);
 
     return () => {
-      map.off(L.Draw.Event.CREATED);
-      if (controlRef.current) {
-        map.removeControl(controlRef.current);
-        controlRef.current = null;
-      }
-      if (drawnRef.current) {
-        map.removeLayer(drawnRef.current);
-        drawnRef.current = null;
-      }
+      map.off('pm:create', handleCreate);
+      map.pm.removeControls();
     };
   }, [map, onCreated, onMarkerCreated]);
 
   return null;
 });
 
+// ── Pürüzsüz (Smooth) Marker ──
+const AnimatedMarker = ({ position, icon, children }) => {
+  const [initialPos] = useState(position);
+  const markerRef = useRef(null);
+
+  useEffect(() => {
+    if (markerRef.current && markerRef.current.slideTo) {
+      markerRef.current.slideTo(position, { duration: 500, keepAtCenter: false });
+    }
+  }, [position[0], position[1]]);
+
+  return (
+    <Marker ref={markerRef} position={initialPos} icon={icon}>
+      {children}
+    </Marker>
+  );
+};
+
 const LeafletMap = forwardRef(function LeafletMap({
   markers = [],
   manualMarkers = [],
   center = { lat: 41.0082, lng: 28.9784 },
   zoom = 10,
-  showTooltips = true,
+  showTooltips = true, // We will use popups as requested by user instead of permanent tooltips for devices
   fitBounds = true,
   tileLayer = "osm",
   // Zone desteği
@@ -194,7 +238,7 @@ const LeafletMap = forwardRef(function LeafletMap({
   telemetryValues = {},
 }, ref) {
   const tile = TILE_CONFIGS[tileLayer] || TILE_CONFIGS.osm;
-  const drawControlRef = useRef(null);
+  const geomanControlRef = useRef(null);
   const [hoveredZoneId, setHoveredZoneId] = useState(null);
 
   // Tüm marker'ları (cihaz + manuel) birleştirip fitBounds'a ver
@@ -205,9 +249,9 @@ const LeafletMap = forwardRef(function LeafletMap({
 
   // DrawControl ref'ini dışarıya expose et
   useImperativeHandle(ref, () => ({
-    activateRectangle: () => drawControlRef.current?.activateRectangle(),
-    activateMarker: () => drawControlRef.current?.activateMarker(),
-    activatePolygon: () => drawControlRef.current?.activatePolygon(),
+    activateRectangle: () => geomanControlRef.current?.activateRectangle(),
+    activateMarker: () => geomanControlRef.current?.activateMarker(),
+    activatePolygon: () => geomanControlRef.current?.activatePolygon(),
   }));
 
   return (
@@ -217,7 +261,10 @@ const LeafletMap = forwardRef(function LeafletMap({
       style={{ height: "100%", width: "100%", borderRadius: "0.5rem" }}
       zoomControl={true}
       scrollWheelZoom={true}
+      fadeAnimation={false} // Cluster'lar ile düzgün çalışması için
     >
+      <ResizeObserverHelper />
+      
       <TileLayer
         attribution={TILE_CONFIGS[tileLayer]?.attribution || TILE_CONFIGS.osm.attribution}
         url={TILE_CONFIGS[tileLayer]?.url || TILE_CONFIGS.osm.url}
@@ -227,8 +274,8 @@ const LeafletMap = forwardRef(function LeafletMap({
 
       {/* Edit modunda çizim aracı */}
       {isEditMode && (onZoneCreated || onMarkerCreated) && (
-        <DrawControl
-          ref={drawControlRef}
+        <GeomanControl
+          ref={geomanControlRef}
           onCreated={onZoneCreated}
           onMarkerCreated={onMarkerCreated}
         />
@@ -258,9 +305,9 @@ const LeafletMap = forwardRef(function LeafletMap({
               mouseout: () => setHoveredZoneId(null),
             }}
           >
-            {/* Zone tooltip (isim) */}
-            {showTooltips && zone.name && (
-              <LeafletTooltip permanent direction="center" className="zone-label">
+            {/* Zone tooltip (isim) - Bölgeler için tooltip kalabilir veya popup olabilir */}
+            {zone.name && (
+              <LeafletTooltip sticky direction="center" className="zone-label">
                 <span style={{ fontSize: "11px", fontWeight: 600 }}>{zone.name}</span>
                 {telVal && (
                   <span style={{ fontSize: "10px", display: "block", color: "#6b7280" }}>
@@ -301,96 +348,104 @@ const LeafletMap = forwardRef(function LeafletMap({
         );
       })}
 
-      {/* Cihaz telemetri marker'ları */}
-      {markers.map((marker) => (
-        <Marker
-          key={marker.id}
-          position={[marker.lat, marker.lng]}
-          icon={deviceIcon}
-        >
-          {showTooltips && (
-            <Popup>
-              <div className="text-sm min-w-[160px]">
-                <div className="font-semibold text-gray-900 mb-1">
-                  {marker.name}
-                </div>
-                <div className="text-xs text-gray-500 mb-2">
-                  📍 {marker.lat.toFixed(5)}, {marker.lng.toFixed(5)}
-                </div>
+      <MarkerClusterGroup chunkedLoading maxClusterRadius={60}>
+        {/* Cihaz telemetri marker'ları */}
+        {markers.map((marker) => {
+          const telVal = Object.keys(marker.extraData || {}).length > 0 
+            ? { key: Object.keys(marker.extraData)[0], value: Object.values(marker.extraData)[0] } 
+            : null;
 
-                {/* Ek telemetri verileri */}
-                {Object.keys(marker.extraData || {}).length > 0 && (
-                  <div className="border-t border-gray-200 pt-1 mt-1 space-y-0.5">
-                    {Object.entries(marker.extraData).map(([key, value]) => (
-                      <div
-                        key={key}
-                        className="flex justify-between text-xs"
-                      >
-                        <span className="text-gray-500">{key}:</span>
-                        <span className="font-mono text-gray-900">
-                          {typeof value === "number"
-                            ? value.toFixed(2)
-                            : String(value)}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {marker.lastUpdate && (
-                  <div className="text-[10px] text-gray-400 mt-1 border-t border-gray-100 pt-1">
-                    Son güncelleme:{" "}
-                    {new Date(marker.lastUpdate).toLocaleString("tr-TR")}
-                  </div>
-                )}
-              </div>
-            </Popup>
-          )}
-        </Marker>
-      ))}
-
-      {/* Manuel marker'lar */}
-      {manualMarkers.map((mm) => {
-        const telVal = mm.deviceId && telemetryValues[mm.deviceId];
-        return (
-          <Marker
-            key={mm.id}
-            position={[mm.lat, mm.lng]}
-            icon={createColoredIcon(mm.color || "#ef4444")}
-          >
-            {showTooltips && (
-              <Popup>
-                <div className="text-sm min-w-[160px]">
-                  <div className="font-semibold text-gray-900 mb-1">
-                    📌 {mm.name || "Manuel Marker"}
-                  </div>
-                  <div className="text-xs text-gray-500 mb-1">
-                    📍 {mm.lat.toFixed(5)}, {mm.lng.toFixed(5)}
-                  </div>
-                  {mm.deviceName && (
-                    <div className="text-xs text-gray-600 mb-1">
-                      📱 Cihaz: <span className="font-medium">{mm.deviceName}</span>
+          return (
+            <AnimatedMarker
+              key={marker.id}
+              position={[marker.lat, marker.lng]}
+              icon={createDeviceIcon(marker.name, telVal)}
+            >
+              {showTooltips && (
+                <Popup>
+                  <div className="text-sm min-w-[160px]" aria-label={`Cihaz bilgisi: ${marker.name}`}>
+                    <div className="font-semibold text-gray-900 mb-1">
+                      {marker.name}
                     </div>
-                  )}
-                  {telVal && (
-                    <div className="border-t border-gray-200 pt-1 mt-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-500">{telVal.key || "Değer"}:</span>
-                        <span className="font-mono text-gray-900 font-semibold">{telVal.value}</span>
+                    <div className="text-xs text-gray-500 mb-2">
+                      📍 {marker.lat.toFixed(5)}, {marker.lng.toFixed(5)}
+                    </div>
+
+                    {/* Ek telemetri verileri */}
+                    {Object.keys(marker.extraData || {}).length > 0 && (
+                      <div className="border-t border-gray-200 pt-1 mt-1 space-y-0.5">
+                        {Object.entries(marker.extraData).map(([key, value]) => (
+                          <div
+                            key={key}
+                            className="flex justify-between text-xs"
+                          >
+                            <span className="text-gray-500">{key}:</span>
+                            <span className="font-mono text-gray-900">
+                              {typeof value === "number"
+                                ? value.toFixed(2)
+                                : String(value)}
+                            </span>
+                          </div>
+                        ))}
                       </div>
-                      {telVal.ts && (
-                        <div className="text-[10px] text-gray-400 mt-0.5">
-                          {new Date(telVal.ts).toLocaleString("tr-TR")}
+                    )}
+
+                    {marker.lastUpdate && (
+                      <div className="text-[10px] text-gray-400 mt-1 border-t border-gray-100 pt-1">
+                        Son güncelleme:{" "}
+                        {new Date(marker.lastUpdate).toLocaleString("tr-TR")}
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              )}
+            </AnimatedMarker>
+          );
+        })}
+
+        {/* Manuel marker'lar */}
+        {manualMarkers.map((mm) => {
+          const telVal = mm.deviceId && telemetryValues[mm.deviceId];
+          return (
+            <AnimatedMarker
+              key={mm.id}
+              position={[mm.lat, mm.lng]}
+              icon={createColoredIcon(mm.name || "Marker", mm.color || "#ef4444", telVal)}
+            >
+              {showTooltips && (
+                <Popup>
+                  <div className="text-sm min-w-[160px]" aria-label={`Marker bilgisi: ${mm.name}`}>
+                    <div className="font-semibold text-gray-900 mb-1">
+                      📌 {mm.name || "Manuel Marker"}
+                    </div>
+                    <div className="text-xs text-gray-500 mb-1">
+                      📍 {mm.lat.toFixed(5)}, {mm.lng.toFixed(5)}
+                    </div>
+                    {mm.deviceName && (
+                      <div className="text-xs text-gray-600 mb-1">
+                        📱 Cihaz: <span className="font-medium">{mm.deviceName}</span>
+                      </div>
+                    )}
+                    {telVal && (
+                      <div className="border-t border-gray-200 pt-1 mt-1">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-500">{telVal.key || "Değer"}:</span>
+                          <span className="font-mono text-gray-900 font-semibold">{telVal.value}</span>
                         </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            )}
-          </Marker>
-        );
-      })}
+                        {telVal.ts && (
+                          <div className="text-[10px] text-gray-400 mt-0.5">
+                            {new Date(telVal.ts).toLocaleString("tr-TR")}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </Popup>
+              )}
+            </AnimatedMarker>
+          );
+        })}
+      </MarkerClusterGroup>
     </MapContainer>
   );
 });
