@@ -58,6 +58,8 @@ const AuditLogSchema = new Schema(
         "USER_ACTIVATE",
         // Alarm yönetimi
         "ALARM_DELETE",
+        // Token yönetimi
+        "DEVICE_TOKEN_GENERATED",
       ],
       index: true,
     },

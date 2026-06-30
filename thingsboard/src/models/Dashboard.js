@@ -19,6 +19,8 @@ const WidgetSchema = new Schema(
         "line_chart", "gauge", "value_card", "table", "image_map",
         "bar_chart", "pie_chart", "stat_card", "alarm_list", "geo_map",
         "rpc_switch", "rpc_slider", "rpc_button",
+        "scada_valve", "scada_pump", "scada_tank", "scada_pipe",
+        "scada_motor", "scada_sensor", "scada_gauge", "scada_bar_gauge",
       ],
       required: true,
     },
@@ -107,6 +109,24 @@ const DashboardSchema = new Schema(
       },
     ],
 
+    // ── Dashboard States (sekmeler) ──
+    states: [
+      {
+        id: { type: String, required: true },
+        name: { type: String, required: true },
+        widgets: [WidgetSchema],
+        _id: false,
+      },
+    ],
+
+    // ── Layout Ayarları ──
+    layoutType: {
+      type: String,
+      enum: ["default", "scada"],
+      default: "default",
+    },
+    layoutConfig: { type: Schema.Types.Mixed, default: {} },
+
     // ── Paylaşım ──
     isPublic: {
       type: Boolean,
@@ -139,7 +159,26 @@ DashboardSchema.virtual("id").get(function () {
 
 DashboardSchema.index({ tenantId: 1, createdAt: -1 });
 
+// Fix: Eski non-sparse publicToken index'ini kaldır (E11000 duplicate key hatası)
+DashboardSchema.statics.fixPublicTokenIndex = async function () {
+  try {
+    const indexes = await this.collection.indexes();
+    const ptIndex = indexes.find(
+      (idx) => idx.key?.publicToken && idx.unique && !idx.sparse
+    );
+    if (ptIndex) {
+      await this.collection.dropIndex(ptIndex.name);
+      // Mongoose ensureIndexes sparse index'i yeniden oluşturacak
+    }
+  } catch {
+    // Index yoksa veya zaten düzeltilmişse yoksay
+  }
+};
+
 const Dashboard =
   mongoose.models.Dashboard || mongoose.model("Dashboard", DashboardSchema);
+
+// Uygulama başlatılırken index'i düzelt
+Dashboard.fixPublicTokenIndex().catch(() => {});
 
 export default Dashboard;

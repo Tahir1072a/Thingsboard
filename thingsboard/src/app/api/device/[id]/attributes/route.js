@@ -11,6 +11,7 @@ import connectDB from "@/lib/db";
 import Device from "@/models/Device";
 import Attribute from "@/models/Attribute";
 import { getSessionUser } from "@/lib/getSessionUser";
+import emitter from "@/lib/event-emitter";
 
 const VALID_SCOPES = ["CLIENT_SCOPE", "SERVER_SCOPE", "SHARED_SCOPE"];
 
@@ -101,6 +102,20 @@ export async function POST(request, { params }) {
     // Çoklu attribute
     if (attributes && typeof attributes === "object") {
       const result = await Attribute.upsertMany(tenantId, deviceId, scope, attributes);
+
+      // SHARED_SCOPE yazıldığında SSE ile cihazlara bildir
+      if (scope === "SHARED_SCOPE") {
+        Object.entries(attributes).forEach(([k, v]) => {
+          emitter.emit("attribute", {
+            tenantId,
+            deviceId,
+            scope: "SHARED_SCOPE",
+            key: k,
+            value: v,
+          });
+        });
+      }
+
       return NextResponse.json({
         ok: true,
         message: `${Object.keys(attributes).length} attribute güncellendi.`,
@@ -124,6 +139,17 @@ export async function POST(request, { params }) {
     }
 
     const result = await Attribute.upsertAttribute(tenantId, deviceId, scope, key, value);
+
+    // SHARED_SCOPE yazıldığında SSE ile cihazlara bildir
+    if (scope === "SHARED_SCOPE") {
+      emitter.emit("attribute", {
+        tenantId,
+        deviceId,
+        scope: "SHARED_SCOPE",
+        key,
+        value,
+      });
+    }
 
     return NextResponse.json({
       ok: true,

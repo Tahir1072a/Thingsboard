@@ -735,6 +735,20 @@ export const WIDGET_SCHEMAS = {
         defaultValue: "value",
         placeholder: "value",
       },
+      {
+        key: "extraParams",
+        label: "Ekstra Parametreler (JSON)",
+        type: "text",
+        defaultValue: "",
+        placeholder: '{"pin": 2}',
+      },
+      {
+        key: "stateKey",
+        label: "Durum Telemetri Key'i",
+        type: "text",
+        defaultValue: "",
+        placeholder: "led1",
+      },
     ],
     advancedFields: [
       {
@@ -807,6 +821,13 @@ export const WIDGET_SCHEMAS = {
         label: "Birim",
         type: "unit_select",
         defaultValue: "percent",
+      },
+      {
+        key: "extraParams",
+        label: "Ekstra Parametreler (JSON)",
+        type: "text",
+        defaultValue: "",
+        placeholder: '{"pin": 4}',
       },
     ],
     advancedFields: [

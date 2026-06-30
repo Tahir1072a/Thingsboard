@@ -74,7 +74,7 @@ export async function PUT(request, { params }) {
     }
 
     const body = await request.json();
-    const { name, description, widgets, entityAliases } = body;
+    const { name, description, widgets, entityAliases, states, layoutType, layoutConfig, gridCols } = body;
 
     const dashboard = result.dashboard;
     if (name !== undefined) dashboard.name = name;
@@ -103,6 +103,16 @@ export async function PUT(request, { params }) {
         config: a.config || {},
       }));
     }
+
+    // Dashboard States (sekmeli görünümler)
+    if (states !== undefined) {
+      dashboard.states = states;
+    }
+
+    // Layout ayarları (SCADA modu vb.)
+    if (layoutType !== undefined) dashboard.layoutType = layoutType;
+    if (layoutConfig !== undefined) dashboard.layoutConfig = layoutConfig;
+    if (gridCols !== undefined) dashboard.gridCols = gridCols;
 
     await dashboard.save();
 

@@ -535,7 +535,7 @@ async function main() {
   // ── RPC: Platform → Cihaz komutu (MQTT publish) ──
   emitter.on("rpc:request", (rpcData) => {
     // Bağlı MQTT client'ları arasında cihazı bul
-    const clients = aedesInstance.connectedClients || aedesInstance.clients || {};
+    const clients = aedesInstance.clients || {};
     for (const [, mqttClient] of Object.entries(clients)) {
       if (mqttClient.deviceId && String(mqttClient.deviceId) === String(rpcData.deviceId)) {
         const topic = `v1/devices/me/rpc/request/${rpcData.requestId}`;
@@ -586,7 +586,7 @@ async function main() {
 
   // ── RPC Reply: Client-side RPC'ye yanıt gönder (Rule Engine'den) ──
   emitter.on("rpc:reply", (replyData) => {
-    const clients = aedesInstance.connectedClients || aedesInstance.clients || {};
+    const clients = aedesInstance.clients || {};
     for (const [, mqttClient] of Object.entries(clients)) {
       if (mqttClient.deviceId && String(mqttClient.deviceId) === String(replyData.deviceId)) {
         const topic = `v1/devices/me/rpc/response/${replyData.requestId.replace('csrpc_', '')}`;

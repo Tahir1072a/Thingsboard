@@ -6,8 +6,9 @@
  * Config: { method: "setValue", paramKey: "value", onValue: true, offValue: false }
  */
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { Power, Loader2 } from "lucide-react";
+import { useTelemetrySSE } from "@/lib/sse-pool";
 import toast from "react-hot-toast";
 
 export default function RpcSwitchWidget({
@@ -26,9 +27,46 @@ export default function RpcSwitchWidget({
   const timeout = config.timeout || 10000;
   const activeColor = config.activeColor || "#22c55e";
 
+  // Ekstra sabit parametreler (ör: {"pin": 2})
+  let extraParams = {};
+  try {
+    if (config.extraParams) {
+      extraParams = typeof config.extraParams === "string"
+        ? JSON.parse(config.extraParams)
+        : config.extraParams;
+    }
+  } catch { /* geçersiz JSON yoksay */ }
+
   const [isOn, setIsOn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [lastResponse, setLastResponse] = useState(null);
+  const [initialized, setInitialized] = useState(false);
+
+  // Telemetri key'i — widget'a key atanmışsa onu kullan, yoksa method adından türet
+  const stateKey = keys[0] || config.stateKey || null;
+
+  // Açılışta son telemetri değerini çek (durum geri yükleme)
+  useEffect(() => {
+    if (!deviceId || !stateKey || initialized) return;
+    fetch(`/api/telemetry?deviceId=${deviceId}&key=${stateKey}&limit=1`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.data?.length > 0) {
+          const lastVal = data.data[0].value;
+          setIsOn(lastVal === onValue || lastVal === true || lastVal === 1 || lastVal === "true");
+        }
+        setInitialized(true);
+      })
+      .catch(() => setInitialized(true));
+  }, [deviceId, stateKey, initialized, onValue]);
+
+  // SSE ile canlı telemetri dinle — cihaz durum gönderdiğinde widget güncellenir
+  useTelemetrySSE(deviceId, useCallback((telemetryData) => {
+    if (stateKey && telemetryData.key === stateKey) {
+      const v = telemetryData.value;
+      setIsOn(v === onValue || v === true || v === 1 || v === "true");
+    }
+  }, [stateKey, onValue]));
 
   const handleToggle = useCallback(async () => {
     if (!deviceId || isEditMode) return;
@@ -48,7 +86,7 @@ export default function RpcSwitchWidget({
         body: JSON.stringify({
           deviceId,
           method,
-          params: { [paramKey]: newState ? onValue : offValue },
+          params: { ...extraParams, [paramKey]: newState ? onValue : offValue },
           timeout,
         }),
       });

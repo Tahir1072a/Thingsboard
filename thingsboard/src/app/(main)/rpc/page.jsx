@@ -103,7 +103,7 @@ function SendRpcModal({ open, onOpenChange, onSuccess }) {
     const fetchDevices = async () => {
       try {
         setDevicesLoading(true);
-        const res = await fetch("/api/devices");
+        const res = await fetch("/api/device");
         const data = await res.json();
         if (res.ok && data.ok) {
           setDevices(data.data || []);
@@ -182,7 +182,7 @@ function SendRpcModal({ open, onOpenChange, onSuccess }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="glass-strong sm:max-w-lg p-0 overflow-hidden border-white/20 max-h-[90vh] flex flex-col">
+      <DialogContent className="glass-strong sm:max-w-2xl p-0 overflow-hidden border-white/20 max-h-[90vh] flex flex-col">
         <DialogHeader className="bg-halo-50/50 px-6 py-5 animate-fade-in shrink-0">
           <DialogTitle className="flex items-center gap-3 text-xl font-bold text-text-main">
             <div className="p-2 bg-halo-100 rounded-lg">
@@ -304,7 +304,7 @@ function RpcDetailModal({ open, onOpenChange, rpc, devicesMap }) {
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="glass-strong sm:max-w-lg p-0 overflow-hidden border-white/20 max-h-[90vh] flex flex-col">
+      <DialogContent className="glass-strong sm:max-w-2xl p-0 overflow-hidden border-white/20 max-h-[90vh] flex flex-col">
         <DialogHeader className="bg-halo-50/50 px-6 py-5 animate-fade-in shrink-0">
           <DialogTitle className="flex items-center gap-3 text-xl font-bold text-text-main">
             <div className="p-2 bg-halo-100 rounded-lg">
@@ -453,7 +453,7 @@ export default function RpcPage() {
   useEffect(() => {
     const fetchDevices = async () => {
       try {
-        const res = await fetch("/api/devices");
+        const res = await fetch("/api/device");
         const data = await res.json();
         if (res.ok && data.ok) {
           const map = {};
@@ -536,7 +536,7 @@ export default function RpcPage() {
     {
       id: "device",
       title: "Cihaz",
-      span: 2,
+      span: 3,
       cellRender: (rpc) => (
         <div className="flex items-center gap-3">
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-halo-400 to-halo-600 shadow-sm group-hover:scale-105 transition-transform">
@@ -553,7 +553,7 @@ export default function RpcPage() {
     {
       id: "method",
       title: "Method",
-      span: 2,
+      span: 1,
       cellRender: (rpc) => (
         <span className="font-mono text-sm text-text-main truncate">
           {rpc.method || "—"}
@@ -609,7 +609,7 @@ export default function RpcPage() {
     {
       id: "createdAt",
       title: "Zaman",
-      span: 1,
+      span: 2,
       cellRender: (rpc) => (
         <span className="text-sm text-text-muted truncate">
           {timeAgo(rpc.createdAt)}
@@ -722,9 +722,10 @@ export default function RpcPage() {
         data={rpcs}
         loading={loading}
         columns={columns}
-        gridClassName="grid-cols-12"
+        gridClassName="grid-cols-13"
         title="RPC Geçmişi"
         rowActions={rowActions}
+        onRowClick={(rpc) => setDetailRpc(rpc)}
         getRowId={(rpc) => rpc._id || rpc.id}
         emptyState={
           <div className="text-center py-12">

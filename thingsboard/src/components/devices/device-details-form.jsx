@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "../ui/button";
 import { Separator } from "@radix-ui/react-dropdown-menu";
@@ -17,6 +17,8 @@ import {
   Trash2,
   Copy,
   Power,
+  Key,
+  RefreshCw,
 } from "lucide-react";
 import { FORM_STYLES } from "@/lib/constants";
 import EntityActionBar from "../common/rowDetails/entity-action-bar";
@@ -37,8 +39,10 @@ const inputStyle = `${FORM_STYLES.base} ${FORM_STYLES.variants.readOnly}`;
 const textareaStyle = `${FORM_STYLES.base} ${FORM_STYLES.variants.textareaReadOnly}`;
 const labelStyle = FORM_STYLES.variants.label;
 
-export function DeviceDetailForm({ data = defaultData, onDeviceDeleted }) {
+export function DeviceDetailForm({ data = defaultData, onDeviceDeleted, onDeviceUpdated }) {
   const router = useRouter();
+  const [tokenLoading, setTokenLoading] = useState(false);
+  const [currentToken, setCurrentToken] = useState(data?.accessToken || null);
 
   const handleDelete = async () => {
     const isConfirmed = confirm("Bu cihazı silmek istediğinizden emin misiniz?");
@@ -154,6 +158,67 @@ export function DeviceDetailForm({ data = defaultData, onDeviceDeleted }) {
             disabled
             className={`${inputStyle}`}
           />
+        </div>
+
+        {/* --- Erişim Token'ı --- */}
+        <div className="md:col-span-2 space-y-1">
+          <Label htmlFor="accessToken" className={labelStyle}>
+            <Key className="w-4 h-4 text-halo-500" />
+            Erişim Anahtarı (Token)
+          </Label>
+          {currentToken ? (
+            <div className="flex gap-2">
+              <Input
+                id="accessToken"
+                value={currentToken}
+                disabled
+                className={`${inputStyle} flex-1 font-mono text-xs`}
+              />
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={() => handleCopy(currentToken, "Erişim Anahtarı")}
+                className="h-10 w-10 shrink-0"
+                title="Token'ı kopyala"
+              >
+                <Copy className="h-4 w-4" />
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-400 italic">Token oluşturulmamış (X509 cihaz)</span>
+              <Button
+                size="sm"
+                disabled={tokenLoading}
+                onClick={async () => {
+                  try {
+                    setTokenLoading(true);
+                    const res = await fetch(`/api/device/${data._id}/token`, {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({}),
+                    });
+                    const result = await res.json();
+                    if (result.ok) {
+                      setCurrentToken(result.data.accessToken);
+                      toast.success("Token oluşturuldu!");
+                      if (onDeviceUpdated) onDeviceUpdated();
+                    } else {
+                      toast.error(result.message || "Token oluşturulamadı.");
+                    }
+                  } catch {
+                    toast.error("Token oluşturma hatası.");
+                  } finally {
+                    setTokenLoading(false);
+                  }
+                }}
+                className="bg-halo-600 hover:bg-halo-700 text-white"
+              >
+                <Key className="h-3.5 w-3.5 mr-1.5" />
+                {tokenLoading ? "Oluşturuluyor..." : "Token Oluştur"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* --- Açıklama (Textarea) - YENİ EKLENEN KISIM --- */}

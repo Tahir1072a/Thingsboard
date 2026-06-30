@@ -60,7 +60,7 @@ export async function POST(request) {
 
     // Persistent RPC: expiration ve retry ayarları
     if (persistent) {
-      const ttlMs = body.expirationMs || 24 * 60 * 60 * 1000; // varsayılan 24 saat
+      const ttlMs = body.expirationMs || 24 * 60 * 60 * 1000;
       rpcData.expirationTime = new Date(Date.now() + ttlMs);
       rpcData.retries = retries;
       rpcData.retriesLeft = retries;
@@ -94,7 +94,7 @@ export async function POST(request) {
             req.errorMessage = "Cihaz yanıt vermedi (timeout).";
             await req.save();
           }
-        } catch {}
+        } catch { }
       }, body.timeout || 10000);
     }
 

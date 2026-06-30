@@ -29,6 +29,16 @@ export default function RpcSliderWidget({
   const timeout = config.timeout || 10000;
   const sliderColor = config.sliderColor || "#6366f1";
 
+  // Ekstra sabit parametreler (ör: {"pin": 4})
+  let extraParams = {};
+  try {
+    if (config.extraParams) {
+      extraParams = typeof config.extraParams === "string"
+        ? JSON.parse(config.extraParams)
+        : config.extraParams;
+    }
+  } catch { /* geçersiz JSON yoksay */ }
+
   const [value, setValue] = useState(min);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
@@ -51,7 +61,7 @@ export default function RpcSliderWidget({
         body: JSON.stringify({
           deviceId,
           method,
-          params: { [paramKey]: val },
+          params: { ...extraParams, [paramKey]: val },
           timeout,
         }),
       });
