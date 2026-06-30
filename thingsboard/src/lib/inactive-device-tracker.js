@@ -14,6 +14,7 @@
 import redis from "./redis.js";
 import Alarm from "../models/Alarm.js";
 import { createAuditLog } from "./audit-service.js";
+import { processNotifications } from "./notification-service.js";
 import emitter from "./event-emitter.js";
 import logger from "./logger.js";
 
@@ -28,6 +29,7 @@ const SECURITY_THRESHOLD = 20; // Güvenlik alarmı eşiği
  * @param {string} params.deviceId   - Cihaz MongoDB ID'si
  * @param {string} params.deviceName - Cihaz adı (bildirim için)
  * @param {string} params.userId     - Cihaz sahibinin user ID'si
+ * @param {string} params.tenantId   - Tenant ID (bildirim için)
  * @param {string} params.ip         - İstemci IP adresi
  * @param {string} params.protocol   - Kullanılan protokol (mqtt/http/websocket)
  */
@@ -35,6 +37,7 @@ export async function trackInactiveAttempt({
   deviceId,
   deviceName,
   userId,
+  tenantId,
   ip = "unknown",
   protocol = "unknown",
 }) {
@@ -81,6 +84,17 @@ export async function trackInactiveAttempt({
         },
         timestamp: new Date(),
       });
+
+      // Email/Telegram/Webhook bildirimlerini tetikle
+      if (tenantId) {
+        processNotifications("DEVICE_INACTIVE", {
+          tenantId,
+          deviceId: String(deviceId),
+          deviceName,
+          status: "INACTIVE",
+          details: { attemptCount, protocol, ip }
+        }).catch(err => logger.error({ err }, "Inactive device notification error"));
+      }
     }
 
     // ── 20+ deneme: Güvenlik alarmı oluştur (bir kez) ──

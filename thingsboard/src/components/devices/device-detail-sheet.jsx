@@ -25,7 +25,6 @@ import { DeviceAuditLogTab } from "./tabs/device-audit-log-tab";
 
 export default function DeviceDetailSheet({ device, open, onOpenChange, onDeviceDeleted, onDeviceUpdated }) {
   const [isEditing, setIsEditing] = useState(false);
-  const [hasCustomer, setHasCustomer] = useState(true);
 
   const handleSave = async (formData) => {
     try {
@@ -106,7 +105,7 @@ export default function DeviceDetailSheet({ device, open, onOpenChange, onDevice
         content: <DeviceAuditLogTab deviceId={device?._id} />,
       },
     ],
-    [device, isEditing, hasCustomer]
+    [device, isEditing]
   );
 
   if (!device) return null;

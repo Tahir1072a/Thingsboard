@@ -92,11 +92,6 @@ const DeviceSchema = new Schema(
       index: true,
     },
 
-    customerId: {
-      type: Schema.Types.ObjectId,
-      ref: "Customer",
-      default: null,
-    },
 
     additionalInfo: {
       type: Map,

@@ -5,6 +5,7 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
+import { useAlarmSSE } from "@/lib/sse-pool";
 import { Badge } from "@/components/ui/badge";
 import {
   CheckCircle, XCircle, AlertTriangle,
@@ -72,6 +73,9 @@ export default function AlarmlarPage() {
   useEffect(() => {
     fetchAlarms();
   }, [fetchAlarms]);
+
+  // Yeni alarm geldiğinde veya durumu değiştiğinde listeyi güncelle
+  useAlarmSSE(fetchAlarms);
 
   const handleAction = async (alarmId, action) => {
     try {

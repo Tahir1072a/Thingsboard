@@ -18,6 +18,7 @@ import {
   TableContent,
   TableHeader,
 } from "@/components/common/table/table-header";
+import AssetDetailSheet from "@/components/assets/asset-detail-sheet";
 import toast from "react-hot-toast";
 import {
   Dialog,
@@ -219,6 +220,8 @@ function CreateAssetModal({ open, onOpenChange, onSuccess }) {
 // --- Main Page ---
 export default function AssetsPage() {
   const [openCreate, setOpenCreate] = useState(false);
+  const [detailSheetOpen, setDetailSheetOpen] = useState(false);
+  const [selectedAsset, setSelectedAsset] = useState(null);
 
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -439,8 +442,8 @@ export default function AssetsPage() {
     {
       label: "Detay Görüntüle",
       onClick: (asset) => {
-        // TODO: Navigate to asset detail or open detail modal
-        toast("Varlık detay sayfası yakında eklenecek", { icon: "🔧" });
+        setSelectedAsset(asset);
+        setDetailSheetOpen(true);
       },
       icon: <Eye className="h-4 w-4" />,
     },
@@ -517,7 +520,23 @@ export default function AssetsPage() {
         onSuccess={fetchAssets}
       />
 
+      {/* Confirm Dialog */}
       <ConfirmDialog />
+
+      {/* Asset Detail Sheet */}
+      <AssetDetailSheet
+        asset={selectedAsset}
+        open={detailSheetOpen}
+        onOpenChange={(isOpen) => {
+          setDetailSheetOpen(isOpen);
+          if (!isOpen) setSelectedAsset(null);
+        }}
+        onAssetUpdated={(updatedAsset) => {
+          setAssets((prev) =>
+            prev.map((a) => (a._id === updatedAsset._id ? updatedAsset : a))
+          );
+        }}
+      />
     </>
   );
 }
