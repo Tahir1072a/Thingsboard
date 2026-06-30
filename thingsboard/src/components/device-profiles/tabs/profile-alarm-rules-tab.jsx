@@ -69,6 +69,11 @@ const createEmptyRule = () => ({
   severity: "WARNING",
   createCondition: "",
   clearCondition: "",
+  timeWindow: {
+    enabled: false,
+    durationSeconds: 60,
+    triggerCount: 5,
+  }
 });
 
 export function ProfileAlarmRulesTab({ profile, onProfileUpdated }) {
@@ -87,13 +92,13 @@ export function ProfileAlarmRulesTab({ profile, onProfileUpdated }) {
 
   // --- Kural silme ---
   const handleDeleteRule = useCallback((tempId) => {
-    setRules((prev) => prev.filter((r) => r._tempId !== tempId));
+    setRules((prev) => prev.filter((rule) => rule._tempId !== tempId));
   }, []);
 
   // --- Kural alanı güncelleme ---
   const handleFieldChange = useCallback((tempId, field, value) => {
     setRules((prev) =>
-      prev.map((r) => (r._tempId === tempId ? { ...r, [field]: value } : r))
+      prev.map((rule) => (rule._tempId === tempId ? { ...rule, [field]: value } : rule))
     );
   }, []);
 
@@ -113,11 +118,16 @@ export function ProfileAlarmRulesTab({ profile, onProfileUpdated }) {
     setSaving(true);
     try {
       const alarmsPayload = rules.map(
-        ({ alarmType, severity, createCondition, clearCondition }) => ({
+        ({ alarmType, severity, createCondition, clearCondition, timeWindow }) => ({
           alarmType: alarmType.trim(),
           severity,
           createCondition: createCondition.trim(),
           clearCondition: clearCondition?.trim() || "",
+          timeWindow: {
+            enabled: !!timeWindow?.enabled,
+            durationSeconds: parseInt(timeWindow?.durationSeconds) || 60,
+            triggerCount: parseInt(timeWindow?.triggerCount) || 5,
+          }
         })
       );
 
@@ -145,7 +155,6 @@ export function ProfileAlarmRulesTab({ profile, onProfileUpdated }) {
     }
   };
 
-  // --- Boş durum ---
   if (rules.length === 0) {
     return (
       <div className="space-y-4">
@@ -269,7 +278,7 @@ export function ProfileAlarmRulesTab({ profile, onProfileUpdated }) {
                     ))}
                   </select>
 
-                  {/* Sil butonu — hover'da görünür */}
+                  {/* Sil butonu */}
                   <button
                     type="button"
                     onClick={() => handleDeleteRule(rule._tempId)}
@@ -322,6 +331,62 @@ export function ProfileAlarmRulesTab({ profile, onProfileUpdated }) {
                   placeholder="Örn: temperature < 45"
                   className="w-full h-9 text-sm font-mono bg-white/70 border border-gray-200 rounded-lg px-3 focus:outline-none focus:ring-2 focus:ring-halo-500/20 focus:border-halo-400 transition-colors"
                 />
+              </div>
+
+              {/* --- Zaman Penceresi (Time Window) --- */}
+              <div className="mt-4 pt-4 border-t border-gray-100">
+                <div className="flex items-center gap-2 mb-3">
+                  <input
+                    type="checkbox"
+                    id={`tw-${rule._tempId}`}
+                    checked={rule.timeWindow?.enabled || false}
+                    onChange={(e) =>
+                      handleFieldChange(rule._tempId, "timeWindow", {
+                        ...(rule.timeWindow || {}),
+                        enabled: e.target.checked,
+                      })
+                    }
+                    className="w-4 h-4 text-halo-600 border-gray-300 rounded focus:ring-halo-500 cursor-pointer"
+                  />
+                  <label htmlFor={`tw-${rule._tempId}`} className="text-xs font-semibold text-text-main cursor-pointer">
+                    Zaman Penceresi Kullan (Sliding Time Window)
+                  </label>
+                </div>
+
+                {rule.timeWindow?.enabled && (
+                  <div className="flex items-center gap-4 pl-6">
+                    <div className="flex-1 space-y-1.5">
+                      <p className="text-xs text-text-muted">Zaman Aralığı (Saniye)</p>
+                      <input
+                        type="number"
+                        min="1"
+                        value={rule.timeWindow?.durationSeconds || 60}
+                        onChange={(e) =>
+                          handleFieldChange(rule._tempId, "timeWindow", {
+                            ...rule.timeWindow,
+                            durationSeconds: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full h-9 text-sm bg-white/70 border border-gray-200 rounded-lg px-3 focus:outline-none focus:ring-2 focus:ring-halo-500/20"
+                      />
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <p className="text-xs text-text-muted">Tetiklenme Sayısı</p>
+                      <input
+                        type="number"
+                        min="1"
+                        value={rule.timeWindow?.triggerCount || 5}
+                        onChange={(e) =>
+                          handleFieldChange(rule._tempId, "timeWindow", {
+                            ...rule.timeWindow,
+                            triggerCount: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        className="w-full h-9 text-sm bg-white/70 border border-gray-200 rounded-lg px-3 focus:outline-none focus:ring-2 focus:ring-halo-500/20"
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           );

@@ -40,6 +40,10 @@ export default function ImageMapWidget({
   /* ── Marker ekleme paneli görünürlüğü ── */
   const [showMarkerPanel, setShowMarkerPanel] = useState(false);
 
+  /* ── Tıkla-yerleştir modu ── */
+  const [addMarkerMode, setAddMarkerMode] = useState(false);
+  const [pendingMarkerPos, setPendingMarkerPos] = useState(null);
+
   /* ── Görüntü yükleme durumu ── */
   const [uploading, setUploading] = useState(false);
 
@@ -204,10 +208,16 @@ export default function ImageMapWidget({
   /* ── Marker ekleme ── */
   const handleAddMarker = useCallback(
     (newMarker) => {
-      updateConfig({ markers: [...markers, newMarker] });
+      // Eğer pendingMarkerPos varsa (tıkla-yerleştir), pozisyonu uygula
+      const markerWithPos = pendingMarkerPos
+        ? { ...newMarker, xPos: pendingMarkerPos.x, yPos: pendingMarkerPos.y }
+        : newMarker;
+      updateConfig({ markers: [...markers, markerWithPos] });
       setShowMarkerPanel(false);
+      setAddMarkerMode(false);
+      setPendingMarkerPos(null);
     },
-    [markers, updateConfig]
+    [markers, updateConfig, pendingMarkerPos]
   );
 
   /* ── Marker kaldırma ── */
@@ -218,6 +228,15 @@ export default function ImageMapWidget({
       });
     },
     [markers, updateConfig]
+  );
+
+  /* ── Marker silme (onDelete callback) ── */
+  const handleDeleteMarker = useCallback(
+    (markerId) => {
+      const newMarkers = (config.markers || []).filter((m) => m.id !== markerId);
+      onConfigChange?.({ ...config, markers: newMarkers });
+    },
+    [config, onConfigChange]
   );
 
   /* ── Marker sürükleme bittiğinde pozisyon güncelle ── */
@@ -277,16 +296,29 @@ export default function ImageMapWidget({
                 {uploading ? "Yükleniyor…" : "Plan Yükle"}
               </button>
 
-              {/* Marker ekle */}
+              {/* Marker ekle — tıkla-yerleştir modu */}
               <button
-                onClick={() => setShowMarkerPanel((v) => !v)}
-                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
-                  bg-halo-600 text-white
-                  hover:bg-halo-700 transition-colors"
-                title="Marker Ekle"
+                onClick={() => {
+                  if (addMarkerMode) {
+                    // Modu kapat
+                    setAddMarkerMode(false);
+                    setPendingMarkerPos(null);
+                  } else {
+                    // Modu aç
+                    setAddMarkerMode(true);
+                    setShowMarkerPanel(false);
+                  }
+                }}
+                className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-medium
+                  transition-colors ${
+                    addMarkerMode
+                      ? "bg-amber-500 text-white hover:bg-amber-600 ring-2 ring-amber-300"
+                      : "bg-halo-600 text-white hover:bg-halo-700"
+                  }`}
+                title={addMarkerMode ? "Yerleştirme modunu kapat" : "Haritaya tıklayarak marker yerleştir"}
               >
                 <MapPinPlus className="h-3 w-3" />
-                Marker Ekle
+                {addMarkerMode ? "İptal" : "Marker Ekle"}
               </button>
             </>
           )}
@@ -313,6 +345,35 @@ export default function ImageMapWidget({
             : "bg-gray-50/30 border-2 border-dashed border-gray-300"
           }
         `}
+        style={{ cursor: addMarkerMode ? "crosshair" : undefined }}
+        onClick={(e) => {
+          // Tıkla-yerleştir modu: resme tıklayınca marker pozisyonunu belirle
+          if (!addMarkerMode || !imageSrc) return;
+          if (!containerRef.current) return;
+
+          const rect = containerRef.current.getBoundingClientRect();
+          let xPercent, yPercent;
+
+          if (imageRenderArea) {
+            const { renderW, renderH, offsetX, offsetY } = imageRenderArea;
+            const relX = e.clientX - rect.left - offsetX;
+            const relY = e.clientY - rect.top - offsetY;
+            // Resim dışına tıklamayı engelle
+            if (relX < 0 || relX > renderW || relY < 0 || relY > renderH) return;
+            xPercent = (relX / renderW) * 100;
+            yPercent = (relY / renderH) * 100;
+          } else {
+            xPercent = ((e.clientX - rect.left) / rect.width) * 100;
+            yPercent = ((e.clientY - rect.top) / rect.height) * 100;
+          }
+
+          // Sınırları 0-100 arasında tut
+          xPercent = Math.max(0, Math.min(100, xPercent));
+          yPercent = Math.max(0, Math.min(100, yPercent));
+
+          setPendingMarkerPos({ x: xPercent, y: yPercent });
+          setShowMarkerPanel(true);
+        }}
       >
         {/* Marker ekleme paneli — absolute overlay, resmi küçültmez */}
         <AnimatePresence>
@@ -321,7 +382,13 @@ export default function ImageMapWidget({
               <MarkerConfigPanel
                 devices={devices}
                 onAdd={handleAddMarker}
-                onClose={() => setShowMarkerPanel(false)}
+                onClose={() => {
+                  setShowMarkerPanel(false);
+                  setAddMarkerMode(false);
+                  setPendingMarkerPos(null);
+                }}
+                initialXPos={pendingMarkerPos?.x ?? 50}
+                initialYPos={pendingMarkerPos?.y ?? 50}
               />
             </div>
           )}
@@ -369,6 +436,7 @@ export default function ImageMapWidget({
                   imageRenderArea={imageRenderArea}
                   onDragEnd={handleMarkerDragEnd}
                   onRemove={handleRemoveMarker}
+                  onDelete={handleDeleteMarker}
                   markerSize={markerSize}
                   markerColor={markerColor}
                   showTooltips={showTooltips}

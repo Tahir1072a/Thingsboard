@@ -4,11 +4,15 @@
  * RpcSliderWidget — RPC Kaydırıcı Kontrolü
  * Cihaza sayısal değer gönderir (0-100 arası).
  * Config: { method: "setSpeed", paramKey: "value", min: 0, max: 100, step: 1, unit: "%" }
+ *
+ * stateKey desteği: Telemetriden son değeri okuyarak sayfa yenilendiğinde
+ * slider'ın son pozisyonunu geri yükler. SSE ile canlı güncelleme alır.
  */
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { SlidersHorizontal, Send, Loader2 } from "lucide-react";
 import { getUnitSymbol } from "@/lib/units";
+import { useTelemetrySSE } from "@/lib/sse-pool";
 import toast from "react-hot-toast";
 
 export default function RpcSliderWidget({
@@ -39,10 +43,42 @@ export default function RpcSliderWidget({
     }
   } catch { /* geçersiz JSON yoksay */ }
 
+  // Telemetri key'i — widget'a key atanmışsa onu kullan, yoksa config'den al
+  const stateKey = keys[0] || config.stateKey || null;
+
   const [value, setValue] = useState(min);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [initialized, setInitialized] = useState(false);
   const debounceRef = useRef(null);
+
+  // Açılışta son telemetri değerini çek (durum geri yükleme)
+  useEffect(() => {
+    if (!deviceId || !stateKey || initialized) return;
+    fetch(`/api/telemetry?deviceId=${deviceId}&key=${stateKey}&limit=1`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.ok && data.data?.length > 0) {
+          const lastVal = parseFloat(data.data[0].value);
+          if (!isNaN(lastVal)) {
+            // Değeri min-max aralığına sınırla
+            setValue(Math.min(max, Math.max(min, lastVal)));
+          }
+        }
+        setInitialized(true);
+      })
+      .catch(() => setInitialized(true));
+  }, [deviceId, stateKey, initialized, min, max]);
+
+  // SSE ile canlı telemetri dinle — cihaz durum gönderdiğinde slider güncellenir
+  useTelemetrySSE(deviceId, useCallback((telemetryData) => {
+    if (stateKey && telemetryData.key === stateKey) {
+      const v = parseFloat(telemetryData.value);
+      if (!isNaN(v)) {
+        setValue(Math.min(max, Math.max(min, v)));
+      }
+    }
+  }, [stateKey, min, max]));
 
   const sendRpc = useCallback(async (val) => {
     if (!deviceId || isEditMode) return;

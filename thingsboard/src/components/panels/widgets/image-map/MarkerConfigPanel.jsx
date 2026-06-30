@@ -3,37 +3,60 @@
 /**
  * MarkerConfigPanel — Yeni marker ekleme paneli
  *
- * Cihaz seçimi, telemetri key girişi, ikon tipi seçimi.
- * Yeni marker plan merkezine (50%, 50%) eklenir.
+ * Cihaz seçimi, telemetri key girişi, ikon tipi seçimi,
+ * per-marker renk ve boyut özelleştirmesi.
+ * Tıkla-yerleştir modunda initialXPos/initialYPos ile konum alır.
  */
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
+  MapPin,
   Thermometer,
-  Lightbulb,
+  Droplets,
+  Wind,
+  Gauge,
+  Zap,
+  Wifi,
   Camera,
+  AlertTriangle,
   Activity,
-  CircleDot,
+  Sun,
+  Fan,
   Plus,
   XCircle,
 } from "lucide-react";
 
-/* ── Seçilebilir ikon tipleri ── */
+/* ── Seçilebilir ikon tipleri (genişletilmiş Lucide set) ── */
 const ICON_OPTIONS = [
-  { value: "thermostat", label: "Sıcaklık", icon: Thermometer },
-  { value: "light", label: "Işık", icon: Lightbulb },
+  { value: "pin", label: "Pin", icon: MapPin },
+  { value: "thermometer", label: "Sıcaklık", icon: Thermometer },
+  { value: "droplets", label: "Nem", icon: Droplets },
+  { value: "wind", label: "Rüzgâr", icon: Wind },
+  { value: "gauge", label: "Gösterge", icon: Gauge },
+  { value: "zap", label: "Enerji", icon: Zap },
+  { value: "wifi", label: "Wi-Fi", icon: Wifi },
   { value: "camera", label: "Kamera", icon: Camera },
-  { value: "sensor", label: "Sensör", icon: Activity },
-  { value: "generic", label: "Genel", icon: CircleDot },
+  { value: "alert", label: "Uyarı", icon: AlertTriangle },
+  { value: "activity", label: "Aktivite", icon: Activity },
+  { value: "sun", label: "Güneş", icon: Sun },
+  { value: "fan", label: "Fan", icon: Fan },
 ];
 
-export default function MarkerConfigPanel({ devices: propDevices = [], onAdd, onClose }) {
+export default function MarkerConfigPanel({
+  devices: propDevices = [],
+  onAdd,
+  onClose,
+  initialXPos = 50,
+  initialYPos = 50,
+}) {
   const [deviceList, setDeviceList] = useState([]);
   const [loadingDevices, setLoadingDevices] = useState(false);
   const [deviceId, setDeviceId] = useState("");
   const [telemetryKey, setTelemetryKey] = useState("");
-  const [iconType, setIconType] = useState("generic");
+  const [iconType, setIconType] = useState("pin");
+  const [markerColor, setMarkerColor] = useState("");
+  const [markerSizeLocal, setMarkerSizeLocal] = useState("");
   const [availableKeys, setAvailableKeys] = useState([]);
   const [loadingKeys, setLoadingKeys] = useState(false);
 
@@ -84,9 +107,11 @@ export default function MarkerConfigPanel({ devices: propDevices = [], onAdd, on
       deviceId,
       deviceName: selectedDevice?.name || "Cihaz",
       telemetryKey: telemetryKey.trim(),
-      xPos: 50,
-      yPos: 50,
+      xPos: initialXPos,
+      yPos: initialYPos,
       iconType,
+      color: markerColor || null,
+      size: markerSizeLocal ? Number(markerSizeLocal) : null,
     });
   };
 
@@ -100,7 +125,7 @@ export default function MarkerConfigPanel({ devices: propDevices = [], onAdd, on
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: 8, scale: 0.96 }}
       transition={{ duration: 0.2 }}
-      className="bg-white/90 backdrop-blur-md rounded-xl shadow-lg p-4 border border-gray-200 w-72"
+      className="bg-white/90 backdrop-blur-md rounded-xl shadow-lg p-4 border border-gray-200 w-80"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         {/* ── Başlık ── */}
@@ -178,7 +203,7 @@ export default function MarkerConfigPanel({ devices: propDevices = [], onAdd, on
           <label className="block text-xs font-medium text-text-muted mb-1">
             İkon Tipi
           </label>
-          <div className="flex gap-1.5">
+          <div className="grid grid-cols-6 gap-1.5">
             {ICON_OPTIONS.map(({ value, label, icon: Ico }) => (
               <button
                 key={value}
@@ -186,7 +211,7 @@ export default function MarkerConfigPanel({ devices: propDevices = [], onAdd, on
                 onClick={() => setIconType(value)}
                 title={label}
                 className={`
-                  flex items-center justify-center h-9 w-9 rounded-lg border transition-all
+                  flex items-center justify-center h-8 w-8 rounded-lg border transition-all
                   ${
                     iconType === value
                       ? "border-halo-400 bg-halo-50 text-halo-600 shadow-sm"
@@ -194,9 +219,70 @@ export default function MarkerConfigPanel({ devices: propDevices = [], onAdd, on
                   }
                 `}
               >
-                <Ico className="h-4 w-4" />
+                <Ico className="h-3.5 w-3.5" />
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* ── Per-marker renk seçimi ── */}
+        <div>
+          <label className="block text-xs font-medium text-text-muted mb-1">
+            Marker Renk <span className="text-text-muted/50">(opsiyonel)</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              value={markerColor || "#6366f1"}
+              onChange={(e) => setMarkerColor(e.target.value)}
+              className="h-8 w-10 rounded border border-gray-200 cursor-pointer bg-white/70 p-0.5"
+            />
+            <input
+              type="text"
+              value={markerColor}
+              onChange={(e) => setMarkerColor(e.target.value)}
+              placeholder="Varsayılan"
+              className={`${inputCls} flex-1`}
+            />
+            {markerColor && (
+              <button
+                type="button"
+                onClick={() => setMarkerColor("")}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                title="Sıfırla"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ── Per-marker boyut seçimi ── */}
+        <div>
+          <label className="block text-xs font-medium text-text-muted mb-1">
+            Marker Boyut <span className="text-text-muted/50">(opsiyonel, 12-48)</span>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={12}
+              max={48}
+              step={4}
+              value={markerSizeLocal}
+              onChange={(e) => setMarkerSizeLocal(e.target.value)}
+              placeholder="Varsayılan"
+              className={inputCls}
+            />
+            {markerSizeLocal && (
+              <button
+                type="button"
+                onClick={() => setMarkerSizeLocal("")}
+                className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+                title="Sıfırla"
+              >
+                ✕
+              </button>
+            )}
           </div>
         </div>
 

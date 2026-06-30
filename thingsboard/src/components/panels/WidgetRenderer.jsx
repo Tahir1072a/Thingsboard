@@ -31,7 +31,9 @@ import ScadaMotorWidget from "./widgets/scada/ScadaMotorWidget";
 import ScadaSensorWidget from "./widgets/scada/ScadaSensorWidget";
 import ScadaGaugeWidget from "./widgets/scada/ScadaGaugeWidget";
 import ScadaBarGaugeWidget from "./widgets/scada/ScadaBarGaugeWidget";
+import ScadaSymbolWidget from "./widgets/scada/ScadaSymbolWidget";
 import BaseWidgetCard from "./BaseWidgetCard";
+import WidgetErrorBoundary from "./WidgetErrorBoundary";
 import { BarChart3, Gauge, Hash, Table2, Map, AlertCircle, PieChart, LayoutGrid, Bell, MapPin, Power, SlidersHorizontal, Zap, Factory, Droplets, Thermometer, Activity, CircleDot } from "lucide-react";
 import dynamic from "next/dynamic";
 
@@ -60,6 +62,7 @@ const WIDGET_MAP = {
   scada_sensor: ScadaSensorWidget,
   scada_gauge: ScadaGaugeWidget,
   scada_bar_gauge: ScadaBarGaugeWidget,
+  scada_symbol: ScadaSymbolWidget,
 };
 
 export const WIDGET_TYPES = [
@@ -211,6 +214,14 @@ export const WIDGET_TYPES = [
     description: "Yatay/dikey bar gösterge",
     defaultSize: { w: 6, h: 3 },
   },
+  {
+    type: "scada_symbol",
+    label: "SCADA Sembol",
+    icon: Factory,
+    description: "Kütüphaneden SCADA sembolü",
+    category: "scada",
+    defaultSize: { w: 4, h: 4 },
+  },
 ];
 
 export default function WidgetRenderer({
@@ -247,16 +258,18 @@ export default function WidgetRenderer({
       onDelete={onDelete}
       onEdit={onEdit ? () => onEdit(widget) : undefined}
     >
-      <Component
-        devices={devices}
-        keys={widget.keys || []}
-        title={widget.title}
-        config={widget.config || {}}
-        isEditMode={isEditMode}
-        widgetId={widget.i}
-        onConfigChange={onWidgetConfigChange}
-        publicToken={publicToken}
-      />
+      <WidgetErrorBoundary widgetId={widget.i}>
+        <Component
+          devices={devices}
+          keys={widget.keys || []}
+          title={widget.title}
+          config={widget.config || {}}
+          isEditMode={isEditMode}
+          widgetId={widget.i}
+          onConfigChange={onWidgetConfigChange}
+          publicToken={publicToken}
+        />
+      </WidgetErrorBoundary>
     </BaseWidgetCard>
   );
 }

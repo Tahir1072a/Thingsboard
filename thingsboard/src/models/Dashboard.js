@@ -20,7 +20,7 @@ const WidgetSchema = new Schema(
         "bar_chart", "pie_chart", "stat_card", "alarm_list", "geo_map",
         "rpc_switch", "rpc_slider", "rpc_button",
         "scada_valve", "scada_pump", "scada_tank", "scada_pipe",
-        "scada_motor", "scada_sensor", "scada_gauge", "scada_bar_gauge",
+        "scada_motor", "scada_sensor", "scada_gauge", "scada_bar_gauge", "scada_symbol",
       ],
       required: true,
     },
@@ -125,6 +125,12 @@ const DashboardSchema = new Schema(
       enum: ["default", "scada"],
       default: "default",
     },
+    /**
+     * layoutConfig (Mixed):
+     *   backgroundImage  : String (URL) — SCADA arka plan görseli
+     *   backgroundSize   : 'contain' | 'cover' | 'auto' (default: 'cover')
+     *   backgroundOpacity: Number 0-1 (default: 1)
+     */
     layoutConfig: { type: Schema.Types.Mixed, default: {} },
 
     // ── Paylaşım ──

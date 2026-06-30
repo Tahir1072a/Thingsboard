@@ -18,6 +18,8 @@ import {
   LayoutDashboard, Pencil, Check,
   Share2, Link, Copy, Link2,
   Factory, Layers, Settings2,
+  ImageIcon, Trash2,
+  Maximize2, Minimize2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import Breadcrumbs from "@/components/common/breadcrumbs";
@@ -53,8 +55,13 @@ export default function DashboardEditorPage() {
   const [shareOpen, setShareOpen] = useState(false);
   const [shareData, setShareData] = useState({ isPublic: false, publicToken: null, publicUrl: null });
   const [shareLoading, setShareLoading] = useState(false);
-  const [copied, setCopied] = useState(null); // 'url' | 'embed' | null
-  const [aliasPanel, setAliasPanel] = useState(false); // Alias yönetim paneli
+  const [copied, setCopied] = useState(null);
+  const [aliasPanel, setAliasPanel] = useState(false);
+  const [bgUploading, setBgUploading] = useState(false);
+  const bgInputRef = useRef(null);
+
+  // Fullscreen state
+  const [isFullscreen, setIsFullscreen] = useState(false);
 
   // ── Dashboard States (sekmeler) ──
   const [activeStateId, setActiveStateId] = useState("default");
@@ -142,6 +149,28 @@ export default function DashboardEditorPage() {
     fetchDashboard();
     fetchDevices();
   }, [fetchDashboard, fetchDevices]);
+
+  // ── Fullscreen toggle ──
+  const toggleFullscreen = useCallback(() => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().then(() => {
+        setIsFullscreen(true);
+      }).catch(() => {});
+    } else {
+      document.exitFullscreen().then(() => {
+        setIsFullscreen(false);
+      }).catch(() => {});
+    }
+  }, []);
+
+  // fullscreenchange event dinle (ESC ile çıkış)
+  useEffect(() => {
+    const handler = () => {
+      setIsFullscreen(!!document.fullscreenElement);
+    };
+    document.addEventListener('fullscreenchange', handler);
+    return () => document.removeEventListener('fullscreenchange', handler);
+  }, []);
 
   // ── Alias'ları çözümle ──
   const resolveEntityAliases = useCallback(async (aliases) => {
@@ -295,6 +324,70 @@ export default function DashboardEditorPage() {
   };
 
   // ------------------------------------------------------------------ //
+  // Arka plan yükleme (SCADA)
+  // ------------------------------------------------------------------ //
+  const handleBgUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const allowed = ["image/png", "image/jpeg", "image/svg+xml", "image/webp"];
+    if (!allowed.includes(file.type)) {
+      toast.error("Desteklenmeyen dosya türü. PNG, JPEG, SVG veya WebP yükleyin.");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Dosya boyutu 10MB'ı aşamaz.");
+      return;
+    }
+
+    try {
+      setBgUploading(true);
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await fetch("/api/upload/background", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+
+      if (data.ok) {
+        setDashboard((prev) => ({
+          ...prev,
+          layoutConfig: {
+            ...(prev.layoutConfig || {}),
+            backgroundImage: data.url,
+            backgroundSize: prev.layoutConfig?.backgroundSize || "cover",
+            backgroundOpacity: prev.layoutConfig?.backgroundOpacity ?? 1,
+          },
+        }));
+        toast.success("Arka plan görseli yüklendi! Kaydetmeyi unutmayın.");
+      } else {
+        toast.error(data.message || "Yükleme başarısız.");
+      }
+    } catch {
+      toast.error("Arka plan yükleme hatası.");
+    } finally {
+      setBgUploading(false);
+      // Input'u temizle (aynı dosya tekrar seçilebilsin)
+      if (bgInputRef.current) bgInputRef.current.value = "";
+    }
+  };
+
+  const handleBgRemove = () => {
+    setDashboard((prev) => ({
+      ...prev,
+      layoutConfig: {
+        ...(prev.layoutConfig || {}),
+        backgroundImage: null,
+        backgroundSize: "cover",
+        backgroundOpacity: 1,
+      },
+    }));
+    toast.success("Arka plan kaldırıldı. Kaydetmeyi unutmayın.");
+  };
+
+  // ------------------------------------------------------------------ //
   // Paylaşım işlemleri
   // ------------------------------------------------------------------ //
   const handleEnableShare = async () => {
@@ -364,8 +457,8 @@ export default function DashboardEditorPage() {
   }));
 
   return (
-    <div className="space-y-4 p-1 min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -my-4 px-4 py-4 rounded-xl">
-      {!editMode && (
+    <div className={`space-y-4 p-1 min-h-[calc(100vh-4rem)] bg-slate-50/50 -mx-4 -my-4 px-4 py-4 rounded-xl${isFullscreen ? ' fixed inset-0 z-[9999] bg-white overflow-y-auto' : ''}`}>
+      {!editMode && !isFullscreen && (
         <Breadcrumbs items={[
           { label: "Panolar", href: "/panolar" },
           { label: dashboard?.name || "Pano Detayı" },
@@ -403,7 +496,7 @@ export default function DashboardEditorPage() {
           ) : (
             <div className="flex items-center gap-2">
               <LayoutDashboard className="h-5 w-5 text-halo-600" />
-              <h1 className="text-xl font-bold text-text-main">{dashboard.name}</h1>
+              <h1 className={`font-bold text-text-main ${isFullscreen ? 'text-2xl' : 'text-xl'}`}>{dashboard.name}</h1>
               {editMode && (
                 <button onClick={() => setEditingName(true)} className="text-text-muted hover:text-text-main">
                   <Pencil className="h-3.5 w-3.5" />
@@ -459,6 +552,14 @@ export default function DashboardEditorPage() {
             <Share2 className="mr-1.5 h-4 w-4" />
             Paylaş
           </Button>
+          <button
+            onClick={toggleFullscreen}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all bg-white text-gray-600 border-gray-300 hover:border-sky-400 hover:text-sky-600"
+            title={isFullscreen ? 'Tam ekrandan çık' : 'Tam ekran'}
+          >
+            {isFullscreen ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+            {isFullscreen ? 'Çık' : 'Tam Ekran'}
+          </button>
           <Button
             variant={editMode ? "outline" : "default"}
             size="sm"
@@ -565,7 +666,7 @@ export default function DashboardEditorPage() {
             )
           )}
 
-          {/* SCADA Layout toggle (edit modda) */}
+          {/* SCADA Layout toggle + Arka Plan (edit modda) */}
           {editMode && (
             <div className="ml-auto flex items-center gap-2">
               <button
@@ -585,6 +686,37 @@ export default function DashboardEditorPage() {
                 <Factory className="h-3.5 w-3.5" />
                 SCADA
               </button>
+
+              {/* SCADA modda arka plan yükleme butonları */}
+              {dashboard.layoutType === "scada" && (
+                <>
+                  <input
+                    ref={bgInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                    className="hidden"
+                    onChange={handleBgUpload}
+                  />
+                  <button
+                    onClick={() => bgInputRef.current?.click()}
+                    disabled={bgUploading}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all bg-white text-gray-600 border-gray-300 hover:border-sky-400 hover:text-sky-600 disabled:opacity-50"
+                  >
+                    <ImageIcon className="h-3.5 w-3.5" />
+                    {bgUploading ? "Yükleniyor..." : "Arka Plan"}
+                  </button>
+                  {dashboard.layoutConfig?.backgroundImage && (
+                    <button
+                      onClick={handleBgRemove}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all bg-white text-red-500 border-red-200 hover:border-red-400 hover:bg-red-50"
+                      title="Arka planı kaldır"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Kaldır
+                    </button>
+                  )}
+                </>
+              )}
             </div>
           )}
         </div>
@@ -608,7 +740,21 @@ export default function DashboardEditorPage() {
           )}
         </div>
       ) : (
-        <div ref={containerRef} className={dashboard.layoutType === "scada" ? "bg-[#e0e0e0] rounded-lg p-2 min-h-[600px]" : ""}>
+        <div
+          ref={containerRef}
+          className={dashboard.layoutType === "scada" ? "bg-[#e0e0e0] rounded-lg p-2 min-h-[600px] relative" : ""}
+          style={
+            dashboard.layoutType === "scada" && dashboard.layoutConfig?.backgroundImage
+              ? {
+                backgroundImage: `url(${dashboard.layoutConfig.backgroundImage})`,
+                backgroundSize: dashboard.layoutConfig.backgroundSize || "cover",
+                backgroundPosition: "center",
+                backgroundRepeat: "no-repeat",
+                opacity: dashboard.layoutConfig.backgroundOpacity ?? 1,
+              }
+              : undefined
+          }
+        >
           <ResponsiveGridLayout
             className="layout"
             width={containerWidth}

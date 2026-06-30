@@ -29,7 +29,7 @@ const AlarmRuleSchema = new Schema(
       type: String,
       default: "",
     },
-    // Zaman penceresi: "Son X saniyede N kez tetiklenirse"
+
     timeWindow: {
       enabled: { type: Boolean, default: false },
       durationSeconds: { type: Number, default: 300 },  // 5 dakika

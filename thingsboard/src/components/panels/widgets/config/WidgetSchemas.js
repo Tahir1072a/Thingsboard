@@ -662,12 +662,7 @@ export const WIDGET_SCHEMAS = {
           { label: "Karanlık", value: "dark" },
         ],
       },
-      {
-        key: "clustering",
-        label: "Kümeleme",
-        type: "toggle",
-        defaultValue: false,
-      },
+
     ],
   },
 
@@ -828,6 +823,13 @@ export const WIDGET_SCHEMAS = {
         type: "text",
         defaultValue: "",
         placeholder: '{"pin": 4}',
+      },
+      {
+        key: "stateKey",
+        label: "Durum Telemetri Key'i",
+        type: "text",
+        defaultValue: "",
+        placeholder: "speed",
       },
     ],
     advancedFields: [
@@ -1124,6 +1126,32 @@ Object.assign(WIDGET_SCHEMAS, {
         { value: "horizontal", label: "Yatay" },
         { value: "vertical", label: "Dikey" },
       ] },
+    ],
+  },
+  scada_symbol: {
+    category: "scada",
+    datasource: {
+      maxDevices: 1,
+      maxKeys: Infinity,
+      requireDevice: false,
+      requireKey: false,
+    },
+    basicFields: [
+      {
+        key: "symbolId",
+        label: "SCADA Sembolü",
+        type: "scada_symbol_select",
+        defaultValue: "",
+      },
+    ],
+    advancedFields: [
+      {
+        key: "padding",
+        label: "İç Boşluk",
+        type: "text",
+        defaultValue: "4px",
+        placeholder: "4px",
+      },
     ],
   },
 });

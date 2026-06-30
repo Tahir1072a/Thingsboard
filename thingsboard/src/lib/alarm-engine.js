@@ -56,13 +56,13 @@ function evaluateSingle(expr, key, value, context) {
 
   if (isNumeric) {
     switch (operator) {
-      case ">":  return actualValue > thresholdNum;
+      case ">": return actualValue > thresholdNum;
       case ">=": return actualValue >= thresholdNum;
-      case "<":  return actualValue < thresholdNum;
+      case "<": return actualValue < thresholdNum;
       case "<=": return actualValue <= thresholdNum;
       case "==": return actualValue === thresholdNum;
       case "!=": return actualValue !== thresholdNum;
-      default:   return false;
+      default: return false;
     }
   } else {
     // String karşılaştırma — tırnakları sil
@@ -71,7 +71,7 @@ function evaluateSingle(expr, key, value, context) {
     switch (operator) {
       case "==": return strValue === strThreshold;
       case "!=": return strValue !== strThreshold;
-      default:   return false; // >, < string için anlamsız
+      default: return false; // >, < string için anlamsız
     }
   }
 }
@@ -136,7 +136,7 @@ export async function getDeviceTelemetryContext(deviceId) {
 export async function updateTelemetryContext(deviceId, key, value) {
   try {
     await redis.hset(`telemetry-ctx:${deviceId}`, key, JSON.stringify(value));
-    await redis.expire(`telemetry-ctx:${deviceId}`, 3600); // 1 saat TTL
+    await redis.expire(`telemetry-ctx:${deviceId}`, 3600);
   } catch {
     // Redis hatası telemetriyi engellemeyecek
   }

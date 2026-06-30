@@ -55,17 +55,22 @@ export default function ScadaGaugeWidget({
 
   useTelemetrySSE(!publicToken ? deviceId : null, handleData);
 
-  /* Initial fetch */
+  /* Initial fetch + public mod polling */
   useEffect(() => {
     if (!deviceId) return;
     let alive = true;
     const url = publicToken
       ? `/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}&limit=1`
       : `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}&limit=1`;
-    fetch(url).then(r => r.json()).then(json => {
-      if (alive && json.ok && json.data?.[0]) setValue(Number(json.data[0].value));
-    }).catch(() => {});
-    return () => { alive = false; };
+    const fetchData = () => {
+      fetch(url).then(r => r.json()).then(json => {
+        if (alive && json.ok && json.data?.[0]) setValue(Number(json.data[0].value));
+      }).catch(() => {});
+    };
+    fetchData();
+    // Public modda 10s'de bir polling yap
+    const interval = publicToken ? setInterval(fetchData, 10000) : null;
+    return () => { alive = false; if (interval) clearInterval(interval); };
   }, [deviceId, key, publicToken]);
 
   const clamped = value !== null ? Math.min(max, Math.max(min, value)) : min;

@@ -41,20 +41,25 @@ export default function ScadaMotorWidget({
 
   useTelemetrySSE(!publicToken ? deviceId : null, handleData);
 
-  /* Initial fetch */
+  /* Initial fetch + public mod polling */
   useEffect(() => {
     if (!deviceId) return;
     let alive = true;
     const url = publicToken
       ? `/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}&limit=1`
       : `/api/telemetry?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(key)}&limit=1`;
-    fetch(url).then(r => r.json()).then(json => {
-      if (alive && json.ok && json.data?.[0]) {
-        const v = json.data[0].value;
-        setRunning(v === true || v === "true" || v === 1 || v === "1");
-      }
-    }).catch(() => {});
-    return () => { alive = false; };
+    const fetchData = () => {
+      fetch(url).then(r => r.json()).then(json => {
+        if (alive && json.ok && json.data?.[0]) {
+          const v = json.data[0].value;
+          setRunning(v === true || v === "true" || v === 1 || v === "1");
+        }
+      }).catch(() => {});
+    };
+    fetchData();
+    // Public modda 10s'de bir polling yap
+    const interval = publicToken ? setInterval(fetchData, 10000) : null;
+    return () => { alive = false; if (interval) clearInterval(interval); };
   }, [deviceId, key, publicToken]);
 
   const ledColor = running ? "#22c55e" : "#ef4444";

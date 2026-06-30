@@ -37,6 +37,7 @@ import { WIDGET_TYPES } from "@/components/panels/WidgetRenderer";
 import { WIDGET_SCHEMAS, WIDGET_CATEGORIES, getDefaultConfig, getDatasourceConstraints } from "./WidgetSchemas";
 import WidgetPreviewer from "./WidgetPreviewer";
 import { getGroupedUnitOptions, getUnitSymbol } from "@/lib/units";
+import { SCADA_SYMBOLS, SCADA_SYMBOL_CATEGORIES, getSymbolsByCategory } from "@/lib/scada-symbol-registry";
 
 // Kategori ikonu eşleştirme
 const CATEGORY_ICONS = {
@@ -69,6 +70,7 @@ export default function WidgetConfigModal({
   const [activeTab, setActiveTab] = useState("basic"); // "basic" | "advanced"
   const [availableKeys, setAvailableKeys] = useState([]);
   const [activeCategory, setActiveCategory] = useState(null);
+  const [symbolCategory, setSymbolCategory] = useState("all"); // SCADA sembol filtre
 
   // Alias state
   const [useAlias, setUseAlias] = useState(false);
@@ -572,6 +574,79 @@ export default function WidgetConfigModal({
                 }),
               }}
             />
+          </div>
+        );
+      }
+
+      case "scada_symbol_select": {
+        const filteredSymbols = getSymbolsByCategory(symbolCategory);
+
+        return (
+          <div key={field.key} className="space-y-3">
+            <Label className="text-xs font-medium text-text-muted">{field.label}</Label>
+
+            {/* Kategori filtreleri */}
+            <div className="flex flex-wrap gap-1">
+              {SCADA_SYMBOL_CATEGORIES.map((cat) => (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setSymbolCategory(cat.id)}
+                  className={cn(
+                    "px-2.5 py-1 text-[11px] font-medium rounded-full border transition-all",
+                    symbolCategory === cat.id
+                      ? "bg-halo-600 text-white border-halo-600"
+                      : "bg-white/60 text-gray-500 border-gray-200 hover:border-halo-400 hover:text-halo-600"
+                  )}
+                >
+                  {cat.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Sembol grid'i */}
+            <div className="grid grid-cols-4 gap-2 max-h-[240px] overflow-y-auto pr-1">
+              {filteredSymbols.map((symbol) => (
+                <button
+                  key={symbol.id}
+                  type="button"
+                  onClick={() => handleConfigChange(field.key, symbol.id)}
+                  className={cn(
+                    "flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all hover:shadow-md",
+                    value === symbol.id
+                      ? "border-halo-600 bg-halo-50 shadow-sm"
+                      : "border-transparent bg-white/50 hover:border-gray-300"
+                  )}
+                  title={symbol.description}
+                >
+                  {/* SVG Ön İzleme */}
+                  <div className="w-12 h-12 flex items-center justify-center">
+                    <img
+                      src={symbol.svgUrl}
+                      alt={symbol.name}
+                      className="max-w-full max-h-full object-contain"
+                      onError={(e) => { e.target.style.display = 'none'; }}
+                    />
+                  </div>
+                  <span className="text-[10px] text-gray-600 text-center leading-tight truncate w-full">
+                    {symbol.name}
+                  </span>
+                  {value === symbol.id && (
+                    <Check className="h-3 w-3 text-halo-600" />
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Seçili sembol bilgisi */}
+            {value && (
+              <div className="text-xs text-halo-600 bg-halo-50 rounded-lg px-3 py-2 flex items-center gap-2">
+                <Check className="h-3.5 w-3.5" />
+                <span className="font-medium">
+                  {SCADA_SYMBOLS.find(s => s.id === value)?.name || value}
+                </span>
+              </div>
+            )}
           </div>
         );
       }

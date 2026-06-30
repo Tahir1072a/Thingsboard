@@ -12,7 +12,7 @@
  * Telemetry key: first key from keys[]
  */
 
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import { useTelemetrySSE } from "@/lib/sse-pool";
 
 export default function ScadaBarGaugeWidget({
@@ -38,7 +38,25 @@ export default function ScadaBarGaugeWidget({
     }
   }, [telemetryKey]);
 
-  useTelemetrySSE(deviceId, handleData);
+  useTelemetrySSE(!publicToken ? deviceId : null, handleData);
+
+  // Public mod polling fallback
+  useEffect(() => {
+    if (!publicToken || !deviceId) return;
+    let alive = true;
+    const fetchData = async () => {
+      try {
+        const res = await fetch(`/api/public/telemetry/${publicToken}?deviceId=${encodeURIComponent(deviceId)}&key=${encodeURIComponent(telemetryKey)}&limit=1`);
+        const json = await res.json();
+        if (alive && json.ok && json.data?.[0]) {
+          setValue(json.data[0].value);
+        }
+      } catch {}
+    };
+    fetchData();
+    const interval = setInterval(fetchData, 10000);
+    return () => { alive = false; clearInterval(interval); };
+  }, [publicToken, deviceId, telemetryKey]);
 
   const numValue = Number(value);
   const hasValue = value !== null && !isNaN(numValue);

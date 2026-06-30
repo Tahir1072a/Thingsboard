@@ -1,22 +1,48 @@
 import { useState, useCallback, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  MapPin,
   Thermometer,
-  Lightbulb,
+  Droplets,
+  Wind,
+  Gauge,
+  Zap,
+  Wifi,
   Camera,
+  AlertTriangle,
   Activity,
-  CircleDot,
+  Sun,
+  Fan,
   X,
 } from "lucide-react";
 
 /* ── Icon type → Lucide component mapping ── */
-const ICON_MAP = {
-  thermostat: Thermometer,
-  light: Lightbulb,
+export const MARKER_ICONS = {
+  pin: MapPin,
+  thermometer: Thermometer,
+  droplets: Droplets,
+  wind: Wind,
+  gauge: Gauge,
+  zap: Zap,
+  wifi: Wifi,
   camera: Camera,
-  sensor: Activity,
-  generic: CircleDot,
+  alert: AlertTriangle,
+  activity: Activity,
+  sun: Sun,
+  fan: Fan,
 };
+
+/* Eski ikon isimlerini de geriye dönük destekle */
+const LEGACY_ICON_MAP = {
+  thermostat: Thermometer,
+  light: Zap,
+  sensor: Activity,
+  generic: MapPin,
+};
+
+function resolveIcon(iconType) {
+  return MARKER_ICONS[iconType] || LEGACY_ICON_MAP[iconType] || MapPin;
+}
 
 export default function MapMarker({
   marker,
@@ -28,14 +54,22 @@ export default function MapMarker({
   imageRenderArea,
   onDragEnd,
   onRemove,
-  markerSize = 24,
-  markerColor = "#6366f1",
+  onDelete,
+  markerSize: globalMarkerSize = 24,
+  markerColor: globalMarkerColor = "#6366f1",
   showTooltips = true,
   showValueLabel = false,
 }) {
   const [hovered, setHovered] = useState(false);
+  /* Drag sonrası framer-motion iç state'ini sıfırlamak için update counter */
+  const [dragResetKey, setDragResetKey] = useState(0);
 
-  const Icon = ICON_MAP[marker.iconType] || CircleDot;
+  /* Per-marker veya global değerler */
+  const markerSize = marker.size || globalMarkerSize;
+  const markerColor = marker.color || globalMarkerColor;
+  const outerSize = markerSize * 1.5;
+
+  const Icon = resolveIcon(marker.iconType);
 
   /* ── Drag başlangıcında pointer-marker offset'ini kaydet ── */
   const dragStartOffset = useRef({ x: 0, y: 0 });
@@ -94,6 +128,9 @@ export default function MapMarker({
       const yPos = Math.max(0, Math.min(100, rawY));
 
       onDragEnd(marker.id, xPos, yPos);
+
+      // Framer-motion iç transform state'ini sıfırla
+      setDragResetKey((k) => k + 1);
     },
     [containerRef, onDragEnd, marker.id, imageRenderArea]
   );
@@ -107,25 +144,39 @@ export default function MapMarker({
     ? { duration: 1.2, repeat: Infinity, ease: "easeInOut" }
     : {};
 
-  /* ── Marker pozisyon hesaplama (resme göre) ── */
+  /* ── Marker pozisyon hesaplama (resme göre) ──
+   * BUG FIX: CSS transform: translate(-50%, -50%) yerine margin kullanıyoruz
+   * çünkü framer-motion drag sırasında kendi transform'unu override eder. */
   const markerStyle = (() => {
     if (imageRenderArea) {
       const { renderW, renderH, offsetX, offsetY } = imageRenderArea;
       return {
         left: `${offsetX + (marker.xPos / 100) * renderW}px`,
         top: `${offsetY + (marker.yPos / 100) * renderH}px`,
-        transform: "translate(-50%, -50%)",
+        marginLeft: -(outerSize / 2),
+        marginTop: -(outerSize / 2),
       };
     }
     return {
       left: `${marker.xPos}%`,
       top: `${marker.yPos}%`,
-      transform: "translate(-50%, -50%)",
+      marginLeft: -(outerSize / 2),
+      marginTop: -(outerSize / 2),
     };
   })();
 
+  /* Silme callback'i — onDelete (yeni) veya onRemove (eski) */
+  const handleDelete = useCallback(
+    (e) => {
+      e.stopPropagation();
+      (onDelete || onRemove)?.(marker.id);
+    },
+    [onDelete, onRemove, marker.id]
+  );
+
   return (
     <motion.div
+      key={`${marker.id}_${dragResetKey}`}
       className="absolute z-10 cancel"
       style={markerStyle}
       /* ── Drag (sadece edit modda) ── */
@@ -176,8 +227,8 @@ export default function MapMarker({
           transition-colors duration-200
         `}
         style={{
-          width: `${markerSize * 1.5}px`,
-          height: `${markerSize * 1.5}px`,
+          width: `${outerSize}px`,
+          height: `${outerSize}px`,
           borderColor: isAlert ? undefined : markerColor,
         }}
       >
@@ -200,14 +251,11 @@ export default function MapMarker({
         </div>
       )}
 
-      {/* ── Edit modda kaldırma (X) butonu ── */}
-      {isEditMode && (
+      {/* ── Edit modda silme (×) butonu — hover'da görünür ── */}
+      {isEditMode && hovered && (
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove?.(marker.id);
-          }}
-          className="absolute -top-1.5 -right-1.5 h-5 w-5 rounded-full
+          onClick={handleDelete}
+          className="absolute -top-2 -right-2 h-5 w-5 rounded-full
             bg-red-500 text-white flex items-center justify-center
             shadow-md hover:bg-red-600 transition-colors z-20"
           title="Sil"
