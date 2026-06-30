@@ -11,8 +11,6 @@ import Device from "../models/Device.js";
 import Telemetry from "../models/Telemetry.js";
 import emitter from "./event-emitter.js";
 import { checkAlarms, updateTelemetryContext } from "./alarm-engine.js";
-import { createRuleMessage, MSG_TYPES } from "./rule-engine/rule-message.js";
-import { processRuleChain } from "./rule-engine/processor.js";
 import logger from "./logger.js";
 
 /**
@@ -98,25 +96,6 @@ export async function handleTelemetry(payload) {
 
   // Alarm kurallarını kontrol et (merkezi motor)
   checkAlarms(deviceId, key, parsedValue, { userId, tenantId });
-
-  // Rule Engine — root chain üzerinden mesajı işle (non-blocking)
-  if (tenantId) {
-    const ruleMsg = createRuleMessage({
-      msgType: MSG_TYPES.POST_TELEMETRY,
-      originatorId: deviceId,
-      originatorType: "DEVICE",
-      msg: { [key]: parsedValue },
-      metadata: {
-        tenantId: String(tenantId),
-        userId: userId ? String(userId) : null,
-        deviceName: "", // telemetry-handler'da device name yok
-        protocol: protocol,
-      },
-    });
-    processRuleChain(String(tenantId), ruleMsg).catch((err) =>
-      logger.error({ err: err.message }, "[rule-engine] Telemetri işleme hatası")
-    );
-  }
 
   return lean;
 }

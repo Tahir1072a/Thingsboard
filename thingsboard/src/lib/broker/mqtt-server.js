@@ -183,8 +183,6 @@ export async function startMqttBroker({ MQTT_PORT, MQTTS_PORT, certsDir }) {
 
         const { default: connectDB } = await import("../db.js");
         const { default: RpcRequest } = await import("../../models/RpcRequest.js");
-        const { processRuleChain } = await import("../rule-engine/processor.js");
-        const { createRuleMessage } = await import("../rule-engine/rule-message.js");
 
         await connectDB();
 
@@ -197,25 +195,6 @@ export async function startMqttBroker({ MQTT_PORT, MQTTS_PORT, certsDir }) {
           method: body.method || "unknown",
           params: body.params || {},
           status: "PENDING",
-        });
-
-        // Rule Engine'e gönder
-        const ruleMsg = createRuleMessage({
-          msgType: "RPC_REQUEST_FROM_DEVICE",
-          originatorId: client.deviceId,
-          msg: body.params || {},
-          metadata: {
-            tenantId: client.tenantId,
-            deviceId: client.deviceId,
-            deviceName: client.deviceName || "",
-            rpcRequestId: rpc.requestId,
-            rpcMethod: body.method,
-            protocol: "mqtt",
-          },
-        });
-
-        processRuleChain(client.tenantId, ruleMsg).catch((err) => {
-          logger.error({ err }, "Client-Side RPC rule chain hatası");
         });
 
         logger.info({ requestId, method: body.method, deviceId: client.deviceId }, "Client-Side RPC alındı");
